@@ -32,6 +32,9 @@ pub enum ClawError {
     #[error("secret store error: {0}")]
     SecretStore(String),
 
+    #[error("provider not found: '{0}'")]
+    ProviderNotFound(String),
+
     #[error(transparent)]
     Sql(#[from] rusqlite::Error),
 
@@ -43,3 +46,14 @@ pub enum ClawError {
 }
 
 pub type ClawResult<T> = Result<T, ClawError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_provider_not_found_display() {
+        let e = ClawError::ProviderNotFound("abc-123".into());
+        assert_eq!(e.to_string(), "provider not found: 'abc-123'");
+    }
+}
