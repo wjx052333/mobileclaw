@@ -29,6 +29,9 @@ pub enum ClawError {
     #[error("parse error: {0}")]
     Parse(String),
 
+    #[error("secret store error: {0}")]
+    SecretStore(String),
+
     #[error(transparent)]
     Sql(#[from] rusqlite::Error),
 
