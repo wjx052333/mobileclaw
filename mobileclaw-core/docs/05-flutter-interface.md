@@ -523,6 +523,65 @@ Full mapping of Rust `ClawError` variants to `ClawException.type` values:
 
 ---
 
+## 3.6 Email Account Management
+
+Email credentials are configured once by the user and stored encrypted in Rust. Dart never retrieves the password after saving.
+
+### FFI Methods
+
+```dart
+// Save account (call once from settings screen)
+await agent.emailAccountSave(
+  dto: EmailAccountDto(
+    id: 'work',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: 587,
+    imapHost: 'imap.gmail.com',
+    imapPort: 993,
+    username: 'alice@gmail.com',
+  ),
+  password: _passwordController.text,  // plaintext, used once
+);
+
+// Load config for display (password NOT returned)
+final EmailAccountDto? config = await agent.emailAccountLoad(id: 'work');
+
+// Remove account
+await agent.emailAccountDelete(id: 'work');
+```
+
+### Security Contract
+
+- `emailAccountSave`: password is encrypted with AES-256-GCM before storage. The plaintext is never written to disk, logs, or memory beyond the immediate encryption call.
+- `emailAccountLoad`: returns config fields only. There is no `emailAccountGetPassword` method. This is intentional and permanent.
+- `emailAccountDelete`: removes both config and encrypted password atomically.
+
+### Dart DTO
+
+```dart
+class EmailAccountDto {
+  final String id;
+  final String smtpHost;
+  final int smtpPort;
+  final String imapHost;
+  final int imapPort;
+  final String username;
+  // No password field — by design
+}
+```
+
+### Flutter Settings UI Pattern
+
+```dart
+// EmailSettingsScreen calls emailAccountSave with password from a
+// SecureTextField (obscured, not cached in widget state after submission).
+// After save, clear the password controller immediately:
+await agent.emailAccountSave(dto: dto, password: _pwCtrl.text);
+_pwCtrl.clear();
+```
+
+---
+
 ## 4. Streaming Chat Usage Example
 
 ### 4.1 StreamBuilder widget
@@ -937,13 +996,22 @@ The following tasks must be completed before the mock can be removed.
 
 ### Rust side
 
-- [ ] Create `mobileclaw-core/src/ffi.rs` with the non-generic `AgentSession` wrapper
-- [ ] Add `AgentConfig`, `AgentEventDto`, and `SkillManifestDto` structs to `ffi.rs`
-- [ ] Add `flutter_rust_bridge = "2"` to `mobileclaw-core/Cargo.toml`
-- [ ] Annotate opaque types with `#[frb(opaque)]`
+- [x] Create `mobileclaw-core/src/ffi.rs` with the non-generic `AgentSession` wrapper
+- [x] Add `AgentConfig`, `AgentEventDto`, and `SkillManifestDto` structs to `ffi.rs`
+- [x] Add `flutter_rust_bridge = "=2.12.0"` to `mobileclaw-core/Cargo.toml`
+- [x] Annotate opaque types with `#[frb(opaque)]`
 - [ ] Add `#[frb(dart_code)]` block to map `ClawError` → `ClawException`
-- [ ] Ensure `ClawError` implements `std::fmt::Display` (already done via `thiserror`)
-- [ ] Run `flutter_rust_bridge_codegen generate` and commit generated files
+- [x] Ensure `ClawError` implements `std::fmt::Display` (via `thiserror`)
+- [x] Commit `frb_generated.rs` (manually maintained — FRB codegen not run in CI)
+- [x] Add `secretsDbPath: String` to `AgentConfig` and `SqliteSecretStore` to `AgentSession`
+- [x] Add `EmailAccountDto` and `email_account_save/load/delete` methods to `AgentSession`
+- [ ] Wire `secretsDbPath` into `AgentConfig(...)` call site in `agent_impl.dart` (flutter-dev worktree)
+- [ ] Replace hardcoded AES dev key with a key derived from `flutter_secure_storage` (cross-platform):
+  - Dart: on first launch, generate a random 32-byte key with `dart:math` `Random.secure()`, store as base64 under key `mobileclaw.secrets_key` via `FlutterSecureStorage`
+  - Dart: on subsequent launches, read the key from secure storage (Android Keystore-backed on Android, iOS Keychain-backed on iOS — `flutter_secure_storage` handles this automatically)
+  - Dart: add `encryptionKey: List<int>` field to `AgentConfig` and pass the 32 raw bytes when calling `AgentSession.create`
+  - Rust: add `encryption_key: Vec<u8>` to `AgentConfig` in `ffi.rs`; replace `b"mobileclaw-dev-key-32bytes000000"` with `config.encryption_key.as_slice().try_into()` in `AgentSession::create`; remove `compile_error!` guard once done
+  - Dart: update `agent_impl.dart` `MobileclawAgentImpl.create` to accept and forward `encryptionKey`
 
 ### Dart side
 

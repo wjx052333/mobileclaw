@@ -4,6 +4,15 @@
 //! that can safely cross the FFI boundary: primitives, String, Vec<T>, Option<T>.
 //! No references, no lifetimes, no generic type parameters in public signatures.
 
+// Compile-time guard: the hardcoded AES key below must be replaced with
+// platform keystore derivation before any release build.
+#[cfg(not(debug_assertions))]
+compile_error!(
+    "AgentSession uses a hardcoded AES key. \
+     Replace with platform keystore derivation before building in release mode. \
+     See mobileclaw-core/docs/05-flutter-interface.md § Security Contract."
+);
+
 use std::{path::Path, sync::Arc};
 
 use flutter_rust_bridge::frb;
@@ -12,6 +21,7 @@ use crate::{
     agent::loop_impl::AgentLoop,
     llm::client::ClaudeClient,
     memory::{Memory, MemoryCategory, MemoryDoc, SearchQuery, sqlite::SqliteMemory},
+    secrets::store::SqliteSecretStore,
     skill::{SkillManager, SkillTrust, load_skills_from_dir},
     tools::{PermissionChecker, ToolContext, ToolRegistry, builtin::register_all_builtins},
 };
@@ -26,6 +36,7 @@ pub struct AgentConfig {
     pub http_allowlist: Vec<String>,
     pub model: String,
     pub skills_dir: Option<String>,
+    pub secrets_db_path: String,  // path to encrypted secrets database
 }
 
 /// An `AgentEvent` that can cross the FFI boundary.
@@ -65,6 +76,16 @@ pub struct MemoryDocDto {
 pub struct SearchResultDto {
     pub doc: MemoryDocDto,
     pub score: f32,
+}
+
+/// Email account configuration DTO (no password — password is stored encrypted in SecretStore).
+pub struct EmailAccountDto {
+    pub id: String,
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub imap_host: String,
+    pub imap_port: u16,
+    pub username: String,
 }
 
 // ─── Private helpers ─────────────────────────────────────────────────────────
@@ -108,6 +129,7 @@ fn doc_to_dto(doc: MemoryDoc) -> MemoryDocDto {
 pub struct AgentSession {
     inner: AgentLoop<ClaudeClient>,
     memory: Arc<SqliteMemory>,
+    secrets: Arc<SqliteSecretStore>,
 }
 
 impl AgentSession {
@@ -119,6 +141,16 @@ impl AgentSession {
 
         let memory = Arc::new(SqliteMemory::open(Path::new(&config.db_path)).await?);
 
+        // Open secrets store — Phase 1 uses a fixed dev key; replaced with platform
+        // keystore derivation before any release build (guarded by compile_error! above).
+        let secrets = Arc::new(
+            SqliteSecretStore::open(
+                std::path::Path::new(&config.secrets_db_path).to_path_buf(),
+                b"mobileclaw-dev-key-32bytes000000",  // 32 bytes
+            )
+            .await?,
+        );
+
         let mut registry = ToolRegistry::new();
         register_all_builtins(&mut registry);
 
@@ -127,6 +159,7 @@ impl AgentSession {
             sandbox_dir: config.sandbox_dir.into(),
             http_allowlist: config.http_allowlist,
             permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: secrets.clone() as Arc<dyn crate::secrets::SecretStore>,
         };
 
         let skills = if let Some(dir) = &config.skills_dir {
@@ -137,7 +170,7 @@ impl AgentSession {
         let skill_mgr = SkillManager::new(skills);
 
         let inner = AgentLoop::new(llm, registry, ctx, skill_mgr);
-        Ok(AgentSession { inner, memory })
+        Ok(AgentSession { inner, memory, secrets })
     }
 
     /// Send a user message and return all events produced by one agent turn.
@@ -254,5 +287,69 @@ impl AgentSession {
     /// Return the total number of memory documents.
     pub async fn memory_count(&self) -> anyhow::Result<usize> {
         self.memory.count().await.map_err(anyhow::Error::from)
+    }
+
+    /// Save an email account configuration and its password.
+    /// The password is encrypted with AES-256-GCM before storage.
+    /// After this call, the password cannot be retrieved in plaintext via any FFI method.
+    pub async fn email_account_save(
+        &self,
+        dto: EmailAccountDto,
+        password: String,
+    ) -> anyhow::Result<()> {
+        use crate::secrets::types::EmailAccount;
+        let acc = EmailAccount {
+            id: dto.id,
+            smtp_host: dto.smtp_host,
+            smtp_port: dto.smtp_port,
+            imap_host: dto.imap_host,
+            imap_port: dto.imap_port,
+            username: dto.username,
+        };
+        self.secrets.put_email_account(&acc, &password).await.map_err(anyhow::Error::from)
+    }
+
+    /// Load an email account's configuration. Returns None if the account does not exist.
+    /// The password is NOT returned — only the non-secret config fields.
+    pub async fn email_account_load(
+        &self,
+        id: String,
+    ) -> anyhow::Result<Option<EmailAccountDto>> {
+        let Some((acc, _pw)) = self.secrets.get_email_account(&id).await? else {
+            return Ok(None);
+        };
+        // _pw is dropped here, zeroing the password bytes
+        Ok(Some(EmailAccountDto {
+            id: acc.id,
+            smtp_host: acc.smtp_host,
+            smtp_port: acc.smtp_port,
+            imap_host: acc.imap_host,
+            imap_port: acc.imap_port,
+            username: acc.username,
+        }))
+    }
+
+    /// Delete an email account and its stored password.
+    pub async fn email_account_delete(&self, id: String) -> anyhow::Result<()> {
+        self.secrets.delete_email_account(&id).await.map_err(anyhow::Error::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn email_account_dto_fields() {
+        let dto = EmailAccountDto {
+            id: "work".into(),
+            smtp_host: "smtp.example.com".into(),
+            smtp_port: 587,
+            imap_host: "imap.example.com".into(),
+            imap_port: 993,
+            username: "alice@example.com".into(),
+        };
+        assert_eq!(dto.id, "work");
+        assert_eq!(dto.smtp_port, 587);
     }
 }

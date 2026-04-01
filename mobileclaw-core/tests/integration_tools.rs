@@ -3,6 +3,7 @@ use mobileclaw_core::tools::{
     builtin::register_all_builtins,
 };
 use mobileclaw_core::memory::sqlite::SqliteMemory;
+use mobileclaw_core::secrets::store::test_helpers::NullSecretStore;
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -13,6 +14,7 @@ async fn make_ctx(dir: &TempDir) -> ToolContext {
         sandbox_dir: dir.path().to_path_buf(),
         http_allowlist: vec!["https://httpbin.org".into()],
         permissions: Arc::new(PermissionChecker::allow_all()),
+        secrets: Arc::new(NullSecretStore),
     }
 }
 

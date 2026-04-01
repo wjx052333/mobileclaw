@@ -110,6 +110,7 @@ mod tests {
             sandbox_dir: sandbox.path().to_path_buf(),
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(crate::secrets::store::test_helpers::NullSecretStore),
         }
     }
 
