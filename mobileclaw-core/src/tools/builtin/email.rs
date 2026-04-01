@@ -108,9 +108,9 @@ impl Tool for EmailSendTool {
                     tool: self.name().into(),
                     message: "cc[] must contain strings".into(),
                 })?;
-                if let Ok(mb) = addr_str.parse::<lettre::message::Mailbox>() {
-                    builder = builder.cc(mb);
-                }
+                let mb = addr_str.parse::<lettre::message::Mailbox>()
+                    .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+                builder = builder.cc(mb);
             }
         }
 
