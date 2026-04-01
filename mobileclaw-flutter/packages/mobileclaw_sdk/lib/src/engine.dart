@@ -86,4 +86,58 @@ abstract class MobileclawAgent {
   /// No-op if the account does not exist.
   /// Throws [ClawException] on storage error.
   Future<void> emailAccountDelete({required String id});
+
+  // ---------------------------------------------------------------------------
+  // Provider management
+  // ---------------------------------------------------------------------------
+
+  /// Save (or update) a provider configuration and optionally its API key.
+  ///
+  /// - If [apiKey] is non-null, it is encrypted and stored on the Rust side.
+  /// - If [apiKey] is null and the provider already exists, the stored key
+  ///   is preserved (useful when editing config fields without changing key).
+  /// - [config.id] must be non-empty when updating an existing provider.
+  ///   Pass an empty string for [config.id] on first save — Rust generates a UUID.
+  ///
+  /// Throws [ClawException] on storage error.
+  Future<void> providerSave({
+    required ProviderConfigDto config,
+    String? apiKey,
+  });
+
+  /// List all saved provider configurations, ordered by creation time ascending.
+  ///
+  /// Returns an empty list if no providers are configured.
+  /// Throws [ClawException] on storage error.
+  Future<List<ProviderConfigDto>> providerList();
+
+  /// Delete a provider and its stored API key.
+  ///
+  /// No-op if the provider does not exist.
+  /// Throws [ClawException] on storage error.
+  Future<void> providerDelete({required String id});
+
+  /// Set the active provider. The session must be re-created to pick up the change.
+  ///
+  /// Throws [ClawException] if [id] does not exist in the store.
+  Future<void> providerSetActive({required String id});
+
+  /// Return the active provider config, or null if none is set.
+  ///
+  /// Throws [ClawException] on storage error.
+  Future<ProviderConfigDto?> providerGetActive();
+
+  /// Test whether a provider is reachable. Static so it can be called without
+  /// a session (e.g., during onboarding before any provider is saved).
+  ///
+  /// Never throws — errors returned in [ProbeResultDto.ok].
+  static Future<ProbeResultDto> probe({
+    required ProviderConfigDto config,
+    String? apiKey,
+  }) {
+    throw UnimplementedError(
+      'Phase 2: replace with real FFI call. '
+      'Call MobileclawAgentImpl.probe() or MockMobileclawAgent.probe().',
+    );
+  }
 }
