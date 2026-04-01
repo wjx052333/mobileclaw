@@ -5,13 +5,15 @@
 
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+part 'ffi.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `category_to_string`, `doc_to_dto`, `string_to_category`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>>
 abstract class AgentSession implements RustOpaqueInterface {
   /// Send a user message and return all events produced by one agent turn.
-  Future<ClawResultVecAgentEventDto> chat({
+  Future<List<AgentEventDto>> chat({
     required String input,
     required String system,
   });
@@ -19,7 +21,7 @@ abstract class AgentSession implements RustOpaqueInterface {
   /// Create a new agent session.
   ///
   /// If `skills_dir` is set, the directory must exist and be readable or `create()` will return an error.
-  static Future<ClawResultAgentSession> create({required AgentConfig config}) =>
+  static Future<AgentSession> create({required AgentConfig config}) =>
       MobileclawCoreBridge.instance.api.crateFfiAgentSessionCreate(
         config: config,
       );
@@ -28,19 +30,19 @@ abstract class AgentSession implements RustOpaqueInterface {
   Future<List<MessageDto>> history();
 
   /// Load skills from a directory and replace the current skill manager.
-  Future<ClawResult> loadSkillsFromDir({required String dir});
+  Future<void> loadSkillsFromDir({required String dir});
 
   /// Return the total number of memory documents.
-  Future<ClawResultUsize> memoryCount();
+  Future<BigInt> memoryCount();
 
   /// Delete a memory document. Returns true if it existed.
-  Future<ClawResultBool> memoryForget({required String path});
+  Future<bool> memoryForget({required String path});
 
   /// Retrieve a single memory document by path.
-  Future<ClawResultOptionMemoryDocDto> memoryGet({required String path});
+  Future<MemoryDocDto?> memoryGet({required String path});
 
   /// Search the memory database and return ranked results.
-  Future<ClawResultVecSearchResultDto> memoryRecall({
+  Future<List<SearchResultDto>> memoryRecall({
     required String query,
     required BigInt limit,
     String? category,
@@ -49,7 +51,7 @@ abstract class AgentSession implements RustOpaqueInterface {
   });
 
   /// Store a document in the memory database.
-  Future<ClawResultMemoryDocDto> memoryStore({
+  Future<MemoryDocDto> memoryStore({
     required String path,
     required String content,
     required String category,
@@ -58,30 +60,6 @@ abstract class AgentSession implements RustOpaqueInterface {
   /// Return the loaded skills as DTOs.
   Future<List<SkillManifestDto>> skills();
 }
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClawResult < () >>>
-abstract class ClawResult implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClawResult < AgentSession >>>
-abstract class ClawResultAgentSession implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClawResult < MemoryDocDto >>>
-abstract class ClawResultMemoryDocDto implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClawResult < Option < MemoryDocDto > >>>
-abstract class ClawResultOptionMemoryDocDto implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClawResult < Vec < AgentEventDto > >>>
-abstract class ClawResultVecAgentEventDto implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClawResult < Vec < SearchResultDto > >>>
-abstract class ClawResultVecSearchResultDto implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClawResult < bool >>>
-abstract class ClawResultBool implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClawResult < usize >>>
-abstract class ClawResultUsize implements RustOpaqueInterface {}
 
 /// Configuration passed from Dart when creating a new agent session.
 class AgentConfig {
@@ -123,6 +101,61 @@ class AgentConfig {
           skillsDir == other.skillsDir;
 }
 
+@freezed
+sealed class AgentEventDto with _$AgentEventDto {
+  const AgentEventDto._();
+
+  const factory AgentEventDto.textDelta({required String text}) =
+      AgentEventDto_TextDelta;
+  const factory AgentEventDto.toolCall({required String name}) =
+      AgentEventDto_ToolCall;
+  const factory AgentEventDto.toolResult({
+    required String name,
+    required bool success,
+  }) = AgentEventDto_ToolResult;
+  const factory AgentEventDto.done() = AgentEventDto_Done;
+}
+
+/// A stored memory document.
+class MemoryDocDto {
+  final String id;
+  final String path;
+  final String content;
+  final String category;
+  final BigInt createdAt;
+  final BigInt updatedAt;
+
+  const MemoryDocDto({
+    required this.id,
+    required this.path,
+    required this.content,
+    required this.category,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      path.hashCode ^
+      content.hashCode ^
+      category.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MemoryDocDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          path == other.path &&
+          content == other.content &&
+          category == other.category &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt;
+}
+
 /// A chat history entry.
 class MessageDto {
   final String role;
@@ -140,6 +173,25 @@ class MessageDto {
           runtimeType == other.runtimeType &&
           role == other.role &&
           content == other.content;
+}
+
+/// A memory search result.
+class SearchResultDto {
+  final MemoryDocDto doc;
+  final double score;
+
+  const SearchResultDto({required this.doc, required this.score});
+
+  @override
+  int get hashCode => doc.hashCode ^ score.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SearchResultDto &&
+          runtimeType == other.runtimeType &&
+          doc == other.doc &&
+          score == other.score;
 }
 
 /// Skill manifest as a plain DTO.

@@ -82,13 +82,13 @@ class MobileclawCoreBridge
 }
 
 abstract class MobileclawCoreBridgeApi extends BaseApi {
-  Future<ClawResultVecAgentEventDto> crateFfiAgentSessionChat({
+  Future<List<AgentEventDto>> crateFfiAgentSessionChat({
     required AgentSession that,
     required String input,
     required String system,
   });
 
-  Future<ClawResultAgentSession> crateFfiAgentSessionCreate({
+  Future<AgentSession> crateFfiAgentSessionCreate({
     required AgentConfig config,
   });
 
@@ -96,26 +96,24 @@ abstract class MobileclawCoreBridgeApi extends BaseApi {
     required AgentSession that,
   });
 
-  Future<ClawResult> crateFfiAgentSessionLoadSkillsFromDir({
+  Future<void> crateFfiAgentSessionLoadSkillsFromDir({
     required AgentSession that,
     required String dir,
   });
 
-  Future<ClawResultUsize> crateFfiAgentSessionMemoryCount({
-    required AgentSession that,
-  });
+  Future<BigInt> crateFfiAgentSessionMemoryCount({required AgentSession that});
 
-  Future<ClawResultBool> crateFfiAgentSessionMemoryForget({
+  Future<bool> crateFfiAgentSessionMemoryForget({
     required AgentSession that,
     required String path,
   });
 
-  Future<ClawResultOptionMemoryDocDto> crateFfiAgentSessionMemoryGet({
+  Future<MemoryDocDto?> crateFfiAgentSessionMemoryGet({
     required AgentSession that,
     required String path,
   });
 
-  Future<ClawResultVecSearchResultDto> crateFfiAgentSessionMemoryRecall({
+  Future<List<SearchResultDto>> crateFfiAgentSessionMemoryRecall({
     required AgentSession that,
     required String query,
     required BigInt limit,
@@ -124,7 +122,7 @@ abstract class MobileclawCoreBridgeApi extends BaseApi {
     BigInt? until,
   });
 
-  Future<ClawResultMemoryDocDto> crateFfiAgentSessionMemoryStore({
+  Future<MemoryDocDto> crateFfiAgentSessionMemoryStore({
     required AgentSession that,
     required String path,
     required String content,
@@ -142,77 +140,6 @@ abstract class MobileclawCoreBridgeApi extends BaseApi {
   get rust_arc_decrement_strong_count_AgentSession;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_AgentSessionPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResult;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResult;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ClawResultPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultAgentSession;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultAgentSession;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultAgentSessionPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultMemoryDocDto;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultMemoryDocDto;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultMemoryDocDtoPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultOptionMemoryDocDto;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultOptionMemoryDocDto;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultOptionMemoryDocDtoPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultVecAgentEventDto;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultVecAgentEventDto;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultVecAgentEventDtoPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultVecSearchResultDto;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultVecSearchResultDto;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultVecSearchResultDtoPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultBool;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultBool;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultBoolPtr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultUsize;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultUsize;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultUsizePtr;
 }
 
 class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
@@ -225,7 +152,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   });
 
   @override
-  Future<ClawResultVecAgentEventDto> crateFfiAgentSessionChat({
+  Future<List<AgentEventDto>> crateFfiAgentSessionChat({
     required AgentSession that,
     required String input,
     required String system,
@@ -248,9 +175,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto,
-          decodeErrorData: null,
+          decodeSuccessData: sse_decode_list_agent_event_dto,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFfiAgentSessionChatConstMeta,
         argValues: [that, input, system],
@@ -265,7 +191,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   );
 
   @override
-  Future<ClawResultAgentSession> crateFfiAgentSessionCreate({
+  Future<AgentSession> crateFfiAgentSessionCreate({
     required AgentConfig config,
   }) {
     return handler.executeNormal(
@@ -282,8 +208,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession,
-          decodeErrorData: null,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFfiAgentSessionCreateConstMeta,
         argValues: [config],
@@ -334,7 +260,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       );
 
   @override
-  Future<ClawResult> crateFfiAgentSessionLoadSkillsFromDir({
+  Future<void> crateFfiAgentSessionLoadSkillsFromDir({
     required AgentSession that,
     required String dir,
   }) {
@@ -355,9 +281,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult,
-          decodeErrorData: null,
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFfiAgentSessionLoadSkillsFromDirConstMeta,
         argValues: [that, dir],
@@ -373,9 +298,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       );
 
   @override
-  Future<ClawResultUsize> crateFfiAgentSessionMemoryCount({
-    required AgentSession that,
-  }) {
+  Future<BigInt> crateFfiAgentSessionMemoryCount({required AgentSession that}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -392,9 +315,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize,
-          decodeErrorData: null,
+          decodeSuccessData: sse_decode_usize,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFfiAgentSessionMemoryCountConstMeta,
         argValues: [that],
@@ -410,7 +332,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       );
 
   @override
-  Future<ClawResultBool> crateFfiAgentSessionMemoryForget({
+  Future<bool> crateFfiAgentSessionMemoryForget({
     required AgentSession that,
     required String path,
   }) {
@@ -431,9 +353,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool,
-          decodeErrorData: null,
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFfiAgentSessionMemoryForgetConstMeta,
         argValues: [that, path],
@@ -449,7 +370,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       );
 
   @override
-  Future<ClawResultOptionMemoryDocDto> crateFfiAgentSessionMemoryGet({
+  Future<MemoryDocDto?> crateFfiAgentSessionMemoryGet({
     required AgentSession that,
     required String path,
   }) {
@@ -470,9 +391,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto,
-          decodeErrorData: null,
+          decodeSuccessData: sse_decode_opt_box_autoadd_memory_doc_dto,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFfiAgentSessionMemoryGetConstMeta,
         argValues: [that, path],
@@ -488,7 +408,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       );
 
   @override
-  Future<ClawResultVecSearchResultDto> crateFfiAgentSessionMemoryRecall({
+  Future<List<SearchResultDto>> crateFfiAgentSessionMemoryRecall({
     required AgentSession that,
     required String query,
     required BigInt limit,
@@ -517,9 +437,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto,
-          decodeErrorData: null,
+          decodeSuccessData: sse_decode_list_search_result_dto,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFfiAgentSessionMemoryRecallConstMeta,
         argValues: [that, query, limit, category, since, until],
@@ -535,7 +454,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       );
 
   @override
-  Future<ClawResultMemoryDocDto> crateFfiAgentSessionMemoryStore({
+  Future<MemoryDocDto> crateFfiAgentSessionMemoryStore({
     required AgentSession that,
     required String path,
     required String content,
@@ -560,9 +479,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto,
-          decodeErrorData: null,
+          decodeSuccessData: sse_decode_memory_doc_dto,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFfiAgentSessionMemoryStoreConstMeta,
         argValues: [that, path, content, category],
@@ -618,69 +536,11 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   get rust_arc_decrement_strong_count_AgentSession => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession;
 
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResult => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResult => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultAgentSession => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultAgentSession => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultMemoryDocDto => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultMemoryDocDto => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultOptionMemoryDocDto => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultOptionMemoryDocDto => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultVecAgentEventDto => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultVecAgentEventDto => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultVecSearchResultDto => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultVecSearchResultDto => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultBool => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultBool => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ClawResultUsize => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ClawResultUsize => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize;
+  @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AnyhowException(raw as String);
+  }
 
   @protected
   AgentSession
@@ -689,88 +549,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AgentSessionImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  ClawResult
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  ClawResultAgentSession
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultAgentSessionImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultMemoryDocDto
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultMemoryDocDtoImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultOptionMemoryDocDto
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultOptionMemoryDocDtoImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultVecAgentEventDto
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultVecAgentEventDtoImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultVecSearchResultDto
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultVecSearchResultDtoImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultBool
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultBoolImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  ClawResultUsize
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultUsizeImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -801,88 +579,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  ClawResult
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  ClawResultAgentSession
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultAgentSessionImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultMemoryDocDto
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultMemoryDocDtoImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultOptionMemoryDocDto
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultOptionMemoryDocDtoImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultVecAgentEventDto
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultVecAgentEventDtoImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultVecSearchResultDto
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultVecSearchResultDtoImpl.frbInternalDcoDecode(
-      raw as List<dynamic>,
-    );
-  }
-
-  @protected
-  ClawResultBool
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultBoolImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  ClawResultUsize
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ClawResultUsizeImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
@@ -905,9 +601,41 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  AgentEventDto dco_decode_agent_event_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return AgentEventDto_TextDelta(text: dco_decode_String(raw[1]));
+      case 1:
+        return AgentEventDto_ToolCall(name: dco_decode_String(raw[1]));
+      case 2:
+        return AgentEventDto_ToolResult(
+          name: dco_decode_String(raw[1]),
+          success: dco_decode_bool(raw[2]),
+        );
+      case 3:
+        return AgentEventDto_Done();
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
+  bool dco_decode_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
+  }
+
+  @protected
   AgentConfig dco_decode_box_autoadd_agent_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_agent_config(raw);
+  }
+
+  @protected
+  MemoryDocDto dco_decode_box_autoadd_memory_doc_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_memory_doc_dto(raw);
   }
 
   @protected
@@ -917,9 +645,21 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  double dco_decode_f_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<AgentEventDto> dco_decode_list_agent_event_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_agent_event_dto).toList();
   }
 
   @protected
@@ -935,9 +675,31 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  List<SearchResultDto> dco_decode_list_search_result_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_search_result_dto).toList();
+  }
+
+  @protected
   List<SkillManifestDto> dco_decode_list_skill_manifest_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_skill_manifest_dto).toList();
+  }
+
+  @protected
+  MemoryDocDto dco_decode_memory_doc_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return MemoryDocDto(
+      id: dco_decode_String(arr[0]),
+      path: dco_decode_String(arr[1]),
+      content: dco_decode_String(arr[2]),
+      category: dco_decode_String(arr[3]),
+      createdAt: dco_decode_u_64(arr[4]),
+      updatedAt: dco_decode_u_64(arr[5]),
+    );
   }
 
   @protected
@@ -959,9 +721,27 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  MemoryDocDto? dco_decode_opt_box_autoadd_memory_doc_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_memory_doc_dto(raw);
+  }
+
+  @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
+  SearchResultDto dco_decode_search_result_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SearchResultDto(
+      doc: dco_decode_memory_doc_dto(arr[0]),
+      score: dco_decode_f_32(arr[1]),
+    );
   }
 
   @protected
@@ -1004,108 +784,19 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_String(deserializer);
+    return AnyhowException(inner);
+  }
+
+  @protected
   AgentSession
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return AgentSessionImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResult
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultAgentSession
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultAgentSessionImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultMemoryDocDto
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultMemoryDocDtoImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultOptionMemoryDocDto
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultOptionMemoryDocDtoImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultVecAgentEventDto
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultVecAgentEventDtoImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultVecSearchResultDto
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultVecSearchResultDtoImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultBool
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultBoolImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultUsize
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultUsizeImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -1148,102 +839,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  ClawResult
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultAgentSession
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultAgentSessionImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultMemoryDocDto
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultMemoryDocDtoImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultOptionMemoryDocDto
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultOptionMemoryDocDtoImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultVecAgentEventDto
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultVecAgentEventDtoImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultVecSearchResultDto
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultVecSearchResultDtoImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultBool
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultBoolImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ClawResultUsize
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ClawResultUsizeImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -1270,6 +865,35 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  AgentEventDto sse_decode_agent_event_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_text = sse_decode_String(deserializer);
+        return AgentEventDto_TextDelta(text: var_text);
+      case 1:
+        var var_name = sse_decode_String(deserializer);
+        return AgentEventDto_ToolCall(name: var_name);
+      case 2:
+        var var_name = sse_decode_String(deserializer);
+        var var_success = sse_decode_bool(deserializer);
+        return AgentEventDto_ToolResult(name: var_name, success: var_success);
+      case 3:
+        return AgentEventDto_Done();
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
   AgentConfig sse_decode_box_autoadd_agent_config(
     SseDeserializer deserializer,
   ) {
@@ -1278,9 +902,23 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  MemoryDocDto sse_decode_box_autoadd_memory_doc_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_memory_doc_dto(deserializer));
+  }
+
+  @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_u_64(deserializer));
+  }
+
+  @protected
+  double sse_decode_f_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getFloat32();
   }
 
   @protected
@@ -1291,6 +929,20 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     var ans_ = <String>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<AgentEventDto> sse_decode_list_agent_event_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <AgentEventDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_agent_event_dto(deserializer));
     }
     return ans_;
   }
@@ -1315,6 +967,20 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  List<SearchResultDto> sse_decode_list_search_result_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SearchResultDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_search_result_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<SkillManifestDto> sse_decode_list_skill_manifest_dto(
     SseDeserializer deserializer,
   ) {
@@ -1326,6 +992,25 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       ans_.add(sse_decode_skill_manifest_dto(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  MemoryDocDto sse_decode_memory_doc_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_path = sse_decode_String(deserializer);
+    var var_content = sse_decode_String(deserializer);
+    var var_category = sse_decode_String(deserializer);
+    var var_createdAt = sse_decode_u_64(deserializer);
+    var var_updatedAt = sse_decode_u_64(deserializer);
+    return MemoryDocDto(
+      id: var_id,
+      path: var_path,
+      content: var_content,
+      category: var_category,
+      createdAt: var_createdAt,
+      updatedAt: var_updatedAt,
+    );
   }
 
   @protected
@@ -1348,6 +1033,19 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  MemoryDocDto? sse_decode_opt_box_autoadd_memory_doc_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_memory_doc_dto(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1356,6 +1054,14 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     } else {
       return null;
     }
+  }
+
+  @protected
+  SearchResultDto sse_decode_search_result_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_doc = sse_decode_memory_doc_dto(deserializer);
+    var var_score = sse_decode_f_32(deserializer);
+    return SearchResultDto(doc: var_doc, score: var_score);
   }
 
   @protected
@@ -1405,9 +1111,12 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  bool sse_decode_bool(SseDeserializer deserializer) {
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getUint8() != 0;
+    sse_encode_String(self.message, serializer);
   }
 
   @protected
@@ -1419,114 +1128,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as AgentSessionImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    ClawResult self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    ClawResultAgentSession self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultAgentSessionImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    ClawResultMemoryDocDto self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultMemoryDocDtoImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    ClawResultOptionMemoryDocDto self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultOptionMemoryDocDtoImpl).frbInternalSseEncode(
-        move: true,
-      ),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    ClawResultVecAgentEventDto self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultVecAgentEventDtoImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    ClawResultVecSearchResultDto self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultVecSearchResultDtoImpl).frbInternalSseEncode(
-        move: true,
-      ),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    ClawResultBool self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultBoolImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    ClawResultUsize self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultUsizeImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
@@ -1571,114 +1172,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    ClawResult self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    ClawResultAgentSession self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultAgentSessionImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    ClawResultMemoryDocDto self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultMemoryDocDtoImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    ClawResultOptionMemoryDocDto self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultOptionMemoryDocDtoImpl).frbInternalSseEncode(
-        move: null,
-      ),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    ClawResultVecAgentEventDto self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultVecAgentEventDtoImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    ClawResultVecSearchResultDto self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultVecSearchResultDtoImpl).frbInternalSseEncode(
-        move: null,
-      ),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    ClawResultBool self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultBoolImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    ClawResultUsize self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ClawResultUsizeImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
@@ -1696,6 +1189,34 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_agent_event_dto(
+    AgentEventDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case AgentEventDto_TextDelta(text: final text):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(text, serializer);
+      case AgentEventDto_ToolCall(name: final name):
+        sse_encode_i_32(1, serializer);
+        sse_encode_String(name, serializer);
+      case AgentEventDto_ToolResult(name: final name, success: final success):
+        sse_encode_i_32(2, serializer);
+        sse_encode_String(name, serializer);
+        sse_encode_bool(success, serializer);
+      case AgentEventDto_Done():
+        sse_encode_i_32(3, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
   void sse_encode_box_autoadd_agent_config(
     AgentConfig self,
     SseSerializer serializer,
@@ -1705,9 +1226,24 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_memory_doc_dto(
+    MemoryDocDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_memory_doc_dto(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_f_32(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putFloat32(self);
   }
 
   @protected
@@ -1716,6 +1252,18 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_agent_event_dto(
+    List<AgentEventDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_agent_event_dto(item, serializer);
     }
   }
 
@@ -1742,6 +1290,18 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_search_result_dto(
+    List<SearchResultDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_search_result_dto(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_skill_manifest_dto(
     List<SkillManifestDto> self,
     SseSerializer serializer,
@@ -1751,6 +1311,17 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     for (final item in self) {
       sse_encode_skill_manifest_dto(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_memory_doc_dto(MemoryDocDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.path, serializer);
+    sse_encode_String(self.content, serializer);
+    sse_encode_String(self.category, serializer);
+    sse_encode_u_64(self.createdAt, serializer);
+    sse_encode_u_64(self.updatedAt, serializer);
   }
 
   @protected
@@ -1771,6 +1342,19 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_memory_doc_dto(
+    MemoryDocDto? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_memory_doc_dto(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1778,6 +1362,16 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     if (self != null) {
       sse_encode_box_autoadd_u_64(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_search_result_dto(
+    SearchResultDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_memory_doc_dto(self.doc, serializer);
+    sse_encode_f_32(self.score, serializer);
   }
 
   @protected
@@ -1821,12 +1415,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
   }
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putUint8(self ? 1 : 0);
-  }
 }
 
 @sealed
@@ -1855,7 +1443,7 @@ class AgentSessionImpl extends RustOpaque implements AgentSession {
   );
 
   /// Send a user message and return all events produced by one agent turn.
-  Future<ClawResultVecAgentEventDto> chat({
+  Future<List<AgentEventDto>> chat({
     required String input,
     required String system,
   }) => MobileclawCoreBridge.instance.api.crateFfiAgentSessionChat(
@@ -1869,32 +1457,30 @@ class AgentSessionImpl extends RustOpaque implements AgentSession {
       MobileclawCoreBridge.instance.api.crateFfiAgentSessionHistory(that: this);
 
   /// Load skills from a directory and replace the current skill manager.
-  Future<ClawResult> loadSkillsFromDir({required String dir}) =>
-      MobileclawCoreBridge.instance.api.crateFfiAgentSessionLoadSkillsFromDir(
-        that: this,
-        dir: dir,
-      );
+  Future<void> loadSkillsFromDir({required String dir}) => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionLoadSkillsFromDir(that: this, dir: dir);
 
   /// Return the total number of memory documents.
-  Future<ClawResultUsize> memoryCount() => MobileclawCoreBridge.instance.api
+  Future<BigInt> memoryCount() => MobileclawCoreBridge.instance.api
       .crateFfiAgentSessionMemoryCount(that: this);
 
   /// Delete a memory document. Returns true if it existed.
-  Future<ClawResultBool> memoryForget({required String path}) =>
-      MobileclawCoreBridge.instance.api.crateFfiAgentSessionMemoryForget(
-        that: this,
-        path: path,
-      );
+  Future<bool> memoryForget({required String path}) => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionMemoryForget(that: this, path: path);
 
   /// Retrieve a single memory document by path.
-  Future<ClawResultOptionMemoryDocDto> memoryGet({required String path}) =>
+  Future<MemoryDocDto?> memoryGet({required String path}) =>
       MobileclawCoreBridge.instance.api.crateFfiAgentSessionMemoryGet(
         that: this,
         path: path,
       );
 
   /// Search the memory database and return ranked results.
-  Future<ClawResultVecSearchResultDto> memoryRecall({
+  Future<List<SearchResultDto>> memoryRecall({
     required String query,
     required BigInt limit,
     String? category,
@@ -1910,7 +1496,7 @@ class AgentSessionImpl extends RustOpaque implements AgentSession {
   );
 
   /// Store a document in the memory database.
-  Future<ClawResultMemoryDocDto> memoryStore({
+  Future<MemoryDocDto> memoryStore({
     required String path,
     required String content,
     required String category,
@@ -1924,227 +1510,4 @@ class AgentSessionImpl extends RustOpaque implements AgentSession {
   /// Return the loaded skills as DTOs.
   Future<List<SkillManifestDto>> skills() =>
       MobileclawCoreBridge.instance.api.crateFfiAgentSessionSkills(that: this);
-}
-
-@sealed
-class ClawResultAgentSessionImpl extends RustOpaque
-    implements ClawResultAgentSession {
-  // Not to be used by end users
-  ClawResultAgentSessionImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ClawResultAgentSessionImpl.frbInternalSseDecode(
-    BigInt ptr,
-    int externalSizeOnNative,
-  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_increment_strong_count_ClawResultAgentSession,
-    rustArcDecrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultAgentSession,
-    rustArcDecrementStrongCountPtr: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultAgentSessionPtr,
-  );
-}
-
-@sealed
-class ClawResultBoolImpl extends RustOpaque implements ClawResultBool {
-  // Not to be used by end users
-  ClawResultBoolImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ClawResultBoolImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_increment_strong_count_ClawResultBool,
-    rustArcDecrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultBool,
-    rustArcDecrementStrongCountPtr: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultBoolPtr,
-  );
-}
-
-@sealed
-class ClawResultImpl extends RustOpaque implements ClawResult {
-  // Not to be used by end users
-  ClawResultImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ClawResultImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_increment_strong_count_ClawResult,
-    rustArcDecrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResult,
-    rustArcDecrementStrongCountPtr: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultPtr,
-  );
-}
-
-@sealed
-class ClawResultMemoryDocDtoImpl extends RustOpaque
-    implements ClawResultMemoryDocDto {
-  // Not to be used by end users
-  ClawResultMemoryDocDtoImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ClawResultMemoryDocDtoImpl.frbInternalSseDecode(
-    BigInt ptr,
-    int externalSizeOnNative,
-  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_increment_strong_count_ClawResultMemoryDocDto,
-    rustArcDecrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultMemoryDocDto,
-    rustArcDecrementStrongCountPtr: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultMemoryDocDtoPtr,
-  );
-}
-
-@sealed
-class ClawResultOptionMemoryDocDtoImpl extends RustOpaque
-    implements ClawResultOptionMemoryDocDto {
-  // Not to be used by end users
-  ClawResultOptionMemoryDocDtoImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ClawResultOptionMemoryDocDtoImpl.frbInternalSseDecode(
-    BigInt ptr,
-    int externalSizeOnNative,
-  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_increment_strong_count_ClawResultOptionMemoryDocDto,
-    rustArcDecrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultOptionMemoryDocDto,
-    rustArcDecrementStrongCountPtr: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultOptionMemoryDocDtoPtr,
-  );
-}
-
-@sealed
-class ClawResultUsizeImpl extends RustOpaque implements ClawResultUsize {
-  // Not to be used by end users
-  ClawResultUsizeImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ClawResultUsizeImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_increment_strong_count_ClawResultUsize,
-    rustArcDecrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultUsize,
-    rustArcDecrementStrongCountPtr: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultUsizePtr,
-  );
-}
-
-@sealed
-class ClawResultVecAgentEventDtoImpl extends RustOpaque
-    implements ClawResultVecAgentEventDto {
-  // Not to be used by end users
-  ClawResultVecAgentEventDtoImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ClawResultVecAgentEventDtoImpl.frbInternalSseDecode(
-    BigInt ptr,
-    int externalSizeOnNative,
-  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_increment_strong_count_ClawResultVecAgentEventDto,
-    rustArcDecrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultVecAgentEventDto,
-    rustArcDecrementStrongCountPtr: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultVecAgentEventDtoPtr,
-  );
-}
-
-@sealed
-class ClawResultVecSearchResultDtoImpl extends RustOpaque
-    implements ClawResultVecSearchResultDto {
-  // Not to be used by end users
-  ClawResultVecSearchResultDtoImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ClawResultVecSearchResultDtoImpl.frbInternalSseDecode(
-    BigInt ptr,
-    int externalSizeOnNative,
-  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_increment_strong_count_ClawResultVecSearchResultDto,
-    rustArcDecrementStrongCount: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultVecSearchResultDto,
-    rustArcDecrementStrongCountPtr: MobileclawCoreBridge
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_ClawResultVecSearchResultDtoPtr,
-  );
 }

@@ -23,89 +23,12 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   get rust_arc_decrement_strong_count_AgentSessionPtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSessionPtr;
 
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultAgentSessionPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSessionPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultMemoryDocDtoPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDtoPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultOptionMemoryDocDtoPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDtoPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultVecAgentEventDtoPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDtoPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultVecSearchResultDtoPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDtoPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultBoolPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultboolPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClawResultUsizePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusizePtr;
+  @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw);
 
   @protected
   AgentSession
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResult
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultAgentSession
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultMemoryDocDto
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultOptionMemoryDocDto
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultVecAgentEventDto
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultVecSearchResultDto
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultBool
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultUsize
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
     dynamic raw,
   );
 
@@ -128,67 +51,34 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
-  ClawResult
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultAgentSession
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultMemoryDocDto
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultOptionMemoryDocDto
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultVecAgentEventDto
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultVecSearchResultDto
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultBool
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    dynamic raw,
-  );
-
-  @protected
-  ClawResultUsize
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    dynamic raw,
-  );
-
-  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
   AgentConfig dco_decode_agent_config(dynamic raw);
 
   @protected
+  AgentEventDto dco_decode_agent_event_dto(dynamic raw);
+
+  @protected
+  bool dco_decode_bool(dynamic raw);
+
+  @protected
   AgentConfig dco_decode_box_autoadd_agent_config(dynamic raw);
+
+  @protected
+  MemoryDocDto dco_decode_box_autoadd_memory_doc_dto(dynamic raw);
 
   @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
+  double dco_decode_f_32(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<AgentEventDto> dco_decode_list_agent_event_dto(dynamic raw);
 
   @protected
   List<MessageDto> dco_decode_list_message_dto(dynamic raw);
@@ -197,7 +87,13 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<SearchResultDto> dco_decode_list_search_result_dto(dynamic raw);
+
+  @protected
   List<SkillManifestDto> dco_decode_list_skill_manifest_dto(dynamic raw);
+
+  @protected
+  MemoryDocDto dco_decode_memory_doc_dto(dynamic raw);
 
   @protected
   MessageDto dco_decode_message_dto(dynamic raw);
@@ -206,7 +102,13 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  MemoryDocDto? dco_decode_opt_box_autoadd_memory_doc_dto(dynamic raw);
+
+  @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  SearchResultDto dco_decode_search_result_dto(dynamic raw);
 
   @protected
   SkillManifestDto dco_decode_skill_manifest_dto(dynamic raw);
@@ -224,56 +126,11 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
+
+  @protected
   AgentSession
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResult
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultAgentSession
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultMemoryDocDto
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultOptionMemoryDocDto
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultVecAgentEventDto
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultVecSearchResultDto
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultBool
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultUsize
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
     SseDeserializer deserializer,
   );
 
@@ -296,67 +153,38 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
-  ClawResult
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultAgentSession
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultMemoryDocDto
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultOptionMemoryDocDto
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultVecAgentEventDto
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultVecSearchResultDto
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultBool
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ClawResultUsize
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
   AgentConfig sse_decode_agent_config(SseDeserializer deserializer);
 
   @protected
+  AgentEventDto sse_decode_agent_event_dto(SseDeserializer deserializer);
+
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
   AgentConfig sse_decode_box_autoadd_agent_config(SseDeserializer deserializer);
+
+  @protected
+  MemoryDocDto sse_decode_box_autoadd_memory_doc_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
+  double sse_decode_f_32(SseDeserializer deserializer);
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<AgentEventDto> sse_decode_list_agent_event_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<MessageDto> sse_decode_list_message_dto(SseDeserializer deserializer);
@@ -365,9 +193,17 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<SearchResultDto> sse_decode_list_search_result_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<SkillManifestDto> sse_decode_list_skill_manifest_dto(
     SseDeserializer deserializer,
   );
+
+  @protected
+  MemoryDocDto sse_decode_memory_doc_dto(SseDeserializer deserializer);
 
   @protected
   MessageDto sse_decode_message_dto(SseDeserializer deserializer);
@@ -376,7 +212,15 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  MemoryDocDto? sse_decode_opt_box_autoadd_memory_doc_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  SearchResultDto sse_decode_search_result_dto(SseDeserializer deserializer);
 
   @protected
   SkillManifestDto sse_decode_skill_manifest_dto(SseDeserializer deserializer);
@@ -397,68 +241,15 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
-  bool sse_decode_bool(SseDeserializer deserializer);
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  );
 
   @protected
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
     AgentSession self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    ClawResult self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    ClawResultAgentSession self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    ClawResultMemoryDocDto self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    ClawResultOptionMemoryDocDto self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    ClawResultVecAgentEventDto self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    ClawResultVecSearchResultDto self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    ClawResultBool self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    ClawResultUsize self,
     SseSerializer serializer,
   );
 
@@ -484,66 +275,16 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    ClawResult self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    ClawResultAgentSession self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    ClawResultMemoryDocDto self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    ClawResultOptionMemoryDocDto self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    ClawResultVecAgentEventDto self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    ClawResultVecSearchResultDto self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    ClawResultBool self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    ClawResultUsize self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
   void sse_encode_agent_config(AgentConfig self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_agent_event_dto(AgentEventDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_agent_config(
@@ -552,10 +293,25 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_memory_doc_dto(
+    MemoryDocDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
 
   @protected
+  void sse_encode_f_32(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_agent_event_dto(
+    List<AgentEventDto> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_message_dto(
@@ -570,10 +326,19 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_search_result_dto(
+    List<SearchResultDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_skill_manifest_dto(
     List<SkillManifestDto> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_memory_doc_dto(MemoryDocDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_message_dto(MessageDto self, SseSerializer serializer);
@@ -582,7 +347,19 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_memory_doc_dto(
+    MemoryDocDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_search_result_dto(
+    SearchResultDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_skill_manifest_dto(
@@ -604,9 +381,6 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer);
 }
 
 // Section: wire_class
@@ -655,277 +429,5 @@ class MobileclawCoreBridgeWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSessionPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResult =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSessionPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSessionPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSessionPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSession =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultAgentSessionPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDtoPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDtoPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDtoPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDto =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultMemoryDocDtoPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDtoPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDtoPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDtoPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDto =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultOptionMemoryDocDtoPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDtoPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDtoPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDtoPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDto =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecAgentEventDtoPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDtoPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDtoPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDtoPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDto =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultVecSearchResultDtoPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultboolPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultboolPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultboolPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultbool =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultboolPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusizePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusizePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusizePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_mobileclaw_sdk_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusize =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClawResultusizePtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 }

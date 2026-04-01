@@ -9,7 +9,6 @@ use std::{path::Path, sync::Arc};
 use flutter_rust_bridge::frb;
 
 use crate::{
-    ClawResult,
     agent::loop_impl::AgentLoop,
     llm::client::ClaudeClient,
     memory::{Memory, MemoryCategory, MemoryDoc, SearchQuery, sqlite::SqliteMemory},
@@ -115,7 +114,7 @@ impl AgentSession {
     /// Create a new agent session.
     ///
     /// If `skills_dir` is set, the directory must exist and be readable or `create()` will return an error.
-    pub async fn create(config: AgentConfig) -> ClawResult<AgentSession> {
+    pub async fn create(config: AgentConfig) -> anyhow::Result<AgentSession> {
         let llm = ClaudeClient::new(&config.api_key, &config.model);
 
         let memory = Arc::new(SqliteMemory::open(Path::new(&config.db_path)).await?);
@@ -142,7 +141,7 @@ impl AgentSession {
     }
 
     /// Send a user message and return all events produced by one agent turn.
-    pub async fn chat(&mut self, input: String, system: String) -> ClawResult<Vec<AgentEventDto>> {
+    pub async fn chat(&mut self, input: String, system: String) -> anyhow::Result<Vec<AgentEventDto>> {
         use crate::agent::loop_impl::AgentEvent;
 
         let events = self.inner.chat(&input, &system).await?;
@@ -197,7 +196,7 @@ impl AgentSession {
     }
 
     /// Load skills from a directory and replace the current skill manager.
-    pub async fn load_skills_from_dir(&mut self, dir: String) -> ClawResult<()> {
+    pub async fn load_skills_from_dir(&mut self, dir: String) -> anyhow::Result<()> {
         let skills = load_skills_from_dir(Path::new(&dir)).await?;
         self.inner.replace_skills(SkillManager::new(skills));
         Ok(())
@@ -209,7 +208,7 @@ impl AgentSession {
         path: String,
         content: String,
         category: String,
-    ) -> ClawResult<MemoryDocDto> {
+    ) -> anyhow::Result<MemoryDocDto> {
         let cat = string_to_category(&category);
         let doc = self.memory.store(&path, &content, cat).await?;
         Ok(doc_to_dto(doc))
@@ -223,7 +222,7 @@ impl AgentSession {
         category: Option<String>,
         since: Option<u64>,
         until: Option<u64>,
-    ) -> ClawResult<Vec<SearchResultDto>> {
+    ) -> anyhow::Result<Vec<SearchResultDto>> {
         let q = SearchQuery {
             text: query,
             limit,
@@ -242,18 +241,18 @@ impl AgentSession {
     }
 
     /// Retrieve a single memory document by path.
-    pub async fn memory_get(&self, path: String) -> ClawResult<Option<MemoryDocDto>> {
+    pub async fn memory_get(&self, path: String) -> anyhow::Result<Option<MemoryDocDto>> {
         let doc = self.memory.get(&path).await?;
         Ok(doc.map(doc_to_dto))
     }
 
     /// Delete a memory document. Returns true if it existed.
-    pub async fn memory_forget(&self, path: String) -> ClawResult<bool> {
-        self.memory.forget(&path).await
+    pub async fn memory_forget(&self, path: String) -> anyhow::Result<bool> {
+        self.memory.forget(&path).await.map_err(anyhow::Error::from)
     }
 
     /// Return the total number of memory documents.
-    pub async fn memory_count(&self) -> ClawResult<usize> {
-        self.memory.count().await
+    pub async fn memory_count(&self) -> anyhow::Result<usize> {
+        self.memory.count().await.map_err(anyhow::Error::from)
     }
 }
