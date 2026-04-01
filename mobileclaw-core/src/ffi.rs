@@ -10,7 +10,6 @@ use flutter_rust_bridge::frb;
 
 use crate::{
     agent::loop_impl::AgentLoop,
-    llm::client::ClaudeClient,
     memory::{Memory, MemoryCategory, MemoryDoc, SearchQuery, sqlite::SqliteMemory},
     secrets::store::SqliteSecretStore,
     skill::{SkillManager, SkillTrust, load_skills_from_dir},
@@ -21,13 +20,13 @@ use crate::{
 
 /// Configuration passed from Dart when creating a new agent session.
 pub struct AgentConfig {
-    pub api_key: String,
+    pub api_key: Option<String>,   // None = load active provider from SecretStore
     pub db_path: String,
     pub secrets_db_path: String,   // path to encrypted secrets database
     pub encryption_key: Vec<u8>,   // 32-byte AES-256 key from platform keystore
     pub sandbox_dir: String,
     pub http_allowlist: Vec<String>,
-    pub model: String,
+    pub model: Option<String>,     // None = use model from active provider
     pub skills_dir: Option<String>,
 }
 
@@ -119,7 +118,7 @@ fn doc_to_dto(doc: MemoryDoc) -> MemoryDocDto {
 /// Opaque session handle held by Dart. Dart cannot inspect the internals.
 #[frb(opaque)]
 pub struct AgentSession {
-    inner: AgentLoop<ClaudeClient>,
+    inner: AgentLoop<std::sync::Arc<dyn crate::llm::client::LlmClient>>,
     memory: Arc<SqliteMemory>,
     secrets: Arc<SqliteSecretStore>,
 }
@@ -129,8 +128,6 @@ impl AgentSession {
     ///
     /// If `skills_dir` is set, the directory must exist and be readable or `create()` will return an error.
     pub async fn create(config: AgentConfig) -> anyhow::Result<AgentSession> {
-        let llm = ClaudeClient::new(&config.api_key, &config.model);
-
         let memory = Arc::new(SqliteMemory::open(Path::new(&config.db_path)).await?);
 
         // Open secrets store with the AES-256 key derived from the platform keystore by Dart.
@@ -143,6 +140,32 @@ impl AgentSession {
             )
             .await?,
         );
+
+        // Resolve LLM client: active provider from SecretStore, or legacy explicit config
+        let llm: std::sync::Arc<dyn crate::llm::client::LlmClient> = {
+            use crate::llm::provider::{ProviderConfig, ProviderProtocol, create_llm_client};
+            match secrets.active_provider_id().await? {
+                Some(id) => {
+                    let provider_cfg = secrets.provider_load(&id).await?;
+                    let api_key = secrets.provider_api_key(&id).await?;
+                    create_llm_client(&provider_cfg, api_key.as_deref())?
+                }
+                None => {
+                    // Backwards-compat: explicit api_key + model in AgentConfig
+                    let key = config.api_key.as_deref()
+                        .ok_or_else(|| anyhow::anyhow!("no active provider and no api_key in config"))?;
+                    let model = config.model.as_deref()
+                        .ok_or_else(|| anyhow::anyhow!("no active provider and no model in config"))?;
+                    let cfg = ProviderConfig::new(
+                        "legacy".into(),
+                        ProviderProtocol::Anthropic,
+                        "https://api.anthropic.com".into(),
+                        model.to_string(),
+                    );
+                    create_llm_client(&cfg, Some(key))?
+                }
+            }
+        };
 
         let mut registry = ToolRegistry::new();
         register_all_builtins(&mut registry);

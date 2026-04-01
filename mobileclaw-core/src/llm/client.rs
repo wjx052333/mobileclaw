@@ -89,6 +89,18 @@ impl LlmClient for ClaudeClient {
 
 use crate::ClawError;
 
+#[async_trait]
+impl LlmClient for std::sync::Arc<dyn LlmClient> {
+    async fn stream_messages(
+        &self,
+        system: &str,
+        messages: &[crate::llm::types::Message],
+        max_tokens: u32,
+    ) -> crate::ClawResult<EventStream> {
+        self.as_ref().stream_messages(system, messages, max_tokens).await
+    }
+}
+
 #[cfg(feature = "test-utils")]
 pub mod test_helpers {
     use super::*;
