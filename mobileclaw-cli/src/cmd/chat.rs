@@ -2,16 +2,21 @@ use anyhow::Result;
 use std::path::Path;
 use rustyline::{DefaultEditor, error::ReadlineError};
 use mobileclaw_core::ffi::AgentEventDto;
-use crate::session::open_session;
+use crate::session::{open_session, init_logging};
 
 pub async fn cmd_chat(data_dir: &Path, system: Option<String>) -> Result<()> {
+    init_logging();
+    tracing::info!(data_dir = %data_dir.display(), "mclaw chat starting");
+
     println!("Opening agent session...");
+    println!("(Logs → ./mclaw.log)");
     let mut session = open_session(data_dir).await?;
     let system = system.unwrap_or_else(|| {
-        "You are a helpful assistant. You have access to email tools. \
-         When the user asks to fetch or send email, use the email tools directly.".into()
+        "You are a helpful assistant. You have access to tools for email, files, memory, and web requests. \
+         Use tools whenever the user asks you to perform an action.".into()
     });
 
+    tracing::info!(system_base = %system, "session ready");
     println!("Chat started. Type '/quit' or Ctrl-D to exit.\n");
 
     let mut rl = DefaultEditor::new()?;
@@ -26,9 +31,11 @@ pub async fn cmd_chat(data_dir: &Path, system: Option<String>) -> Result<()> {
         if input == "/quit" || input == "/exit" { break; }
         let _ = rl.add_history_entry(&input);
 
+        tracing::info!(input = %input, "user message");
         let events = match session.chat(input, system.clone()).await {
             Ok(e) => e,
             Err(e) => {
+                tracing::error!(error = %e, "chat error");
                 eprintln!("Error: {e}");
                 continue;
             }

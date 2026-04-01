@@ -83,6 +83,10 @@ enum EmailCmd {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // rustls 0.23 requires an explicit CryptoProvider even when compiled with the `ring` feature.
+    // install_default() is idempotent — safe to call multiple times.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let cli = Cli::parse();
     let data_dir = cli.data_dir.unwrap_or_else(default_data_dir);
 

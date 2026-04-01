@@ -10,6 +10,68 @@ use crate::{
 const MAX_TOOL_ROUNDS: usize = 10;
 const MAX_TOKENS: u32 = 4096;
 
+// ---------------------------------------------------------------------------
+// Tool descriptions injected into every system prompt
+// ---------------------------------------------------------------------------
+
+/// Build the `## Available Tools` section from the registered tool list.
+/// This is appended to every system prompt so the LLM knows what tools exist
+/// and how to call them using the `<tool_call>` XML format.
+fn build_tools_section(registry: &ToolRegistry) -> String {
+    let tools = registry.list();
+    if tools.is_empty() {
+        return String::new();
+    }
+
+    let mut s = String::from(r#"
+
+## Available Tools
+
+When you need to perform an action, output a tool call using **exactly** this XML format (on its own line):
+
+<tool_call>{"name": "tool_name", "args": {"param": "value"}}</tool_call>
+
+The system will execute the tool and return results as:
+
+<tool_result name="tool_name" status="ok">{"field": "value"}</tool_result>
+
+Rules:
+- Only call tools when needed; prefer direct answers for conversational messages.
+- You may call multiple tools sequentially across turns.
+- Do NOT fabricate tool results; wait for the actual result before continuing.
+
+### Tools
+
+"#);
+
+    for tool in &tools {
+        s.push_str(&format!("#### `{}`\n{}\n\n", tool.name(), tool.description()));
+
+        let schema = tool.parameters_schema();
+        if let Some(props) = schema["properties"].as_object() {
+            let required: Vec<&str> = schema["required"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
+                .unwrap_or_default();
+
+            s.push_str("Parameters:\n");
+            for (name, prop) in props {
+                let type_str = prop["type"].as_str().unwrap_or("any");
+                let desc = prop["description"].as_str().unwrap_or("");
+                let req = if required.contains(&name.as_str()) { "required" } else { "optional" };
+                if desc.is_empty() {
+                    s.push_str(&format!("- `{}` ({}, {})\n", name, type_str, req));
+                } else {
+                    s.push_str(&format!("- `{}` ({}, {}): {}\n", name, type_str, req, desc));
+                }
+            }
+            s.push('\n');
+        }
+    }
+
+    s
+}
+
 #[derive(Debug, Clone)]
 pub enum AgentEvent {
     TextDelta { text: String },
@@ -45,12 +107,25 @@ impl<L: LlmClient> AgentLoop<L> {
 
     pub async fn chat(&mut self, user_input: &str, base_system: &str) -> ClawResult<Vec<AgentEvent>> {
         let matched = self.skill_mgr.match_skills(user_input);
-        let system = self.skill_mgr.build_system_prompt(base_system, &matched);
+        let skill_prompt = self.skill_mgr.build_system_prompt(base_system, &matched);
+        // Append tool descriptions so the LLM knows the call format and what tools exist.
+        let tools_section = build_tools_section(&self.registry);
+        let system = format!("{}{}", skill_prompt, tools_section);
+
+        tracing::info!(
+            user_input = %user_input,
+            skills_matched = %matched.len(),
+            tools_available = %self.registry.list().len(),
+            "chat turn started"
+        );
+        tracing::debug!(system_prompt = %system, "full system prompt");
 
         self.history.push(Message::user(user_input));
         let mut all_events = Vec::new();
 
-        for _round in 0..MAX_TOOL_ROUNDS {
+        for round in 0..MAX_TOOL_ROUNDS {
+            tracing::debug!(round = %round, history_len = %self.history.len(), "starting LLM round");
+
             let mut stream = self.llm.stream_messages(&system, &self.history, MAX_TOKENS).await?;
 
             let mut full_text = String::new();
@@ -62,13 +137,19 @@ impl<L: LlmClient> AgentLoop<L> {
                     }
                     StreamEvent::MessageStop | StreamEvent::MessageStart => {}
                     StreamEvent::Error { message } => {
+                        tracing::error!(round = %round, error = %message, "LLM stream error");
                         return Err(crate::ClawError::Llm(message));
                     }
                 }
             }
 
+            tracing::debug!(round = %round, response_len = %full_text.len(), response = %full_text, "LLM response received");
+
             let tool_calls = extract_tool_calls(&full_text);
+            tracing::info!(round = %round, tool_calls_found = %tool_calls.len(), "tool call extraction");
+
             if tool_calls.is_empty() {
+                tracing::info!(round = %round, "no tool calls, turn complete");
                 self.history.push(Message::assistant(&full_text));
                 all_events.push(AgentEvent::Done);
                 break;
@@ -76,20 +157,26 @@ impl<L: LlmClient> AgentLoop<L> {
 
             let mut tool_results_xml = String::new();
             for call in &tool_calls {
+                tracing::info!(tool = %call.name, args = %call.args, "executing tool");
                 all_events.push(AgentEvent::ToolCall { name: call.name.clone() });
                 let result = match self.registry.get(&call.name) {
                     Some(tool) => tool.execute(call.args.clone(), &self.ctx).await,
-                    None => Err(crate::ClawError::Tool {
-                        tool: call.name.clone(),
-                        message: "tool not found".into(),
-                    }),
+                    None => {
+                        tracing::warn!(tool = %call.name, "tool not found in registry");
+                        Err(crate::ClawError::Tool {
+                            tool: call.name.clone(),
+                            message: "tool not found".into(),
+                        })
+                    }
                 };
                 match result {
                     Ok(r) => {
+                        tracing::info!(tool = %call.name, success = %r.success, output = %r.output, "tool result");
                         all_events.push(AgentEvent::ToolResult { name: call.name.clone(), success: r.success });
                         tool_results_xml.push_str(&format_tool_result(&call.name, r.success, &r.output));
                     }
                     Err(e) => {
+                        tracing::error!(tool = %call.name, error = %e, "tool execution error");
                         let err_val = serde_json::json!({"error": e.to_string()});
                         all_events.push(AgentEvent::ToolResult { name: call.name.clone(), success: false });
                         tool_results_xml.push_str(&format_tool_result(&call.name, false, &err_val));
@@ -105,6 +192,7 @@ impl<L: LlmClient> AgentLoop<L> {
 
         // Ensure Done is always the last event, even when tool rounds are exhausted.
         if !matches!(all_events.last(), Some(AgentEvent::Done)) {
+            tracing::warn!("tool rounds exhausted without clean completion");
             all_events.push(AgentEvent::Done);
         }
 

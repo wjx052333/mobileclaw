@@ -24,6 +24,28 @@ pub fn prepare_data_dir(data_dir: &Path) -> Result<(PathBuf, PathBuf)> {
     ))
 }
 
+/// Initialize tracing to write DEBUG+ logs to `./mclaw.log` in the current working directory.
+/// Safe to call multiple times — subsequent calls are silently ignored.
+pub fn init_logging() {
+    use tracing_subscriber::{fmt, EnvFilter};
+    use std::fs::OpenOptions;
+
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("mclaw.log")
+        .expect("cannot open mclaw.log for writing");
+
+    let _ = fmt()
+        .with_env_filter(
+            EnvFilter::try_from_env("MCLAW_LOG")
+                .unwrap_or_else(|_| EnvFilter::new("debug")),
+        )
+        .with_writer(std::sync::Mutex::new(log_file))
+        .with_ansi(false)
+        .try_init(); // try_init: silently ignores "already initialized" error
+}
+
 /// Build an AgentSession using env vars for the provider config if present.
 /// ANTHROPIC_API_KEY env var → api_key; ANTHROPIC_MODEL env var → model override.
 /// If neither is set (both None), mobileclaw-core will load the active provider
@@ -55,3 +77,4 @@ pub async fn open_secrets(data_dir: &Path) -> Result<mobileclaw_core::secrets::S
     .await
     .map_err(anyhow::Error::from)
 }
+
