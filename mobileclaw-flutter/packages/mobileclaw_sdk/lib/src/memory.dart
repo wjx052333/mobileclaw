@@ -67,6 +67,20 @@ class MemoryDoc {
       DateTime.fromMillisecondsSinceEpoch(createdAt * 1000);
   DateTime get updatedAtDt =>
       DateTime.fromMillisecondsSinceEpoch(updatedAt * 1000);
+
+  @override
+  bool operator ==(Object other) =>
+      other is MemoryDoc &&
+      other.id == id &&
+      other.path == path &&
+      other.content == content &&
+      other.category == category &&
+      other.createdAt == createdAt &&
+      other.updatedAt == updatedAt;
+
+  @override
+  int get hashCode =>
+      Object.hash(id, path, content, category, createdAt, updatedAt);
 }
 
 /// A memory document returned by a search query, with a relevance score.
@@ -74,6 +88,13 @@ class SearchResult {
   const SearchResult({required this.doc, required this.score});
   final MemoryDoc doc;
   final double score;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SearchResult && other.doc == doc && other.score == score;
+
+  @override
+  int get hashCode => Object.hash(doc, score);
 }
 
 /// Memory subsystem accessed through [MobileclawAgent.memory].

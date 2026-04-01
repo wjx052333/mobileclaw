@@ -552,5 +552,88 @@ void main() {
       }
     }, timeout: const Timeout(Duration(seconds: 10)));
   }, skip: Platform.environment['INTEGRATION'] != 'true' ? 'set INTEGRATION=true to run' : null);
+
+  // ---------------------------------------------------------------------------
+  // Model equality
+  // ---------------------------------------------------------------------------
+  group('Model equality', () {
+    test('ChatMessage equality', () {
+      const a = ChatMessage(role: 'user', content: 'hi');
+      const b = ChatMessage(role: 'user', content: 'hi');
+      const c = ChatMessage(role: 'assistant', content: 'hi');
+      expect(a, equals(b));
+      expect(a, isNot(equals(c)));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('SkillManifest equality', () {
+      const a = SkillManifest(
+        name: 'n', description: 'd',
+        trust: SkillTrust.bundled, keywords: ['k'],
+      );
+      const b = SkillManifest(
+        name: 'n', description: 'd',
+        trust: SkillTrust.bundled, keywords: ['k'],
+      );
+      const c = SkillManifest(
+        name: 'x', description: 'd',
+        trust: SkillTrust.bundled, keywords: ['k'],
+      );
+      expect(a, equals(b));
+      expect(a, isNot(equals(c)));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('MemoryDoc equality', () {
+      const a = MemoryDoc(
+        id: '1', path: 'p', content: 'c',
+        category: MemoryCategory.core, createdAt: 0, updatedAt: 0,
+      );
+      const b = MemoryDoc(
+        id: '1', path: 'p', content: 'c',
+        category: MemoryCategory.core, createdAt: 0, updatedAt: 0,
+      );
+      const c = MemoryDoc(
+        id: '2', path: 'p', content: 'c',
+        category: MemoryCategory.core, createdAt: 0, updatedAt: 0,
+      );
+      expect(a, equals(b));
+      expect(a, isNot(equals(c)));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('SearchResult equality', () {
+      const doc = MemoryDoc(
+        id: '1', path: 'p', content: 'c',
+        category: MemoryCategory.core, createdAt: 0, updatedAt: 0,
+      );
+      const a = SearchResult(doc: doc, score: 0.9);
+      const b = SearchResult(doc: doc, score: 0.9);
+      const c = SearchResult(doc: doc, score: 0.5);
+      expect(a, equals(b));
+      expect(a, isNot(equals(c)));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('AgentEvent equality', () {
+      const a = TextDeltaEvent(text: 'hello');
+      const b = TextDeltaEvent(text: 'hello');
+      const c = TextDeltaEvent(text: 'world');
+      expect(a, equals(b));
+      expect(a, isNot(equals(c)));
+
+      const d = ToolCallEvent(toolName: 't');
+      const e = ToolCallEvent(toolName: 't');
+      expect(d, equals(e));
+
+      const f = ToolResultEvent(toolName: 't', success: true);
+      const g = ToolResultEvent(toolName: 't', success: true);
+      const h = ToolResultEvent(toolName: 't', success: false);
+      expect(f, equals(g));
+      expect(f, isNot(equals(h)));
+
+      expect(const DoneEvent(), equals(const DoneEvent()));
+    });
+  });
 }
 
