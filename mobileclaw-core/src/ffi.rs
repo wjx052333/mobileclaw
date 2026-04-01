@@ -4,15 +4,6 @@
 //! that can safely cross the FFI boundary: primitives, String, Vec<T>, Option<T>.
 //! No references, no lifetimes, no generic type parameters in public signatures.
 
-// Compile-time guard: the hardcoded AES key below must be replaced with
-// platform keystore derivation before any release build.
-#[cfg(not(debug_assertions))]
-compile_error!(
-    "AgentSession uses a hardcoded AES key. \
-     Replace with platform keystore derivation before building in release mode. \
-     See mobileclaw-core/docs/05-flutter-interface.md § Security Contract."
-);
-
 use std::{path::Path, sync::Arc};
 
 use flutter_rust_bridge::frb;
@@ -32,11 +23,12 @@ use crate::{
 pub struct AgentConfig {
     pub api_key: String,
     pub db_path: String,
+    pub secrets_db_path: String,   // path to encrypted secrets database
+    pub encryption_key: Vec<u8>,   // 32-byte AES-256 key from platform keystore
     pub sandbox_dir: String,
     pub http_allowlist: Vec<String>,
     pub model: String,
     pub skills_dir: Option<String>,
-    pub secrets_db_path: String,  // path to encrypted secrets database
 }
 
 /// An `AgentEvent` that can cross the FFI boundary.
@@ -141,12 +133,13 @@ impl AgentSession {
 
         let memory = Arc::new(SqliteMemory::open(Path::new(&config.db_path)).await?);
 
-        // Open secrets store — Phase 1 uses a fixed dev key; replaced with platform
-        // keystore derivation before any release build (guarded by compile_error! above).
+        // Open secrets store with the AES-256 key derived from the platform keystore by Dart.
+        let key: &[u8; 32] = config.encryption_key.as_slice().try_into()
+            .map_err(|_| anyhow::anyhow!("encryption_key must be exactly 32 bytes"))?;
         let secrets = Arc::new(
             SqliteSecretStore::open(
                 std::path::Path::new(&config.secrets_db_path).to_path_buf(),
-                b"mobileclaw-dev-key-32bytes000000",  // 32 bytes
+                key,
             )
             .await?,
         );
