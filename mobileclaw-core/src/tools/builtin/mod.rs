@@ -1,3 +1,4 @@
+pub mod email;
 pub mod file;
 pub mod http;
 pub mod memory_tools;
@@ -16,4 +17,6 @@ pub fn register_all_builtins(registry: &mut ToolRegistry) {
     registry.register_builtin(Arc::new(system::TimeTool));
     registry.register_builtin(Arc::new(system::GrepTool));
     registry.register_builtin(Arc::new(system::GlobTool));
+    registry.register_builtin(Arc::new(email::EmailSendTool));
+    // email::EmailFetchTool registered in Task 6
 }
