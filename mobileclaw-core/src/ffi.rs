@@ -113,6 +113,8 @@ pub struct AgentSession {
 
 impl AgentSession {
     /// Create a new agent session.
+    ///
+    /// If `skills_dir` is set, the directory must exist and be readable or `create()` will return an error.
     pub async fn create(config: AgentConfig) -> ClawResult<AgentSession> {
         let llm = ClaudeClient::new(&config.api_key, &config.model);
 
@@ -201,7 +203,7 @@ impl AgentSession {
         Ok(())
     }
 
-    /// Store a document in memory and return the stored doc.
+    /// Store a document in the memory database.
     pub async fn memory_store(
         &self,
         path: String,
@@ -213,7 +215,7 @@ impl AgentSession {
         Ok(doc_to_dto(doc))
     }
 
-    /// Search memory and return matching documents.
+    /// Search the memory database and return ranked results.
     pub async fn memory_recall(
         &self,
         query: String,
@@ -239,18 +241,18 @@ impl AgentSession {
             .collect())
     }
 
-    /// Get a document by path.
+    /// Retrieve a single memory document by path.
     pub async fn memory_get(&self, path: String) -> ClawResult<Option<MemoryDocDto>> {
         let doc = self.memory.get(&path).await?;
         Ok(doc.map(doc_to_dto))
     }
 
-    /// Delete a document by path; returns true if it existed.
+    /// Delete a memory document. Returns true if it existed.
     pub async fn memory_forget(&self, path: String) -> ClawResult<bool> {
         self.memory.forget(&path).await
     }
 
-    /// Count total stored documents.
+    /// Return the total number of memory documents.
     pub async fn memory_count(&self) -> ClawResult<usize> {
         self.memory.count().await
     }
