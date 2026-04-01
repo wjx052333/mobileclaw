@@ -1,6 +1,6 @@
 # 05 — Flutter Interface Contract
 
-**Status:** Phase 2 in progress — FFI binding live on Android (emulator-5554 verified); `flutter_secure_storage` key derivation pending
+**Status:** Phase 2 in progress — FFI binding live on Android (emulator-5554 verified, 8 email round-trip tests passing); `flutter_secure_storage` key derivation pending
 **Date:** 2026-04-01 (updated 2026-04-01)
 **Audience:** Flutter/Dart engineers building the mobile UI layer
 
@@ -1052,4 +1052,4 @@ What is NOT backed up (by design):
 - [ ] End-to-end test: `create()` → `chat()` → stream events match expected sequence
 - [ ] Error path test: trigger `ClawException.pathTraversal` from Dart, verify `type` field
 - [ ] Memory round-trip: `store()` → `recall()` → confirm score > 0
-- [ ] Email round-trip: `emailAccountSave()` → `emailAccountLoad()` → `emailAccountDelete()`
+- [x] Email round-trip: `emailAccountSave()` → `emailAccountLoad()` → `emailAccountDelete()` (2026-04-01, 8 tests on emulator-5554)
