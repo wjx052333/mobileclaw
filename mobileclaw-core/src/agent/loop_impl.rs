@@ -190,7 +190,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "test-utils")]
     async fn skills_getter_returns_loaded_skills() {
         use crate::skill::{SkillManager, types::{Skill, SkillManifest, SkillActivation, SkillTrust}};
         let skill = Skill {
