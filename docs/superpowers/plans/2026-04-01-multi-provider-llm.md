@@ -1038,7 +1038,7 @@ Pattern: follow the existing `put_email_account` / `get_email_account` methods o
        );
        CREATE TABLE IF NOT EXISTS provider_secrets (
           provider_id TEXT PRIMARY KEY REFERENCES providers(id) ON DELETE CASCADE,
-          encrypted   BLOB NOT NULL
+          encrypted   TEXT NOT NULL   -- base64(nonce || ciphertext), same format as secrets table
        );
        CREATE TABLE IF NOT EXISTS kv (
           key   TEXT PRIMARY KEY,
