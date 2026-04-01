@@ -45,7 +45,24 @@ impl SqliteSecretStore {
     pub async fn open(path: PathBuf, key_bytes: &[u8; 32]) -> ClawResult<Self> {
         let conn = Connection::open(&path)?;
         conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS secrets (
+            "PRAGMA foreign_keys = ON;
+             CREATE TABLE IF NOT EXISTS secrets (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS providers (
+                id         TEXT PRIMARY KEY,
+                name       TEXT NOT NULL,
+                protocol   TEXT NOT NULL,
+                base_url   TEXT NOT NULL,
+                model      TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS provider_secrets (
+                provider_id TEXT PRIMARY KEY REFERENCES providers(id) ON DELETE CASCADE,
+                encrypted   TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS kv (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
              );",
@@ -123,6 +140,166 @@ impl SqliteSecretStore {
     pub async fn delete_email_account(&self, id: &str) -> ClawResult<()> {
         self.delete(&format!("email:{}:config", id)).await?;
         self.delete(&format!("email:{}:password", id)).await?;
+        Ok(())
+    }
+
+    /// Save (upsert) a provider config. Optionally encrypts and stores an API key.
+    pub async fn provider_save(
+        &self,
+        config: &crate::llm::provider::ProviderConfig,
+        api_key: Option<&str>,
+    ) -> ClawResult<()> {
+        let protocol = serde_json::to_string(&config.protocol)
+            .map_err(|e| ClawError::SecretStore(e.to_string()))?;
+        // serde serialises enum variants as JSON strings ("anthropic"), strip the quotes.
+        let protocol = protocol.trim_matches('"').to_string();
+        {
+            let conn = self.conn.lock().await;
+            conn.execute(
+                "INSERT INTO providers (id, name, protocol, base_url, model, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT(id) DO UPDATE SET
+                   name=excluded.name, protocol=excluded.protocol,
+                   base_url=excluded.base_url, model=excluded.model",
+                rusqlite::params![
+                    config.id, config.name, protocol,
+                    config.base_url, config.model, config.created_at
+                ],
+            )?;
+        }
+        if let Some(key) = api_key {
+            let encrypted = self.encrypt(key)?;
+            let conn = self.conn.lock().await;
+            conn.execute(
+                "INSERT INTO provider_secrets (provider_id, encrypted) VALUES (?1, ?2)
+                 ON CONFLICT(provider_id) DO UPDATE SET encrypted=excluded.encrypted",
+                rusqlite::params![config.id, encrypted],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Load a provider config by ID. Returns `ProviderNotFound` if the ID does not exist.
+    pub async fn provider_load(
+        &self,
+        id: &str,
+    ) -> ClawResult<crate::llm::provider::ProviderConfig> {
+        let conn = self.conn.lock().await;
+        let result: Option<(String, String, String, String, i64)> = conn
+            .query_row(
+                "SELECT name, protocol, base_url, model, created_at FROM providers WHERE id = ?1",
+                rusqlite::params![id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .optional()?;
+        match result {
+            None => Err(ClawError::ProviderNotFound(id.into())),
+            Some((name, protocol_str, base_url, model, created_at)) => {
+                let protocol: crate::llm::provider::ProviderProtocol =
+                    serde_json::from_str(&format!("\"{}\"", protocol_str))
+                        .map_err(|e| ClawError::SecretStore(e.to_string()))?;
+                Ok(crate::llm::provider::ProviderConfig {
+                    id: id.to_string(),
+                    name,
+                    protocol,
+                    base_url,
+                    model,
+                    created_at,
+                })
+            }
+        }
+    }
+
+    /// Return all stored provider configs ordered by creation time.
+    pub async fn provider_list(
+        &self,
+    ) -> ClawResult<Vec<crate::llm::provider::ProviderConfig>> {
+        // Collect all rows while holding the lock, then drop the lock before any
+        // further processing so we never hold an async mutex across an await point.
+        // We assign the collected vec to a binding before the block closes so that
+        // `stmt` and `conn` are dropped before `rows` is returned.
+        let rows: Vec<(String, String, String, String, String, i64)> = {
+            let conn = self.conn.lock().await;
+            let mut stmt = conn.prepare(
+                "SELECT id, name, protocol, base_url, model, created_at \
+                 FROM providers ORDER BY created_at ASC",
+            )?;
+            let collected = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+            collected
+        };
+
+        let mut configs = Vec::with_capacity(rows.len());
+        for (id, name, protocol_str, base_url, model, created_at) in rows {
+            let protocol: crate::llm::provider::ProviderProtocol =
+                serde_json::from_str(&format!("\"{}\"", protocol_str))
+                    .map_err(|e| ClawError::SecretStore(e.to_string()))?;
+            configs.push(crate::llm::provider::ProviderConfig {
+                id,
+                name,
+                protocol,
+                base_url,
+                model,
+                created_at,
+            });
+        }
+        Ok(configs)
+    }
+
+    /// Delete a provider config (and its API key via ON DELETE CASCADE).
+    pub async fn provider_delete(&self, id: &str) -> ClawResult<()> {
+        let conn = self.conn.lock().await;
+        conn.execute("DELETE FROM providers WHERE id = ?1", rusqlite::params![id])?;
+        Ok(())
+    }
+
+    /// Return the encrypted API key for a provider, or `None` if none was stored.
+    pub async fn provider_api_key(&self, id: &str) -> ClawResult<Option<String>> {
+        let encrypted: Option<String> = {
+            let conn = self.conn.lock().await;
+            conn.query_row(
+                "SELECT encrypted FROM provider_secrets WHERE provider_id = ?1",
+                rusqlite::params![id],
+                |row| row.get(0),
+            )
+            .optional()?
+        };
+        match encrypted {
+            None => Ok(None),
+            Some(enc) => self.decrypt(&enc).map(|s| Some(s.expose().to_string())),
+        }
+    }
+
+    /// Return the active provider ID, or `None` if not set.
+    pub async fn active_provider_id(&self) -> ClawResult<Option<String>> {
+        let conn = self.conn.lock().await;
+        let val: Option<String> = conn
+            .query_row(
+                "SELECT value FROM kv WHERE key = 'active_provider_id'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(val)
+    }
+
+    /// Persist the active provider ID.
+    pub async fn set_active_provider_id(&self, id: &str) -> ClawResult<()> {
+        let conn = self.conn.lock().await;
+        conn.execute(
+            "INSERT INTO kv (key, value) VALUES ('active_provider_id', ?1)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            rusqlite::params![id],
+        )?;
         Ok(())
     }
 }
@@ -302,5 +479,82 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let store = open_store(&dir).await;
         assert!(store.get_email_account("missing").await.unwrap().is_none());
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use tempfile::TempDir;
+    use crate::llm::provider::{ProviderConfig, ProviderProtocol};
+
+    async fn open_test_store() -> (SqliteSecretStore, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let store = SqliteSecretStore::open(
+            dir.path().join("secrets.db"),
+            b"test-key-32bytes0000000000000000",
+        )
+        .await
+        .unwrap();
+        (store, dir)
+    }
+
+    #[tokio::test]
+    async fn test_provider_save_and_load() {
+        let (store, _dir) = open_test_store().await;
+        let cfg = ProviderConfig::new("Groq".into(), ProviderProtocol::OpenAiCompat,
+            "https://api.groq.com/openai".into(), "mixtral-8x7b".into());
+        store.provider_save(&cfg, Some("sk-test")).await.unwrap();
+
+        let loaded = store.provider_load(&cfg.id).await.unwrap();
+        assert_eq!(loaded.name, "Groq");
+        assert_eq!(loaded.model, "mixtral-8x7b");
+
+        let key = store.provider_api_key(&cfg.id).await.unwrap();
+        assert_eq!(key, Some("sk-test".into()));
+    }
+
+    #[tokio::test]
+    async fn test_provider_list_and_delete() {
+        let (store, _dir) = open_test_store().await;
+        let a = ProviderConfig::new("A".into(), ProviderProtocol::Anthropic,
+            "https://api.anthropic.com".into(), "claude-opus-4-6".into());
+        let b = ProviderConfig::new("B".into(), ProviderProtocol::Ollama,
+            "http://localhost:11434".into(), "llama3".into());
+        store.provider_save(&a, Some("key-a")).await.unwrap();
+        store.provider_save(&b, None).await.unwrap();
+
+        let list = store.provider_list().await.unwrap();
+        assert_eq!(list.len(), 2);
+
+        store.provider_delete(&a.id).await.unwrap();
+        let list = store.provider_list().await.unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].name, "B");
+    }
+
+    #[tokio::test]
+    async fn test_active_provider_id_persistence() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("secrets.db");
+        let key = b"test-key-32bytes0000000000000000";
+
+        let store = SqliteSecretStore::open(path.clone(), key).await.unwrap();
+        let cfg = ProviderConfig::new("X".into(), ProviderProtocol::Ollama,
+            "http://localhost:11434".into(), "llama3".into());
+        store.provider_save(&cfg, None).await.unwrap();
+        store.set_active_provider_id(&cfg.id).await.unwrap();
+        drop(store);
+
+        // Re-open from same file — active ID must survive
+        let store2 = SqliteSecretStore::open(path, key).await.unwrap();
+        assert_eq!(store2.active_provider_id().await.unwrap(), Some(cfg.id));
+    }
+
+    #[tokio::test]
+    async fn test_provider_not_found_returns_error() {
+        let (store, _dir) = open_test_store().await;
+        let err = store.provider_load("nonexistent-id").await.unwrap_err();
+        assert!(matches!(err, crate::ClawError::ProviderNotFound(_)));
     }
 }
