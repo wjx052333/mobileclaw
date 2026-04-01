@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobileclaw_sdk/mobileclaw_sdk.dart';
@@ -51,7 +53,12 @@ class _ProviderListScreenState extends ConsumerState<ProviderListScreen> {
   Future<void> _openForm({ProviderConfigDto? existing}) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => ProviderFormScreen(existing: existing),
+        builder: (_) => ProviderFormScreen(
+          existing: existing,
+          probeFn: Platform.isLinux || Platform.isAndroid
+              ? MobileclawAgentImpl.probe
+              : MockMobileclawAgent.probe,
+        ),
       ),
     );
     // Refresh list after returning from form

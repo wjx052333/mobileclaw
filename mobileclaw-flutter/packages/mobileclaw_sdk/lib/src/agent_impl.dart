@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    show PlatformInt64Util;
+
 import 'bridge/ffi.dart' as ffi;
 import 'bridge/frb_generated.dart';
 import 'engine.dart';
@@ -88,7 +91,7 @@ ffi.ProviderConfigDto _providerToFfi(ProviderConfigDto dto) => ffi.ProviderConfi
       protocol: dto.protocol,
       baseUrl: dto.baseUrl,
       model: dto.model,
-      createdAt: dto.createdAt,
+      createdAt: PlatformInt64Util.from(dto.createdAt),
     );
 
 ProviderConfigDto _providerFromFfi(ffi.ProviderConfigDto f) => ProviderConfigDto(

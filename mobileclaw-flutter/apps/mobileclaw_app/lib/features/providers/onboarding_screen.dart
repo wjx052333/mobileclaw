@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobileclaw_sdk/mobileclaw_sdk.dart';
 
 import '../chat/chat_page.dart';
 import 'provider_form_screen.dart';
@@ -64,6 +67,9 @@ class _OnboardingForm extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return ProviderFormScreen(
       onSaved: onProviderSaved,
+      probeFn: Platform.isLinux || Platform.isAndroid
+          ? MobileclawAgentImpl.probe
+          : MockMobileclawAgent.probe,
     );
   }
 }
