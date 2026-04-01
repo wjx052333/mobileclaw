@@ -233,7 +233,7 @@ impl Tool for EmailFetchTool {
         let emails = if total == 0 {
             vec![]
         } else {
-            let start = total.saturating_sub(limit - 1);
+            let start = total.saturating_sub(limit.saturating_sub(1)).max(1);
             let seq = format!("{}:{}", start, total);
             let fetch_stream = imap_session
                 .fetch(&seq, "(ENVELOPE BODY[TEXT]<0.500>)")
