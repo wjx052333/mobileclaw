@@ -1,0 +1,4 @@
+rust_input: "crate::ffi"
+dart_output: "lib/src/bridge/"
+rust_root: "../../../mobileclaw-core"
+dart_entrypoint_class_name: "MobileclawCoreBridge"
