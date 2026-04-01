@@ -61,8 +61,14 @@ impl LlmClient for OpenAiCompatClient {
     ) -> ClawResult<EventStream> {
         let mut msg_array = vec![serde_json::json!({"role":"system","content":system})];
         for m in messages {
+            use crate::llm::types::Role;
+            let role_str = match m.role {
+                Role::User => "user",
+                Role::Assistant => "assistant",
+                Role::System => "system",
+            };
             msg_array.push(serde_json::json!({
-                "role": format!("{:?}", m.role).to_lowercase(),
+                "role": role_str,
                 "content": m.text_content()
             }));
         }
@@ -109,6 +115,7 @@ impl LlmClient for OpenAiCompatClient {
 mod tests {
     use super::*;
     use crate::llm::types::StreamEvent;
+    use proptest::prelude::*;
 
     #[test]
     fn test_parse_openai_event_content() {
@@ -138,5 +145,13 @@ mod tests {
         assert_eq!(normalise_base_url("https://api.groq.com/openai"), "https://api.groq.com/openai/v1");
         assert_eq!(normalise_base_url("https://api.groq.com/openai/v1"), "https://api.groq.com/openai/v1");
         assert_eq!(normalise_base_url("https://api.groq.com/openai/"), "https://api.groq.com/openai/v1");
+    }
+
+    proptest! {
+        #[test]
+        fn test_parse_openai_event_never_panics(s in ".*") {
+            // Function must not panic on any input — it may return Ok or Err
+            let _ = parse_openai_event(&s);
+        }
     }
 }
