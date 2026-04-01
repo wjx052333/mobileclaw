@@ -1,0 +1,16 @@
+[package]
+name    = "mobileclaw-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "mclaw"
+path = "src/main.rs"
+
+[dependencies]
+mobileclaw-core = { path = "../mobileclaw-core" }
+clap      = { workspace = true }
+tokio     = { workspace = true }
+anyhow    = { workspace = true }
+serde_json = { workspace = true }
+rustyline  = { workspace = true }
