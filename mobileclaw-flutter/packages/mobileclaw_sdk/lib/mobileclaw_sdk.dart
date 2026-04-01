@@ -1,7 +1,7 @@
 /// MobileClaw SDK — Flutter Plugin for the MobileClaw AI Agent engine.
 ///
-/// Phase 1 (current): Use [MockMobileclawAgent] for all development.
-/// Phase 2: Replace with the real FFI-backed [MobileclawAgent.create].
+/// Phase 2: [MobileclawAgentImpl] is available for Linux targets.
+/// Use [MockMobileclawAgent] for development/non-Linux platforms.
 library mobileclaw_sdk;
 
 export 'src/engine.dart';

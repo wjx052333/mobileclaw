@@ -3,6 +3,7 @@ import 'dart:async';
 import 'bridge/ffi.dart';
 import 'engine.dart';
 import 'events.dart';
+import 'exceptions.dart';
 import 'memory.dart';
 import 'models.dart';
 
@@ -44,8 +45,8 @@ MemoryDoc _docFromDto(MemoryDocDto dto) => MemoryDoc(
       path: dto.path,
       content: dto.content,
       category: _stringToCategory(dto.category),
-      createdAt: dto.createdAt.toInt(),
-      updatedAt: dto.updatedAt.toInt(),
+      createdAt: dto.createdAt.toInt(), // Safe: Unix timestamp in seconds, well within int64 range on all Dart targets
+      updatedAt: dto.updatedAt.toInt(), // Safe: Unix timestamp in seconds, well within int64 range on all Dart targets
     );
 
 AgentEvent _eventFromDto(AgentEventDto dto) => dto.when(
@@ -62,6 +63,7 @@ SkillTrust _trustFromString(String trust) {
       return SkillTrust.bundled;
     case 'installed':
     default:
+      // Treat any unknown trust level as installed (most restrictive).
       return SkillTrust.installed;
   }
 }
@@ -142,7 +144,7 @@ class _RealMemory implements MobileclawMemory {
   @override
   Future<int> count() async {
     final n = await _session.memoryCount();
-    return n.toInt();
+    return n.toInt(); // Safe: document counts will never exceed int max (2^53 in JS environments)
   }
 }
 
@@ -163,6 +165,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
 
   final AgentSession _session;
   final _RealMemory _memory;
+  bool _disposed = false;
 
   // Caches for synchronous getters (populated after async calls).
   List<ChatMessage> _cachedHistory;
@@ -198,9 +201,11 @@ class MobileclawAgentImpl implements MobileclawAgent {
     return MobileclawAgentImpl._(session);
   }
 
-  /// Release all Rust-side resources. Must not be used after this call.
+  /// Does not throw; disposal is idempotent — safe to call more than once.
   @override
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _session.dispose();
   }
 
@@ -210,6 +215,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
   /// throws ClawException on LLM, tool, or I/O error from Rust.
   @override
   Stream<AgentEvent> chat(String userInput, {String system = ''}) async* {
+    _checkAlive();
     final dtos = await _session.chat(input: userInput, system: system);
     // Refresh history cache after the turn completes.
     _refreshHistoryFromDtos(await _session.history());
@@ -222,6 +228,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
   /// throws ClawException on LLM, tool, or I/O error from Rust.
   @override
   Future<String> chatText(String userInput, {String system = ''}) async {
+    _checkAlive();
     final buffer = StringBuffer();
     await for (final event in chat(userInput, system: system)) {
       if (event is TextDeltaEvent) buffer.write(event.text);
@@ -235,6 +242,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
   List<ChatMessage> get history => List.unmodifiable(_cachedHistory);
 
   /// Memory subsystem.
+  /// Returns the memory subsystem. Does not throw.
   @override
   MobileclawMemory get memory => _memory;
 
@@ -242,6 +250,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
   /// throws ClawException if the directory does not exist or contains invalid manifests.
   @override
   Future<void> loadSkillsFromDir(String dirPath) async {
+    _checkAlive();
     await _session.loadSkillsFromDir(dir: dirPath);
     _cachedSkills = (await _session.skills()).map(_skillFromDto).toList();
   }
@@ -254,6 +263,10 @@ class MobileclawAgentImpl implements MobileclawAgent {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  void _checkAlive() {
+    if (_disposed) throw StateError('AgentSession has been disposed');
+  }
 
   void _refreshHistoryFromDtos(List<MessageDto> dtos) {
     _cachedHistory = dtos
