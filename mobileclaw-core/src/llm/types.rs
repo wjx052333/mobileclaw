@@ -35,7 +35,7 @@ impl Message {
 }
 
 /// Agent 循环中消费的流式事件
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum StreamEvent {
     TextDelta { text: String },
     MessageStart,
