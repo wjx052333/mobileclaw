@@ -5,3 +5,4 @@ task_plan.md
 *.lock.bak
 .worktrees/
 coverage
+test_env.sh
