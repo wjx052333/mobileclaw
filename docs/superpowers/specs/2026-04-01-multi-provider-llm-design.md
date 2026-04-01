@@ -98,9 +98,20 @@ pub fn create_llm_client(
 
 #### File: `src/llm/openai_compat.rs`
 
+OpenAI SSE format: all chunks arrive with **empty `event` field**. Each chunk is:
+```
+data: {"id":"...","choices":[{"delta":{"content":"Hello"},"index":0}]}
+```
+First chunk may have `{"delta":{"role":"assistant"}}` with no content (empty string). Last line is `data: [DONE]`. There is no `message_start` event type — `MessageStart` is emitted synthetically when the response HTTP connection succeeds.
+
+**`StreamEvent` mapping for OpenAI SSE:**
+- Connection established → emit `MessageStart`
+- Each SSE chunk → extract `choices[0].delta.content`; if non-empty, emit `TextDelta { text }`; if empty, skip
+- `data: [DONE]` → emit `MessageStop`
+
 ```rust
 pub struct OpenAiCompatClient {
-    base_url: String,
+    base_url: String,   // always ends with "/v1" (normalised in constructor)
     api_key: String,
     model: String,
     http: reqwest::Client,
@@ -108,7 +119,7 @@ pub struct OpenAiCompatClient {
 
 impl OpenAiCompatClient {
     pub fn new(base_url: &str, api_key: &str, model: &str) -> ClawResult<Self> {
-        // Validate base_url ends with /v1 or append it
+        // Normalise base_url to end with "/v1"
         let base_url = if base_url.ends_with("/v1") {
             base_url.to_string()
         } else if base_url.ends_with('/') {
@@ -122,12 +133,7 @@ impl OpenAiCompatClient {
             .build()
             .map_err(|e| ClawError::Llm(format!("Failed to build HTTP client: {}", e)))?;
 
-        Ok(Self {
-            base_url,
-            api_key: api_key.to_string(),
-            model: model.to_string(),
-            http,
-        })
+        Ok(Self { base_url, api_key: api_key.to_string(), model: model.to_string(), http })
     }
 }
 
@@ -139,90 +145,70 @@ impl LlmClient for OpenAiCompatClient {
         messages: &[Message],
         max_tokens: u32,
     ) -> ClawResult<EventStream> {
-        let body = serde_json::json!({
-            "model": self.model,
-            "max_tokens": max_tokens,
-            "messages": [
-                {"role": "system", "content": system},
-                ..messages.iter().map(|m| serde_json::json!({
-                    "role": m.role.to_string().to_lowercase(),
-                    "content": m.text_content()
-                }))
-            ],
-            "stream": true,
-        });
+        // ... build body with system as first message, stream:true ...
 
-        let resp = self.http
-            .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("content-type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| ClawError::Llm(format!("OpenAI-compat request failed: {}", e)))?;
+        // SSE: eventsource_stream crate; all events have empty ev.event field
+        // Prepend a synthetic MessageStart, then map each chunk
+        let initial = futures::stream::once(async { Ok(StreamEvent::MessageStart) });
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            return Err(ClawError::Llm(format!("OpenAI-compat error {}: {}", status, text)));
-        }
-
-        // SSE streaming: parse "data: {...}" lines
-        let stream = resp.bytes_stream().eventsource().map(|event| {
+        let data_stream = resp.bytes_stream().eventsource().filter_map(|event| async {
             match event {
-                Ok(ev) if ev.data == "[DONE]" => Ok(StreamEvent::MessageStop),
-                Ok(ev) if ev.event == "message_start" || ev.event.is_empty() => {
-                    // OpenAI: message_start may not be sent, wait for content_block_delta
-                    let v: serde_json::Value = serde_json::from_str(&ev.data)
-                        .map_err(|e| ClawError::Parse(e.to_string()))?;
+                Ok(ev) if ev.data == "[DONE]" => Some(Ok(StreamEvent::MessageStop)),
+                Ok(ev) => {
+                    // All content chunks: parse choices[0].delta.content
+                    let v: serde_json::Value = match serde_json::from_str(&ev.data) {
+                        Ok(v) => v,
+                        Err(e) => return Some(Err(ClawError::Parse(e.to_string()))),
+                    };
                     let text = v["choices"][0]["delta"]["content"]
                         .as_str()
                         .unwrap_or("")
                         .to_string();
                     if text.is_empty() {
-                        Ok(StreamEvent::MessageStart)
+                        None  // skip role-only first chunk and empty deltas
                     } else {
-                        Ok(StreamEvent::TextDelta { text })
+                        Some(Ok(StreamEvent::TextDelta { text }))
                     }
                 }
-                Ok(_) => Ok(StreamEvent::TextDelta { text: String::new() }),
-                Err(e) => Err(ClawError::Llm(e.to_string())),
+                Err(e) => Some(Err(ClawError::Llm(e.to_string()))),
             }
         });
 
-        Ok(Box::pin(stream))
+        Ok(Box::pin(initial.chain(data_stream)))
     }
 }
 ```
 
 #### File: `src/llm/ollama.rs`
 
+Ollama `/api/chat` with `stream: true` returns **newline-delimited JSON (NDJSON)**, not SSE.
+Each line is a complete JSON object:
+```json
+{"model":"llama3","message":{"role":"assistant","content":"Hello"},"done":false}
+{"model":"llama3","message":{"role":"assistant","content":"!"},"done":false}
+{"model":"llama3","message":{"role":"assistant","content":""},"done":true}
+```
+Do **not** use `eventsource()` — use a line-by-line reader over the raw bytes stream.
+
+**`StreamEvent` mapping for Ollama NDJSON:**
+- First line → emit `MessageStart` before yielding
+- Each non-done line → extract `message.content`; if non-empty, emit `TextDelta { text }`
+- Line with `done: true` → emit `MessageStop`
+
+**Implementation approach:** Convert the `reqwest` bytes stream into a `tokio::io::AsyncRead`
+using `tokio_util::io::StreamReader`, then wrap with `tokio::io::BufReader` and read lines
+via `AsyncBufReadExt::lines()`. This avoids buffering the entire response and keeps memory
+usage constant regardless of response length.
+
 ```rust
+// Dependency needed: tokio-util = { version = "...", features = ["io"] }
+use tokio_util::io::StreamReader;
+use tokio::io::{AsyncBufReadExt, BufReader};
+
 pub struct OllamaClient {
-    base_url: String,
+    base_url: String,   // always ends with "/" (normalised in constructor)
     model: String,
     http: reqwest::Client,
-}
-
-impl OllamaClient {
-    pub fn new(base_url: &str, model: &str) -> ClawResult<Self> {
-        let base_url = if base_url.ends_with('/') {
-            base_url.to_string()
-        } else {
-            format!("{}/", base_url)
-        };
-
-        let http = reqwest::Client::builder()
-            .use_rustls_tls()
-            .build()
-            .map_err(|e| ClawError::Llm(format!("Failed to build HTTP client: {}", e)))?;
-
-        Ok(Self {
-            base_url,
-            model: model.to_string(),
-            http,
-        })
-    }
 }
 
 #[async_trait]
@@ -231,56 +217,41 @@ impl LlmClient for OllamaClient {
         &self,
         system: &str,
         messages: &[Message],
-        _max_tokens: u32, // Ollama doesn't support max_tokens in /api/chat
+        _max_tokens: u32,  // Ollama /api/chat does not accept max_tokens
     ) -> ClawResult<EventStream> {
-        let mut msgs = vec![Message::system(system)];
-        msgs.extend_from_slice(messages);
+        // ... build body: system as first message, stream:true ...
 
-        let body = serde_json::json!({
-            "model": self.model,
-            "messages": msgs.iter().map(|m| serde_json::json!({
-                "role": m.role.to_string().to_lowercase(),
-                "content": m.text_content()
-            })),
-            "stream": true,
-        });
+        // NDJSON: read lines from response body, not SSE
+        let byte_stream = resp
+            .bytes_stream()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+        let reader = BufReader::new(StreamReader::new(byte_stream));
+        let mut lines = reader.lines();
 
-        let resp = self.http
-            .post(format!("{}api/chat", self.base_url))
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| ClawError::Llm(format!("Ollama request failed: {}", e)))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            return Err(ClawError::Llm(format!("Ollama error {}: {}", status, text)));
-        }
-
-        let stream = resp.bytes_stream().eventsource().map(|event| {
-            match event {
-                Ok(ev) => {
-                    let v: serde_json::Value = serde_json::from_str(&ev.data)
-                        .map_err(|e| ClawError::Parse(e.to_string()))?;
-                    let text = v["message"]["content"].as_str().unwrap_or("").to_string();
-                    let done = v["done"].as_bool().unwrap_or(false);
-                    if done {
-                        Ok(StreamEvent::MessageStop)
-                    } else if text.is_empty() {
-                        Ok(StreamEvent::MessageStart)
-                    } else {
-                        Ok(StreamEvent::TextDelta { text })
-                    }
+        let stream = async_stream::try_stream! {
+            yield StreamEvent::MessageStart;
+            while let Some(line) = lines.next_line().await.map_err(|e| ClawError::Llm(e.to_string()))? {
+                if line.trim().is_empty() { continue; }
+                let v: serde_json::Value = serde_json::from_str(&line)
+                    .map_err(|e| ClawError::Parse(e.to_string()))?;
+                let text = v["message"]["content"].as_str().unwrap_or("").to_string();
+                let done = v["done"].as_bool().unwrap_or(false);
+                if !text.is_empty() {
+                    yield StreamEvent::TextDelta { text };
                 }
-                Err(e) => Err(ClawError::Llm(e.to_string())),
+                if done {
+                    yield StreamEvent::MessageStop;
+                    break;
+                }
             }
-        });
+        };
 
         Ok(Box::pin(stream))
     }
 }
 ```
+
+**New dependency:** `async-stream = "0.3"` for the `try_stream!` macro; `tokio-util` already in workspace.
 
 #### File: `src/llm/probe.rs`
 
@@ -436,6 +407,13 @@ impl AgentSession {
 }
 ```
 
+**Existing `ClaudeClient::new` signature** (for reference — factory dispatches to this):
+```rust
+// src/llm/client.rs (unchanged)
+pub fn new(api_key: impl Into<String>, model: impl Into<String>) -> Self
+// Returns Self directly (infallible). Factory wraps in Arc<dyn LlmClient>.
+```
+
 ### 2. SecretStore Extension
 
 #### SQLite Schema
@@ -457,7 +435,7 @@ CREATE TABLE IF NOT EXISTS provider_secrets (
 
 CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+    value TEXT NOT NULL   -- plaintext; used for non-secret config (e.g., active_provider_id)
 );
 ```
 
@@ -541,9 +519,13 @@ pub struct ProviderConfigDto {
 pub struct ProbeResultDto {
     pub ok: bool,
     pub latency_ms: u64,
+    pub degraded: bool,     // true = completions probe failed but models endpoint succeeded
     pub error: Option<String>,
 }
 ```
+
+`degraded: true` means the provider is reachable but the completions endpoint is unverified.
+UI should show a warning, not a green checkmark.
 
 ### 4. Testing
 
@@ -570,9 +552,9 @@ New `ClawError` variants (if needed):
 - `AgentSession::create()` checks SecretStore first, then explicit config
 - Existing code paths unaffected
 
-## Future: Multimodal Capability Detection
+## Future: Multimodal Capability Detection (OUT OF SCOPE for this plan)
 
-**TODO**: Borrow ironclaw's `image_models.rs` / `vision_models.rs` patterns:
+**TODO (separate spec)**: Borrow ironclaw's `image_models.rs` / `vision_models.rs` patterns:
 - `is_vision_model(model_name: &str)` — pattern matching on model string
 - If model supports vision: accept image/video inputs directly
 - If not: warn user that media inputs are unsupported
@@ -580,16 +562,44 @@ New `ClawError` variants (if needed):
 
 ## Testing Strategy
 
-| Test | Scope | Coverage |
-|------|-------|----------|
-| `test_openai_client_streaming` | Parse OpenAI SSE format | Anthropic client unaffected |
-| `test_ollama_client_streaming` | Ollama `/api/chat` format | No auth handling |
-| `test_provider_config_roundtrip` | Serialize/deserialize ProviderConfig | ProviderConfig struct |
-| `test_probe_request_success` | Mock HTTP 200, verify ProbeResult::ok=true | Probe function |
-| `test_probe_request_auth_failure` | Mock HTTP 401, verify error propagation | Error messages |
-| `test_secretstore_provider_crud` | Save/list/delete/load in SQLite | SecretStore trait |
-| `test_active_provider_persistence` | Set active, restart session, verify restored | KV table |
-| `integration_agent_with_provider` | Full agent loop with OpenAI-compat mock | AgentLoop × new client |
+**`test_openai_client_streaming`**
+
+Input (mock HTTP 200 response body — SSE):
+```
+data: {"id":"1","choices":[{"delta":{"role":"assistant"},"index":0}]}
+data: {"id":"1","choices":[{"delta":{"content":"Hello"},"index":0}]}
+data: {"id":"1","choices":[{"delta":{"content":" world"},"index":0}]}
+data: [DONE]
+```
+Expected `StreamEvent` sequence: `[MessageStart, TextDelta("Hello"), TextDelta(" world"), MessageStop]`
+First chunk has no `content` field → skipped. `[DONE]` → `MessageStop`.
+
+---
+
+**`test_ollama_client_streaming`**
+
+Input (mock HTTP 200 response body — NDJSON, one object per line):
+```
+{"model":"llama3","message":{"role":"assistant","content":"Hi"},"done":false}
+{"model":"llama3","message":{"role":"assistant","content":"!"},"done":false}
+{"model":"llama3","message":{"role":"assistant","content":""},"done":true}
+```
+Expected `StreamEvent` sequence: `[MessageStart, TextDelta("Hi"), TextDelta("!"), MessageStop]`
+Last line has empty content and `done:true` → emit `MessageStop` without `TextDelta`.
+
+---
+
+| Test | Input | Expected Output |
+|------|-------|-----------------|
+| `test_openai_client_streaming` | SSE with role-only first chunk + content chunks + `[DONE]` | `[MessageStart, TextDelta×N, MessageStop]` (role-only chunk skipped) |
+| `test_ollama_client_streaming` | NDJSON lines with `done:false` + final `done:true` empty-content | `[MessageStart, TextDelta×N, MessageStop]` |
+| `test_provider_config_roundtrip` | `ProviderConfig { protocol: Ollama, .. }` → serialize → deserialize | Round-trips losslessly, `ProviderProtocol::Ollama` preserved |
+| `test_probe_completion_success` | Mock HTTP 200 with valid first SSE/NDJSON chunk | `ProbeResult { ok: true, degraded: false, error: None }` |
+| `test_probe_models_fallback` | Completion mock 400, models mock 200 | `ProbeResult { ok: true, degraded: true, error: None }` |
+| `test_probe_all_fail` | Both completion and models mock 401 | `ProbeResult { ok: false, degraded: false, error: Some("...") }` |
+| `test_secretstore_provider_crud` | Save 2 providers, list, delete one, list again | List returns 1; deleted ID returns `provider_load` error |
+| `test_active_provider_persistence` | Set active → drop SecretStore → new SqliteSecretStore same path → get active | Same ID returned |
+| `integration_agent_with_provider` | `MockLlmClient` via `create_llm_client` factory | Agent loop completes, history updated |
 
 ## Migration Path (for existing users)
 
