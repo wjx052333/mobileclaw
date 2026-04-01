@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
 
-use crate::{memory::Memory, ClawResult};
+use crate::{memory::Memory, secrets::SecretStore, ClawResult};
 
 use super::permission::{Permission, PermissionChecker};
 
@@ -11,6 +11,7 @@ pub struct ToolContext {
     pub sandbox_dir: PathBuf,
     pub http_allowlist: Vec<String>,
     pub permissions: Arc<PermissionChecker>,
+    pub secrets: Arc<dyn SecretStore>,
 }
 
 #[derive(Debug, Clone)]

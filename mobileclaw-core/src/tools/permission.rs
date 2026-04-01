@@ -9,6 +9,8 @@ pub enum Permission {
     MemoryWrite,
     SystemInfo,
     Notifications,
+    EmailSend,
+    EmailReceive,
 }
 
 pub struct PermissionChecker {
@@ -20,13 +22,9 @@ impl PermissionChecker {
         use Permission::*;
         Self {
             allowed: [
-                FileRead,
-                FileWrite,
-                HttpFetch,
-                MemoryRead,
-                MemoryWrite,
-                SystemInfo,
-                Notifications,
+                FileRead, FileWrite, HttpFetch,
+                MemoryRead, MemoryWrite, SystemInfo, Notifications,
+                EmailSend, EmailReceive,
             ]
             .into_iter()
             .collect(),
@@ -71,5 +69,12 @@ mod tests {
         let checker = PermissionChecker::new([]);
         assert!(!checker.check(&Permission::FileRead));
         assert!(!checker.check(&Permission::MemoryWrite));
+    }
+
+    #[test]
+    fn email_permissions_are_distinct() {
+        let checker = PermissionChecker::new([Permission::EmailSend]);
+        assert!(checker.check(&Permission::EmailSend));
+        assert!(!checker.check(&Permission::EmailReceive));
     }
 }

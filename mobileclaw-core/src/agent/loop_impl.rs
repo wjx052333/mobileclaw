@@ -119,6 +119,7 @@ mod tests {
     use crate::{
         llm::client::test_helpers::MockLlmClient,
         memory::sqlite::SqliteMemory,
+        secrets::store::test_helpers::NullSecretStore,
         skill::SkillManager,
         tools::{ToolContext, ToolRegistry, PermissionChecker, builtin::register_all_builtins},
     };
@@ -135,6 +136,7 @@ mod tests {
             sandbox_dir: dir.path().to_path_buf(),
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
         };
         let agent = AgentLoop::new(
             MockLlmClient { response: response.to_string() },
@@ -177,6 +179,7 @@ mod tests {
             sandbox_dir: dir.path().to_path_buf(),
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
         };
         let mgr = SkillManager::new(vec![skill]);
         let mut agent = AgentLoop::new(
@@ -215,6 +218,7 @@ mod tests {
             sandbox_dir: dir.path().to_path_buf(),
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
         };
         let mgr = SkillManager::new(vec![skill]);
         let mut agent = AgentLoop::new(

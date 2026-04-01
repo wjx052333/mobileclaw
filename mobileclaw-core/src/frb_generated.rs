@@ -663,6 +663,7 @@ impl SseDecode for crate::ffi::AgentConfig {
         let mut var_httpAllowlist = <Vec<String>>::sse_decode(deserializer);
         let mut var_model = <String>::sse_decode(deserializer);
         let mut var_skillsDir = <Option<String>>::sse_decode(deserializer);
+        let mut var_secretsDbPath = <String>::sse_decode(deserializer);
         return crate::ffi::AgentConfig {
             api_key: var_apiKey,
             db_path: var_dbPath,
@@ -670,6 +671,7 @@ impl SseDecode for crate::ffi::AgentConfig {
             http_allowlist: var_httpAllowlist,
             model: var_model,
             skills_dir: var_skillsDir,
+            secrets_db_path: var_secretsDbPath,
         };
     }
 }
@@ -986,6 +988,7 @@ impl flutter_rust_bridge::IntoDart for crate::ffi::AgentConfig {
             self.http_allowlist.into_into_dart().into_dart(),
             self.model.into_into_dart().into_dart(),
             self.skills_dir.into_into_dart().into_dart(),
+            self.secrets_db_path.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1142,6 +1145,7 @@ impl SseEncode for crate::ffi::AgentConfig {
         <Vec<String>>::sse_encode(self.http_allowlist, serializer);
         <String>::sse_encode(self.model, serializer);
         <Option<String>>::sse_encode(self.skills_dir, serializer);
+        <String>::sse_encode(self.secrets_db_path, serializer);
     }
 }
 

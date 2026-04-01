@@ -4,6 +4,7 @@ use mobileclaw_core::{
     agent::AgentLoop,
     llm::client::test_helpers::MockLlmClient,
     memory::sqlite::SqliteMemory,
+    secrets::store::test_helpers::NullSecretStore,
     tools::{ToolContext, ToolRegistry, builtin::register_all_builtins, PermissionChecker},
     skill::SkillManager,
 };
@@ -20,6 +21,7 @@ async fn make_loop(llm_response: &str) -> (AgentLoop<MockLlmClient>, TempDir) {
         sandbox_dir: dir.path().to_path_buf(),
         http_allowlist: vec![],
         permissions: Arc::new(PermissionChecker::allow_all()),
+        secrets: Arc::new(NullSecretStore),
     };
     let llm = MockLlmClient { response: llm_response.to_string() };
     let agent = AgentLoop::new(llm, registry, ctx, SkillManager::new(vec![]));

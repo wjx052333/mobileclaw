@@ -4,6 +4,15 @@
 //! that can safely cross the FFI boundary: primitives, String, Vec<T>, Option<T>.
 //! No references, no lifetimes, no generic type parameters in public signatures.
 
+// Compile-time guard: the hardcoded AES key below must be replaced with
+// platform keystore derivation before any release build.
+#[cfg(not(debug_assertions))]
+compile_error!(
+    "AgentSession uses a hardcoded AES key. \
+     Replace with platform keystore derivation before building in release mode. \
+     See mobileclaw-core/docs/05-flutter-interface.md § Security Contract."
+);
+
 use std::{path::Path, sync::Arc};
 
 use flutter_rust_bridge::frb;
@@ -12,6 +21,7 @@ use crate::{
     agent::loop_impl::AgentLoop,
     llm::client::ClaudeClient,
     memory::{Memory, MemoryCategory, MemoryDoc, SearchQuery, sqlite::SqliteMemory},
+    secrets::store::SqliteSecretStore,
     skill::{SkillManager, SkillTrust, load_skills_from_dir},
     tools::{PermissionChecker, ToolContext, ToolRegistry, builtin::register_all_builtins},
 };
@@ -26,6 +36,7 @@ pub struct AgentConfig {
     pub http_allowlist: Vec<String>,
     pub model: String,
     pub skills_dir: Option<String>,
+    pub secrets_db_path: String,  // path to encrypted secrets database
 }
 
 /// An `AgentEvent` that can cross the FFI boundary.
@@ -108,6 +119,8 @@ fn doc_to_dto(doc: MemoryDoc) -> MemoryDocDto {
 pub struct AgentSession {
     inner: AgentLoop<ClaudeClient>,
     memory: Arc<SqliteMemory>,
+    #[allow(dead_code)] // held to keep the Arc alive for the session lifetime
+    secrets: Arc<SqliteSecretStore>,
 }
 
 impl AgentSession {
@@ -119,6 +132,16 @@ impl AgentSession {
 
         let memory = Arc::new(SqliteMemory::open(Path::new(&config.db_path)).await?);
 
+        // Open secrets store — Phase 1 uses a fixed dev key; replaced with platform
+        // keystore derivation before any release build (guarded by compile_error! above).
+        let secrets = Arc::new(
+            SqliteSecretStore::open(
+                std::path::Path::new(&config.secrets_db_path).to_path_buf(),
+                b"mobileclaw-dev-key-32bytes000000",  // 32 bytes
+            )
+            .await?,
+        );
+
         let mut registry = ToolRegistry::new();
         register_all_builtins(&mut registry);
 
@@ -127,6 +150,7 @@ impl AgentSession {
             sandbox_dir: config.sandbox_dir.into(),
             http_allowlist: config.http_allowlist,
             permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: secrets.clone() as Arc<dyn crate::secrets::SecretStore>,
         };
 
         let skills = if let Some(dir) = &config.skills_dir {
@@ -137,7 +161,7 @@ impl AgentSession {
         let skill_mgr = SkillManager::new(skills);
 
         let inner = AgentLoop::new(llm, registry, ctx, skill_mgr);
-        Ok(AgentSession { inner, memory })
+        Ok(AgentSession { inner, memory, secrets })
     }
 
     /// Send a user message and return all events produced by one agent turn.
