@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use rusqlite::{Connection, params};
 use std::{path::Path, sync::Mutex};
-use crate::ClawResult;
+use crate::{ClawError, ClawResult};
 use super::{traits::Memory, types::{MemoryCategory, MemoryDoc, SearchQuery, SearchResult}};
 
 pub struct SqliteMemory {
@@ -22,7 +22,13 @@ fn str_to_category(s: &str) -> MemoryCategory {
         "core" => MemoryCategory::Core,
         "daily" => MemoryCategory::Daily,
         "conversation" => MemoryCategory::Conversation,
-        other => MemoryCategory::Custom(other.trim_start_matches("custom:").into()),
+        other if other.starts_with("custom:") => {
+            MemoryCategory::Custom(other.trim_start_matches("custom:").into())
+        }
+        other => {
+            tracing::warn!("Unknown memory category string '{}', treating as Custom", other);
+            MemoryCategory::Custom(other.into())
+        }
     }
 }
 
@@ -73,7 +79,8 @@ impl SqliteMemory {
 #[async_trait]
 impl Memory for SqliteMemory {
     async fn store(&self, path: &str, content: &str, category: MemoryCategory) -> ClawResult<MemoryDoc> {
-        let doc = MemoryDoc::new(path, content, category.clone());
+        let cat_str = category_to_str(&category);
+        let doc = MemoryDoc::new(path, content, category);
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT INTO documents (id, path, category, content, created_at, updated_at)
@@ -84,7 +91,7 @@ impl Memory for SqliteMemory {
                updated_at = excluded.updated_at,
                id         = excluded.id",
             params![
-                &doc.id, &doc.path, &category_to_str(&doc.category),
+                &doc.id, &doc.path, &cat_str,
                 &doc.content, doc.created_at as i64, doc.updated_at as i64
             ],
         )?;
@@ -92,10 +99,14 @@ impl Memory for SqliteMemory {
     }
 
     async fn recall(&self, query: &SearchQuery) -> ClawResult<Vec<SearchResult>> {
+        // Escape user text as FTS5 phrase to prevent query injection
+        // FTS5 phrase: wrap in double quotes, escaping internal quotes
+        let fts_query = format!("\"{}\"", query.text.replace('"', "\"\""));
+        let limit = if query.limit == 0 { 10 } else { query.limit };
         let conn = self.conn.lock().unwrap();
         let cat_filter = query.category.as_ref().map(category_to_str);
 
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT d.id, d.path, d.category, d.content, d.created_at, d.updated_at,
                     bm25(docs_fts) AS score
              FROM docs_fts
@@ -110,11 +121,11 @@ impl Memory for SqliteMemory {
 
         let rows = stmt.query_map(
             params![
-                &query.text,
+                fts_query,
                 cat_filter,
                 query.since.map(|s| s as i64),
                 query.until.map(|u| u as i64),
-                query.limit as i64,
+                limit as i64,
             ],
             |row| {
                 let cat_str: String = row.get(2)?;
@@ -137,7 +148,7 @@ impl Memory for SqliteMemory {
 
     async fn get(&self, path: &str) -> ClawResult<Option<MemoryDoc>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT id, path, category, content, created_at, updated_at FROM documents WHERE path = ?1"
         )?;
         let result = stmt.query_row(params![path], |row| {
@@ -171,4 +182,3 @@ impl Memory for SqliteMemory {
     }
 }
 
-use crate::ClawError;

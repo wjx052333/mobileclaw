@@ -51,7 +51,14 @@ async fn category_filter_works() {
     let (mem, _dir) = make_memory().await;
     mem.store("core.md", "core data", MemoryCategory::Core).await.unwrap();
     mem.store("daily.md", "daily log", MemoryCategory::Daily).await.unwrap();
-    let q = SearchQuery { text: "data log".into(), category: Some(MemoryCategory::Core), limit: 10, ..Default::default() };
+    // Search for "data" which appears in "core data"
+    let q = SearchQuery {
+        text: "data".into(),
+        category: Some(MemoryCategory::Core),
+        limit: 10,
+        ..Default::default()
+    };
     let results = mem.recall(&q).await.unwrap();
+    assert!(!results.is_empty(), "should find at least one Core document");
     assert!(results.iter().all(|r| r.doc.category == MemoryCategory::Core));
 }

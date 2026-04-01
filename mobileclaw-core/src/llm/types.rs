@@ -28,8 +28,8 @@ impl Message {
     }
     /// 返回文本内容（多 block 拼接）
     pub fn text_content(&self) -> String {
-        self.content.iter().filter_map(|b| match b {
-            ContentBlock::Text { text } => Some(text.as_str()),
+        self.content.iter().map(|b| match b {
+            ContentBlock::Text { text } => text.as_str(),
         }).collect::<Vec<_>>().join("")
     }
 }

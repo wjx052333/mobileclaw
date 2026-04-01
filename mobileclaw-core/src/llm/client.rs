@@ -17,6 +17,7 @@ pub trait LlmClient: Send + Sync {
 }
 
 /// Claude API 实现（Messages API + SSE）
+#[allow(dead_code)]
 pub struct ClaudeClient {
     api_key: String,
     model: String,
