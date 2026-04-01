@@ -33,3 +33,6 @@ proptest    = "1"
 mockall     = "0.13"
 tempfile    = "3"
 tokio-test  = "0.4"
+uuid        = { version = "1", features = ["v4"] }
+async-stream = "0.3"
+wiremock    = "0.6"

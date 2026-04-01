@@ -33,6 +33,8 @@ tokio-rustls = { workspace = true }
 rustls        = { workspace = true }
 webpki-roots  = { workspace = true }
 flutter_rust_bridge = "=2.12.0"
+uuid         = { workspace = true }
+async-stream = { workspace = true }
 
 [features]
 test-utils = []
@@ -42,6 +44,7 @@ proptest   = { workspace = true }
 mockall    = { workspace = true }
 tempfile   = { workspace = true }
 tokio-test = { workspace = true }
+wiremock   = { workspace = true }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
