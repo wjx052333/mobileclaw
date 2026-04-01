@@ -260,6 +260,7 @@ impl LlmClient for OllamaClient {
 pub struct ProbeResult {
     pub ok: bool,
     pub latency_ms: u64,
+    pub degraded: bool,     // true = completions failed but models endpoint succeeded
     pub error: Option<String>,
 }
 
@@ -284,10 +285,11 @@ pub async fn probe_provider(config: &ProviderConfig, api_key: Option<&str>) -> P
     let latency_ms = start.elapsed().as_millis() as u64;
 
     if list_result.is_ok() {
-        // Models endpoint responds but completion might not work — still count as OK
+        // Models endpoint responds but completion probe failed — ok but degraded
         return ProbeResult {
             ok: true,
             latency_ms,
+            degraded: true,
             error: None,
         };
     }
@@ -535,9 +537,9 @@ UI should show a warning, not a green checkmark.
 
 ### 5. Error Handling
 
-New `ClawError` variants (if needed):
-- `ClawError::ProviderNotFound(String)` — provider ID not in SecretStore
-- `ClawError::ProviderInitFailed(String)` — malformed URL or key, reuse `ClawError::Llm()`
+New `ClawError` variants:
+- `ClawError::ProviderNotFound(String)` — provider ID not in SecretStore (e.g., set_active called with unknown ID)
+- All other provider errors reuse `ClawError::Llm(String)` — no new variant needed
 
 ## Performance Impact
 
@@ -552,9 +554,9 @@ New `ClawError` variants (if needed):
 - `AgentSession::create()` checks SecretStore first, then explicit config
 - Existing code paths unaffected
 
-## Future: Multimodal Capability Detection (OUT OF SCOPE for this plan)
+## Future: Multimodal Capability Detection (tracked separately, not in this plan)
 
-**TODO (separate spec)**: Borrow ironclaw's `image_models.rs` / `vision_models.rs` patterns:
+Borrow ironclaw's `image_models.rs` / `vision_models.rs` patterns:
 - `is_vision_model(model_name: &str)` — pattern matching on model string
 - If model supports vision: accept image/video inputs directly
 - If not: warn user that media inputs are unsupported
