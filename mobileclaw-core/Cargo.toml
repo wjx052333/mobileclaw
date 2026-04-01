@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[lib]
+crate-type = ["cdylib", "lib"]
+
 [dependencies]
 tokio       = { workspace = true }
 async-trait = { workspace = true }
@@ -21,6 +24,7 @@ futures     = { workspace = true }
 eventsource-stream = { workspace = true }
 regex       = { workspace = true }
 glob        = { workspace = true }
+flutter_rust_bridge = { workspace = true }
 
 [features]
 test-utils = []
