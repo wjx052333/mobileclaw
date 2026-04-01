@@ -34,3 +34,6 @@ proptest   = { workspace = true }
 mockall    = { workspace = true }
 tempfile   = { workspace = true }
 tokio-test = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

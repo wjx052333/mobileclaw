@@ -139,4 +139,58 @@ mod tests {
         ).await;
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn memory_search_missing_query_errors() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = MemorySearchTool.execute(serde_json::json!({}), &ctx).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn memory_write_daily_category() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = MemoryWriteTool.execute(
+            serde_json::json!({"path": "day.md", "content": "standup notes", "category": "daily"}),
+            &ctx,
+        ).await.unwrap();
+        assert!(result.success);
+    }
+
+    #[tokio::test]
+    async fn memory_write_conversation_category() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = MemoryWriteTool.execute(
+            serde_json::json!({"path": "chat.md", "content": "dialogue", "category": "conversation"}),
+            &ctx,
+        ).await.unwrap();
+        assert!(result.success);
+    }
+
+    #[tokio::test]
+    async fn memory_write_missing_path_errors() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = MemoryWriteTool.execute(
+            serde_json::json!({"content": "orphan"}),
+            &ctx,
+        ).await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn tool_metadata() {
+        let s = MemorySearchTool;
+        assert_eq!(s.name(), "memory_search");
+        assert!(!s.description().is_empty());
+        assert!(!s.parameters_schema().is_null());
+        assert!(s.required_permissions().contains(&crate::tools::Permission::MemoryRead));
+
+        let w = MemoryWriteTool;
+        assert_eq!(w.name(), "memory_write");
+        assert!(w.required_permissions().contains(&crate::tools::Permission::MemoryWrite));
+    }
 }

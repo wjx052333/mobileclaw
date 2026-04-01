@@ -68,6 +68,14 @@ cargo clippy -p mobileclaw-core --features test-utils -- -D warnings
 | `memory_search_returns_matching_doc` | `src/tools/builtin/memory_tools.rs` | unit (async) | A document written with `MemoryWriteTool` is found by `MemorySearchTool` |
 | `memory_search_empty_returns_empty` | `src/tools/builtin/memory_tools.rs` | unit (async) | A search that matches nothing returns an empty results array |
 | `memory_write_missing_content_errors` | `src/tools/builtin/memory_tools.rs` | unit (async) | `MemoryWriteTool` with no `content` field returns an error |
+| `memory_search_missing_query_errors` | `src/tools/builtin/memory_tools.rs` | unit (async) | `MemorySearchTool` with no `query` field returns an error |
+| `memory_write_daily_category` | `src/tools/builtin/memory_tools.rs` | unit (async) | `MemoryWriteTool` with `"category": "daily"` stores successfully |
+| `memory_write_conversation_category` | `src/tools/builtin/memory_tools.rs` | unit (async) | `MemoryWriteTool` with `"category": "conversation"` stores successfully |
+| `memory_write_missing_path_errors` | `src/tools/builtin/memory_tools.rs` | unit (async) | `MemoryWriteTool` with no `path` field returns an error |
+| `tool_metadata` (memory_tools) | `src/tools/builtin/memory_tools.rs` | unit | Both tools return correct `name()`, non-empty `description()`, non-null schema, and correct `required_permissions()` |
+| `allow_all_grants_every_permission` | `src/tools/permission.rs` | unit | `PermissionChecker::allow_all()` grants all 7 `Permission` variants |
+| `selective_permissions_deny_unlisted` | `src/tools/permission.rs` | unit | A checker constructed with only `FileRead` grants `FileRead` but denies `FileWrite` and `HttpFetch` |
+| `empty_checker_denies_all` | `src/tools/permission.rs` | unit | A checker with an empty permission set denies every permission |
 | `parse_single_tool_call` | `src/agent/parser.rs` | unit | `extract_tool_calls` parses one `<tool_call>` block correctly, including Chinese preamble text |
 | `parse_multiple_tool_calls` | `src/agent/parser.rs` | unit | Two consecutive `<tool_call>` blocks are both extracted |
 | `no_tool_calls_returns_empty` | `src/agent/parser.rs` | unit | Plain text with no `<tool_call>` tags returns an empty list |
@@ -102,7 +110,7 @@ cargo clippy -p mobileclaw-core --features test-utils -- -D warnings
 | `tool_call_in_response_is_executed` | `tests/integration_agent.rs` | integration (async) | A mocked LLM response containing a `<tool_call>` block causes the agent to emit at least one `AgentEvent::ToolCall` event |
 | `message_history_grows_with_turns` | `tests/integration_agent.rs` | integration (async) | After two calls to `chat`, `AgentLoop::history()` contains four messages (user + assistant per turn) |
 
-**Total: 34 unit tests + 12 integration tests = 46 test functions, plus 2 proptest properties (each exercising 256 random cases by default).**
+**Total: 43 unit tests + 12 integration tests = 55 test functions, plus 2 proptest properties (each exercising 256 random cases by default).**
 
 ---
 
@@ -116,7 +124,9 @@ cargo clippy -p mobileclaw-core --features test-utils -- -D warnings
 
 **`src/tools/builtin/http.rs`** — HTTP allowlist enforcement. Covers allowed domains, blocked domains, empty allowlist, userinfo in URL, hostname spoofing via suffix, and scheme downgrade. The proptest exercises 256 arbitrary URL-like strings to confirm `is_url_allowed` never panics.
 
-**`src/tools/builtin/memory_tools.rs`** — `MemoryWriteTool` and `MemorySearchTool`. Covers storing a document, searching for it, receiving an empty result when nothing matches, and returning an error when required arguments are absent.
+**`src/tools/builtin/memory_tools.rs`** — `MemoryWriteTool` and `MemorySearchTool`. Covers storing a document, searching for it, receiving an empty result when nothing matches, all three writable categories (`core`, `daily`, `conversation`), errors on missing required arguments (`path`, `content`, `query`), and tool metadata correctness.
+
+**`src/tools/permission.rs`** — `PermissionChecker` construction and enforcement. Covers `allow_all()` granting every variant, selective construction denying unlisted permissions, and empty construction denying all permissions.
 
 **`src/agent/parser.rs`** — Tool call XML parsing and serialization. Covers single and multiple `<tool_call>` blocks, plain text with no tags, malformed JSON inside a tag, `<tool_result>` serialization for both success and error cases, and text extraction that strips tool call blocks.
 
