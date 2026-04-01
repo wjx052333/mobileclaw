@@ -241,7 +241,10 @@ impl Tool for EmailFetchTool {
                 .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
 
             let messages: Vec<_> = fetch_stream
-                .filter_map(|r| async move { r.ok() })
+                .filter_map(|r| async move {
+                    r.map_err(|e| tracing::warn!(error = %e, "IMAP fetch stream error, skipping message"))
+                     .ok()
+                })
                 .collect()
                 .await;
 
