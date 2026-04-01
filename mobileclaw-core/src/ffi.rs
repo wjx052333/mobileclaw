@@ -123,7 +123,7 @@ impl AgentSession {
         register_all_builtins(&mut registry);
 
         let ctx = ToolContext {
-            memory: memory.clone() as Arc<dyn Memory>,
+            memory: memory.clone() as Arc<dyn Memory>, // Arc clone: both AgentSession.memory and AgentLoop's ToolContext must co-own the same memory instance
             sandbox_dir: config.sandbox_dir.into(),
             http_allowlist: config.http_allowlist,
             permissions: Arc::new(PermissionChecker::allow_all()),
@@ -183,14 +183,14 @@ impl AgentSession {
             .skills()
             .iter()
             .map(|s| SkillManifestDto {
-                name: s.manifest.name.clone(),
-                description: s.manifest.description.clone(),
+                name: s.manifest.name.clone(), // String/Vec clone: DTOs must own their data to cross the FFI boundary
+                description: s.manifest.description.clone(), // String/Vec clone: DTOs must own their data to cross the FFI boundary
                 trust: match s.manifest.trust {
                     SkillTrust::Bundled => "bundled".into(),
                     SkillTrust::Installed => "installed".into(),
                 },
-                keywords: s.manifest.activation.keywords.clone(),
-                allowed_tools: s.manifest.allowed_tools.clone().unwrap_or_default(),
+                keywords: s.manifest.activation.keywords.clone(), // String/Vec clone: DTOs must own their data to cross the FFI boundary
+                allowed_tools: s.manifest.allowed_tools.clone().unwrap_or_default(), // String/Vec clone: DTOs must own their data to cross the FFI boundary
             })
             .collect()
     }

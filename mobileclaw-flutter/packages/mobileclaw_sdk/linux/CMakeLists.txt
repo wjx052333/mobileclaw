@@ -45,7 +45,7 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE PkgConfig::GTK)
 # This list could contain prebuilt libraries, or libraries created by an
 # external build triggered from this build file.
 set(mobileclaw_sdk_bundled_libraries
-  ""
+  "${CMAKE_CURRENT_SOURCE_DIR}/libmobileclaw_core.so"
   PARENT_SCOPE
 )
 

@@ -22,10 +22,12 @@ final agentProvider = FutureProvider<MobileclawAgent>((ref) async {
   final dir = await getApplicationSupportDirectory();
 
   if (_nativeAvailable) {
+    final workspaceDir = Directory('${dir.path}/workspace');
+    await workspaceDir.create(recursive: true);
     final agent = await MobileclawAgentImpl.create(
       apiKey: const String.fromEnvironment('ANTHROPIC_API_KEY', defaultValue: ''),
       dbPath: '${dir.path}/claw.db',
-      sandboxDir: '${dir.path}/workspace',
+      sandboxDir: workspaceDir.path,
       httpAllowlist: ['https://api.anthropic.com/'],
     );
     ref.onDispose(agent.dispose);
