@@ -1,0 +1,4 @@
+# Pre-built Rust native libraries — built locally with:
+#   cargo ndk -t arm64-v8a -t x86_64 -o <this dir> build --release -p mobileclaw-core
+# Never committed to git; each developer builds from source.
+*.so
