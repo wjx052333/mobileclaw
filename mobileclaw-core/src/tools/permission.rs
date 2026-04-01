@@ -54,6 +54,8 @@ mod tests {
         assert!(checker.check(&Permission::MemoryWrite));
         assert!(checker.check(&Permission::SystemInfo));
         assert!(checker.check(&Permission::Notifications));
+        assert!(checker.check(&Permission::EmailSend));
+        assert!(checker.check(&Permission::EmailReceive));
     }
 
     #[test]

@@ -181,7 +181,7 @@ impl Tool for EmailFetchTool {
         let account_id = args["account_id"].as_str()
             .ok_or_else(|| ClawError::Tool { tool: self.name().into(), message: "missing 'account_id'".into() })?;
         let folder = args["folder"].as_str().unwrap_or("INBOX");
-        let limit = args["limit"].as_u64().unwrap_or(10).min(50) as u32;
+        let limit = args["limit"].as_u64().unwrap_or(10).clamp(1, 50) as u32;
 
         // Load credentials
         let config_key = format!("email:{}:config", account_id);

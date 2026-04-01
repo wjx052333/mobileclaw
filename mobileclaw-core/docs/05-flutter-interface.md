@@ -996,13 +996,17 @@ The following tasks must be completed before the mock can be removed.
 
 ### Rust side
 
-- [ ] Create `mobileclaw-core/src/ffi.rs` with the non-generic `AgentSession` wrapper
-- [ ] Add `AgentConfig`, `AgentEventDto`, and `SkillManifestDto` structs to `ffi.rs`
-- [ ] Add `flutter_rust_bridge = "2"` to `mobileclaw-core/Cargo.toml`
-- [ ] Annotate opaque types with `#[frb(opaque)]`
+- [x] Create `mobileclaw-core/src/ffi.rs` with the non-generic `AgentSession` wrapper
+- [x] Add `AgentConfig`, `AgentEventDto`, and `SkillManifestDto` structs to `ffi.rs`
+- [x] Add `flutter_rust_bridge = "=2.12.0"` to `mobileclaw-core/Cargo.toml`
+- [x] Annotate opaque types with `#[frb(opaque)]`
 - [ ] Add `#[frb(dart_code)]` block to map `ClawError` → `ClawException`
-- [ ] Ensure `ClawError` implements `std::fmt::Display` (already done via `thiserror`)
-- [ ] Run `flutter_rust_bridge_codegen generate` and commit generated files
+- [x] Ensure `ClawError` implements `std::fmt::Display` (via `thiserror`)
+- [x] Commit `frb_generated.rs` (manually maintained — FRB codegen not run in CI)
+- [x] Add `secretsDbPath: String` to `AgentConfig` and `SqliteSecretStore` to `AgentSession`
+- [x] Add `EmailAccountDto` and `email_account_save/load/delete` methods to `AgentSession`
+- [ ] Wire `secretsDbPath` into `AgentConfig(...)` call site in `agent_impl.dart` (flutter-dev worktree)
+- [ ] Replace hardcoded AES dev key with Android Keystore / iOS Keychain derivation before release
 
 ### Dart side
 
