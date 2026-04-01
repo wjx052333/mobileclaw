@@ -4,15 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobileclaw_sdk/mobileclaw_sdk.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// `true` when the native library is present (Linux desktop / device builds).
-bool get _nativeAvailable {
-  if (Platform.isLinux) {
-    // The .so is bundled alongside the Flutter app binary.
-    return true;
-  }
-  // iOS / Android native support lands in Phase 3.
-  return false;
-}
+/// `true` when the native library is available.
+/// Phase 3 adds Android. iOS requires a Mac build — not yet supported.
+bool get _nativeAvailable => Platform.isLinux || Platform.isAndroid;
 
 /// Singleton [MobileclawAgent] for the app.
 ///

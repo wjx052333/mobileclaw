@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'bridge/ffi.dart';
+import 'bridge/frb_generated.dart';
 import 'engine.dart';
 import 'events.dart';
 import 'exceptions.dart';
@@ -189,6 +190,15 @@ class MobileclawAgentImpl implements MobileclawAgent {
     String model = 'claude-opus-4-6',
     String? skillsDir,
   }) async {
+    // Initialize the FFI bridge on first call only.
+    // flutter_rust_bridge v2 throws StateError if init() is called twice,
+    // so we guard with .initialized. Integration tests call init(externalLibrary:...)
+    // in setUpAll; this guard makes that call a no-op here.
+    // On Android: loads libmobileclaw_core.so from jniLibs via System.loadLibrary.
+    // On Linux:   dlopen("libmobileclaw_core.so") found via bundle RUNPATH.
+    if (!MobileclawCoreBridge.instance.initialized) {
+      await MobileclawCoreBridge.init();
+    }
     final config = AgentConfig(
       apiKey: apiKey,
       dbPath: dbPath,
