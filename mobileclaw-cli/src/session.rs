@@ -24,9 +24,10 @@ pub fn prepare_data_dir(data_dir: &Path) -> Result<(PathBuf, PathBuf)> {
     ))
 }
 
-/// Build an AgentSession. LLM provider is loaded from the active provider in
-/// secrets.db (set via `mclaw provider set-active`). If no active provider,
-/// falls back to ANTHROPIC_API_KEY + ANTHROPIC_MODEL env vars.
+/// Build an AgentSession using env vars for the provider config if present.
+/// ANTHROPIC_API_KEY env var → api_key; ANTHROPIC_MODEL env var → model override.
+/// If neither is set (both None), mobileclaw-core will load the active provider
+/// configured via `mclaw provider set-active` from secrets.db.
 pub async fn open_session(data_dir: &Path) -> Result<AgentSession> {
     let (memory_db, secrets_db) = prepare_data_dir(data_dir)?;
 
@@ -41,7 +42,7 @@ pub async fn open_session(data_dir: &Path) -> Result<AgentSession> {
         encryption_key: b"mobileclaw-dev-key-32bytes000000".to_vec(),
     };
 
-    AgentSession::create(config).await.map_err(anyhow::Error::from)
+    AgentSession::create(config).await
 }
 
 /// Open just the SqliteSecretStore (for provider/email management without a full agent).

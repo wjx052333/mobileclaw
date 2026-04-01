@@ -46,6 +46,7 @@ pub async fn cmd_email_add_from_env(
 }
 
 /// Add email account interactively (via CLI flags).
+#[allow(clippy::too_many_arguments)] // CLI boundary function: each arg maps to one --flag
 pub async fn cmd_email_add(
     data_dir: &Path,
     id: String,
@@ -73,8 +74,10 @@ pub async fn cmd_email_add(
 }
 
 pub async fn cmd_email_list(_data_dir: &Path) -> Result<()> {
-    println!("Use `mclaw email fetch <id>` or `mclaw email send <id> ...` to interact with a known account.");
-    println!("Use `mclaw email add-from-env --id <id>` to add an account from test_env.sh.");
+    // TODO: Add email_account_list_ids() to SqliteSecretStore to support listing
+    println!("Account listing not yet implemented.");
+    println!("Tip: accounts are referenced by the ID used when adding them.");
+    println!("Use `mclaw email add-from-env --id <id>` to add accounts.");
     Ok(())
 }
 

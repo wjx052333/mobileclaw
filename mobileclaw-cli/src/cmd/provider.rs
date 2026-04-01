@@ -46,7 +46,7 @@ pub async fn cmd_provider_list(data_dir: &Path) -> Result<()> {
         println!("No providers configured. Use `mclaw provider add` to add one.");
         return Ok(());
     }
-    println!("{:<38} {:<14} {:<20} {}", "ID", "PROTOCOL", "NAME", "MODEL");
+    println!("{:<38} {:<14} {:<20} MODEL", "ID", "PROTOCOL", "NAME");
     println!("{}", "-".repeat(90));
     for p in &list {
         let proto = protocol_str(&p.protocol);
