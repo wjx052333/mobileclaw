@@ -103,6 +103,11 @@ impl<L: LlmClient> AgentLoop<L> {
             self.history.push(Message::user("[tool results provided above, please continue]"));
         }
 
+        // Ensure Done is always the last event, even when tool rounds are exhausted.
+        if !matches!(all_events.last(), Some(AgentEvent::Done)) {
+            all_events.push(AgentEvent::Done);
+        }
+
         Ok(all_events)
     }
 }
@@ -225,4 +230,22 @@ mod tests {
         agent.replace_skills(SkillManager::new(vec![]));
         assert_eq!(agent.skills().len(), 0);
     }
+
+    #[tokio::test]
+    async fn chat_tool_round_exhaustion_still_emits_done() {
+        // MockLlmClient always returns a fixed text response.
+        // By embedding a tool_call XML in the response, the loop will never
+        // see a clean (tool-free) response, exhausting all MAX_TOOL_ROUNDS.
+        // After exhaustion the Done guard must still be appended.
+        let (mut agent, _dir) = make_agent(
+            r#"<tool_call>{"name": "nonexistent_tool", "args": {}}</tool_call>"#
+        ).await;
+        let events = agent.chat("go", "").await.unwrap();
+        assert!(
+            matches!(events.last(), Some(AgentEvent::Done)),
+            "last event must be Done even when tool rounds are exhausted, got: {:?}",
+            events.last()
+        );
+    }
 }
+
