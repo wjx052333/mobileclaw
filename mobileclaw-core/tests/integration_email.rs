@@ -1,5 +1,5 @@
 use mobileclaw_core::{
-    secrets::{store::SqliteSecretStore, types::EmailAccount},
+    secrets::{SecretStore, store::SqliteSecretStore, types::EmailAccount},
     tools::{PermissionChecker, ToolContext, ToolRegistry, builtin::register_all_builtins},
     memory::sqlite::SqliteMemory,
 };
@@ -19,12 +19,13 @@ async fn make_store(dir: &TempDir) -> Arc<SqliteSecretStore> {
 
 async fn make_ctx(dir: &TempDir, store: Arc<SqliteSecretStore>) -> ToolContext {
     let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+    let secrets: Arc<dyn SecretStore> = store;  // explicit unsizing coercion
     ToolContext {
         memory: mem,
         sandbox_dir: dir.path().to_path_buf(),
         http_allowlist: vec![],
         permissions: Arc::new(PermissionChecker::allow_all()),
-        secrets: store,
+        secrets,
     }
 }
 
