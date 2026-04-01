@@ -10,7 +10,7 @@ pub enum MemoryCategory {
     Custom(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MemoryDoc {
     pub id: String,
     pub path: String,
@@ -22,20 +22,25 @@ pub struct MemoryDoc {
 
 impl MemoryDoc {
     pub fn new(path: impl Into<String>, content: impl Into<String>, category: MemoryCategory) -> Self {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+        let secs = now.as_secs();
+        let nanos = now.subsec_nanos();
         let path = path.into();
+        let content_str: String = content.into();
         let id = format!("{:x}", {
             use std::hash::{Hash, Hasher};
             let mut h = std::collections::hash_map::DefaultHasher::new();
             path.hash(&mut h);
-            now.hash(&mut h);
+            content_str.hash(&mut h);
+            secs.hash(&mut h);
+            nanos.hash(&mut h);
             h.finish()
         });
-        Self { id, path, content: content.into(), category, created_at: now, updated_at: now }
+        Self { id, path, content: content_str, category, created_at: secs, updated_at: secs }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SearchResult {
     pub doc: MemoryDoc,
     pub score: f32,
