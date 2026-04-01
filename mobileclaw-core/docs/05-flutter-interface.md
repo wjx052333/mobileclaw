@@ -1005,13 +1005,13 @@ The following tasks must be completed before the mock can be removed.
 - [x] Commit `frb_generated.rs` (manually maintained — FRB codegen not run in CI)
 - [x] Add `secretsDbPath: String` to `AgentConfig` and `SqliteSecretStore` to `AgentSession`
 - [x] Add `EmailAccountDto` and `email_account_save/load/delete` methods to `AgentSession`
-- [ ] Wire `secretsDbPath` into `AgentConfig(...)` call site in `agent_impl.dart` (flutter-dev worktree)
+- [x] Wire `secretsDbPath` into `AgentConfig(...)` call site in `agent_impl.dart` (feature/flutter-email worktree)
 - [ ] Replace hardcoded AES dev key with a key derived from `flutter_secure_storage` (cross-platform):
-  - Dart: on first launch, generate a random 32-byte key with `dart:math` `Random.secure()`, store as base64 under key `mobileclaw.secrets_key` via `FlutterSecureStorage`
-  - Dart: on subsequent launches, read the key from secure storage (Android Keystore-backed on Android, iOS Keychain-backed on iOS — `flutter_secure_storage` handles this automatically)
-  - Dart: add `encryptionKey: List<int>` field to `AgentConfig` and pass the 32 raw bytes when calling `AgentSession.create`
-  - Rust: add `encryption_key: Vec<u8>` to `AgentConfig` in `ffi.rs`; replace `b"mobileclaw-dev-key-32bytes000000"` with `config.encryption_key.as_slice().try_into()` in `AgentSession::create`; remove `compile_error!` guard once done
-  - Dart: update `agent_impl.dart` `MobileclawAgentImpl.create` to accept and forward `encryptionKey`
+  - [ ] Dart: on first launch, generate a random 32-byte key with `dart:math` `Random.secure()`, store as base64 under key `mobileclaw.secrets_key` via `FlutterSecureStorage`
+  - [ ] Dart: on subsequent launches, read the key from secure storage (Android Keystore-backed on Android, iOS Keychain-backed on iOS — `flutter_secure_storage` handles this automatically)
+  - [x] Dart: add `encryptionKey: List<int>` field to `AgentConfig` and pass the 32 raw bytes when calling `AgentSession.create`
+  - [ ] Rust: add `encryption_key: Vec<u8>` to `AgentConfig` in `ffi.rs`; replace `b"mobileclaw-dev-key-32bytes000000"` with `config.encryption_key.as_slice().try_into()` in `AgentSession::create`; remove `compile_error!` guard once done
+  - [x] Dart: update `agent_impl.dart` `MobileclawAgentImpl.create` to accept and forward `encryptionKey`
   - **Note:** the `flutter_secure_storage` key is intentionally NOT included in any backup. On device migration the user must re-enter all email passwords and LLM API keys.
 
 ### Backup Policy
@@ -1026,8 +1026,8 @@ What is NOT backed up (by design):
 
 ### Dart side
 
-- [ ] Verify the generated `bridge_generated.dart` exports match the API contract in this document
-- [ ] Implement a real `MobileclawAgent` that delegates to the generated bridge
+- [x] Verify the generated `bridge_generated.dart` exports match the API contract in this document (manually maintained; email methods added in feature/flutter-email)
+- [x] Implement a real `MobileclawAgent` that delegates to the generated bridge (`MobileclawAgentImpl` — includes email account save/load/delete via FFI)
 - [ ] Confirm `ClawException` fields (`type`, `message`) match what the bridge emits
 - [ ] Replace all `MockMobileclawAgent` usages with the real implementation
 - [ ] Run the full widget test suite against the real FFI (on simulator / device)
