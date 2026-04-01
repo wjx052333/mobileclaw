@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobileclaw_sdk/mobileclaw_sdk.dart';
+import 'package:mobileclaw_sdk/src/bridge/frb_generated.dart';
 
 void main() {
   // ---------------------------------------------------------------------------
@@ -496,7 +498,17 @@ void main() {
   // MobileclawAgentImpl (Linux integration)
   // ---------------------------------------------------------------------------
   group('MobileclawAgentImpl (Linux integration)', () {
-    const _run = bool.fromEnvironment('INTEGRATION');
+    final _run = Platform.environment['INTEGRATION'] == 'true';
+
+    setUpAll(() async {
+      if (!_run) return;
+      // Load the native Rust library once for all integration tests.
+      await MobileclawCoreBridge.init(
+        externalLibrary: ExternalLibrary.open(
+          '${Directory.current.path}/linux/libmobileclaw_core.so',
+        ),
+      );
+    });
 
     test('create() succeeds and memory starts empty', () async {
       if (!_run) return;
@@ -539,6 +551,6 @@ void main() {
         dir.deleteSync(recursive: true);
       }
     }, timeout: const Timeout(Duration(seconds: 10)));
-  }, skip: !bool.fromEnvironment('INTEGRATION') ? 'pass --dart-define=INTEGRATION=1' : null);
+  }, skip: Platform.environment['INTEGRATION'] != 'true' ? 'set INTEGRATION=true to run' : null);
 }
 
