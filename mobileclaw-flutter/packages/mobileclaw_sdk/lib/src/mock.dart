@@ -4,6 +4,7 @@ import 'engine.dart';
 import 'events.dart';
 import 'memory.dart';
 import 'models.dart';
+// EmailAccountDto is part of models.dart — no extra import needed
 
 /// Mock implementation of [MobileclawAgent].
 /// All responses are synthetic; no Rust code is invoked.
@@ -16,6 +17,8 @@ class MockMobileclawAgent implements MobileclawAgent {
   final List<ChatMessage> _history = [];
   final _memory = MockMobileclawMemory();
   final List<SkillManifest> _skills = [];
+  // Email accounts stored by id. Passwords are intentionally not stored.
+  final Map<String, EmailAccountDto> _emailAccounts = {};
 
   static Future<MobileclawAgent> create({
     required String apiKey,
@@ -75,6 +78,24 @@ class MockMobileclawAgent implements MobileclawAgent {
 
   @override
   List<SkillManifest> get skills => List.unmodifiable(_skills);
+
+  @override
+  Future<void> emailAccountSave({
+    required EmailAccountDto dto,
+    required String password,
+  }) async {
+    // Store config only — password is intentionally discarded.
+    _emailAccounts[dto.id] = dto;
+  }
+
+  @override
+  Future<EmailAccountDto?> emailAccountLoad({required String id}) async =>
+      _emailAccounts[id];
+
+  @override
+  Future<void> emailAccountDelete({required String id}) async {
+    _emailAccounts.remove(id);
+  }
 }
 
 /// In-memory mock of [MobileclawMemory].

@@ -58,6 +58,44 @@ class SkillManifest {
       );
 }
 
+/// Email account configuration. No password field — by design.
+/// The password is stored encrypted in Rust and never returned to Dart.
+class EmailAccountDto {
+  const EmailAccountDto({
+    required this.id,
+    required this.smtpHost,
+    required this.smtpPort,
+    required this.imapHost,
+    required this.imapPort,
+    required this.username,
+  });
+
+  final String id;
+  final String smtpHost;
+  final int smtpPort;
+  final String imapHost;
+  final int imapPort;
+  final String username;
+
+  @override
+  bool operator ==(Object other) =>
+      other is EmailAccountDto &&
+      other.id == id &&
+      other.smtpHost == smtpHost &&
+      other.smtpPort == smtpPort &&
+      other.imapHost == imapHost &&
+      other.imapPort == imapPort &&
+      other.username == username;
+
+  @override
+  int get hashCode => Object.hash(id, smtpHost, smtpPort, imapHost, imapPort, username);
+
+  @override
+  String toString() =>
+      'EmailAccountDto(id: $id, smtpHost: $smtpHost, smtpPort: $smtpPort, '
+      'imapHost: $imapHost, imapPort: $imapPort, username: $username)';
+}
+
 bool _listEq<T>(List<T>? a, List<T>? b) {
   if (a == null && b == null) return true;
   if (a == null || b == null) return false;

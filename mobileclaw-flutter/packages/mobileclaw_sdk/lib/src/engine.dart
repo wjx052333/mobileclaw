@@ -59,4 +59,31 @@ abstract class MobileclawAgent {
 
   /// Manifests of all currently loaded skills, in load order.
   List<SkillManifest> get skills;
+
+  /// Save an email account configuration and its password.
+  ///
+  /// The password is encrypted with AES-256-GCM on the Rust side before
+  /// storage. After this call the plaintext password is no longer accessible.
+  /// Call this once from the app settings screen when the user provides
+  /// their credentials.
+  ///
+  /// Throws [ClawException] on storage error.
+  Future<void> emailAccountSave({
+    required EmailAccountDto dto,
+    required String password,
+  });
+
+  /// Load an email account's configuration.
+  ///
+  /// Returns null if the account does not exist. The password is NOT returned
+  /// — there is no way to retrieve it after saving. This is intentional.
+  ///
+  /// Throws [ClawException] on storage error.
+  Future<EmailAccountDto?> emailAccountLoad({required String id});
+
+  /// Delete an email account and its stored password.
+  ///
+  /// No-op if the account does not exist.
+  /// Throws [ClawException] on storage error.
+  Future<void> emailAccountDelete({required String id});
 }

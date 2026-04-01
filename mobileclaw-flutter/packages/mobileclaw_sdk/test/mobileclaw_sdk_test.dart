@@ -518,6 +518,8 @@ void main() {
         final agent = await MobileclawAgentImpl.create(
           apiKey: 'test-key',
           dbPath: '${dir.path}/m.db',
+          secretsDbPath: '${dir.path}/secrets.db',
+          encryptionKey: List<int>.filled(32, 0),
           sandboxDir: dir.path,
           httpAllowlist: [],
         );
@@ -536,6 +538,8 @@ void main() {
         final agent = await MobileclawAgentImpl.create(
           apiKey: 'test-key',
           dbPath: '${dir.path}/m.db',
+          secretsDbPath: '${dir.path}/secrets.db',
+          encryptionKey: List<int>.filled(32, 0),
           sandboxDir: dir.path,
           httpAllowlist: [],
         );
@@ -649,5 +653,250 @@ void main() {
       expect(const DoneEvent(), equals(const DoneEvent()));
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // EmailAccountDto
+  // ---------------------------------------------------------------------------
+  group('EmailAccountDto', () {
+    const dto = EmailAccountDto(
+      id: 'work',
+      smtpHost: 'smtp.example.com',
+      smtpPort: 587,
+      imapHost: 'imap.example.com',
+      imapPort: 993,
+      username: 'alice@example.com',
+    );
+
+    test('fields are accessible', () {
+      expect(dto.id, 'work');
+      expect(dto.smtpHost, 'smtp.example.com');
+      expect(dto.smtpPort, 587);
+      expect(dto.imapHost, 'imap.example.com');
+      expect(dto.imapPort, 993);
+      expect(dto.username, 'alice@example.com');
+    });
+
+    test('has no password field — by design', () {
+      // EmailAccountDto must not expose a password property.
+      // This test ensures the struct carries no sensitive data.
+      final reflected = dto.toString();
+      expect(reflected, isNot(contains('password')));
+    });
+
+    test('equality — same values are equal', () {
+      const b = EmailAccountDto(
+        id: 'work',
+        smtpHost: 'smtp.example.com',
+        smtpPort: 587,
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        username: 'alice@example.com',
+      );
+      expect(dto, equals(b));
+      expect(dto.hashCode, equals(b.hashCode));
+    });
+
+    test('equality — different id is not equal', () {
+      const b = EmailAccountDto(
+        id: 'personal',
+        smtpHost: 'smtp.example.com',
+        smtpPort: 587,
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        username: 'alice@example.com',
+      );
+      expect(dto, isNot(equals(b)));
+    });
+
+    test('equality — different smtpPort is not equal', () {
+      const b = EmailAccountDto(
+        id: 'work',
+        smtpHost: 'smtp.example.com',
+        smtpPort: 465,
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        username: 'alice@example.com',
+      );
+      expect(dto, isNot(equals(b)));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // MockMobileclawAgent — email account management
+  // ---------------------------------------------------------------------------
+  group('MockMobileclawAgent.email', () {
+    late MockMobileclawAgent agent;
+
+    setUp(() => agent = MockMobileclawAgent(responseDelay: Duration.zero));
+
+    const dto = EmailAccountDto(
+      id: 'work',
+      smtpHost: 'smtp.example.com',
+      smtpPort: 587,
+      imapHost: 'imap.example.com',
+      imapPort: 993,
+      username: 'alice@example.com',
+    );
+
+    test('emailAccountLoad returns null for unknown id', () async {
+      expect(await agent.emailAccountLoad(id: 'unknown'), isNull);
+    });
+
+    test('emailAccountSave completes without error', () async {
+      await expectLater(
+        agent.emailAccountSave(dto: dto, password: 's3cr3t'),
+        completes,
+      );
+    });
+
+    test('emailAccountLoad returns dto after save', () async {
+      await agent.emailAccountSave(dto: dto, password: 's3cr3t');
+      final loaded = await agent.emailAccountLoad(id: 'work');
+      expect(loaded, equals(dto));
+    });
+
+    test('emailAccountLoad does not expose password', () async {
+      await agent.emailAccountSave(dto: dto, password: 's3cr3t');
+      final loaded = await agent.emailAccountLoad(id: 'work');
+      expect(loaded, isNotNull);
+      // EmailAccountDto has no password field; toString must not reveal it.
+      expect(loaded.toString(), isNot(contains('s3cr3t')));
+    });
+
+    test('emailAccountSave overwrites existing account', () async {
+      await agent.emailAccountSave(dto: dto, password: 'old');
+      const updated = EmailAccountDto(
+        id: 'work',
+        smtpHost: 'smtp2.example.com',
+        smtpPort: 465,
+        imapHost: 'imap.example.com',
+        imapPort: 993,
+        username: 'alice@example.com',
+      );
+      await agent.emailAccountSave(dto: updated, password: 'new');
+      final loaded = await agent.emailAccountLoad(id: 'work');
+      expect(loaded!.smtpHost, 'smtp2.example.com');
+      expect(loaded.smtpPort, 465);
+    });
+
+    test('emailAccountDelete removes account', () async {
+      await agent.emailAccountSave(dto: dto, password: 's3cr3t');
+      await agent.emailAccountDelete(id: 'work');
+      expect(await agent.emailAccountLoad(id: 'work'), isNull);
+    });
+
+    test('emailAccountDelete is idempotent for unknown id', () async {
+      await expectLater(
+        agent.emailAccountDelete(id: 'nonexistent'),
+        completes,
+      );
+    });
+
+    test('multiple accounts can be saved independently', () async {
+      const personal = EmailAccountDto(
+        id: 'personal',
+        smtpHost: 'smtp.personal.com',
+        smtpPort: 587,
+        imapHost: 'imap.personal.com',
+        imapPort: 993,
+        username: 'bob@personal.com',
+      );
+      await agent.emailAccountSave(dto: dto, password: 'pw1');
+      await agent.emailAccountSave(dto: personal, password: 'pw2');
+      expect(await agent.emailAccountLoad(id: 'work'), equals(dto));
+      expect(await agent.emailAccountLoad(id: 'personal'), equals(personal));
+    });
+
+    test('deleting one account does not affect others', () async {
+      const personal = EmailAccountDto(
+        id: 'personal',
+        smtpHost: 'smtp.personal.com',
+        smtpPort: 587,
+        imapHost: 'imap.personal.com',
+        imapPort: 993,
+        username: 'bob@personal.com',
+      );
+      await agent.emailAccountSave(dto: dto, password: 'pw1');
+      await agent.emailAccountSave(dto: personal, password: 'pw2');
+      await agent.emailAccountDelete(id: 'work');
+      expect(await agent.emailAccountLoad(id: 'work'), isNull);
+      expect(await agent.emailAccountLoad(id: 'personal'), equals(personal));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // MobileclawAgentImpl — email account integration (Linux)
+  // ---------------------------------------------------------------------------
+  group('MobileclawAgentImpl email (Linux integration)', () {
+    final _run = Platform.environment['INTEGRATION'] == 'true';
+
+    setUpAll(() async {
+      if (!_run) return;
+      if (!MobileclawCoreBridge.instance.initialized) {
+        await MobileclawCoreBridge.init(
+          externalLibrary: ExternalLibrary.open(
+            '${Directory.current.path}/linux/libmobileclaw_core.so',
+          ),
+        );
+      }
+    });
+
+    test('create() with secretsDbPath succeeds', () async {
+      if (!_run) return;
+
+      final dir = Directory.systemTemp.createTempSync('claw_email_test_');
+      try {
+        final agent = await MobileclawAgentImpl.create(
+          apiKey: 'test-key',
+          dbPath: '${dir.path}/m.db',
+          secretsDbPath: '${dir.path}/secrets.db',
+          encryptionKey: List.filled(32, 0x42),
+          sandboxDir: dir.path,
+          httpAllowlist: [],
+        );
+        agent.dispose();
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    }, timeout: const Timeout(Duration(seconds: 10)));
+
+    test('email account save/load/delete round-trip via real FFI', () async {
+      if (!_run) return;
+
+      final dir = Directory.systemTemp.createTempSync('claw_email_test2_');
+      try {
+        final agent = await MobileclawAgentImpl.create(
+          apiKey: 'test-key',
+          dbPath: '${dir.path}/m.db',
+          secretsDbPath: '${dir.path}/secrets.db',
+          encryptionKey: List.filled(32, 0x42),
+          sandboxDir: dir.path,
+          httpAllowlist: [],
+        );
+
+        const dto = EmailAccountDto(
+          id: 'work',
+          smtpHost: 'smtp.example.com',
+          smtpPort: 587,
+          imapHost: 'imap.example.com',
+          imapPort: 993,
+          username: 'alice@example.com',
+        );
+
+        await agent.emailAccountSave(dto: dto, password: 'hunter2');
+        final loaded = await agent.emailAccountLoad(id: 'work');
+        expect(loaded, isNotNull);
+        expect(loaded!.username, 'alice@example.com');
+        expect(loaded.smtpPort, 587);
+
+        await agent.emailAccountDelete(id: 'work');
+        expect(await agent.emailAccountLoad(id: 'work'), isNull);
+
+        agent.dispose();
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    }, timeout: const Timeout(Duration(seconds: 10)));
+  }, skip: Platform.environment['INTEGRATION'] != 'true' ? 'set INTEGRATION=true to run' : null);
 }
 

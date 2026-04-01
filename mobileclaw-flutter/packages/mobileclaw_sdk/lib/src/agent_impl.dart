@@ -174,17 +174,21 @@ class MobileclawAgentImpl implements MobileclawAgent {
 
   /// Create and initialise a real agent session backed by Rust.
   ///
-  /// - [apiKey]        Anthropic API key.
-  /// - [dbPath]        Absolute path to the SQLite database file.
-  /// - [sandboxDir]    Root directory for file-system tools.
-  /// - [httpAllowlist] URL prefixes the HTTP tool may fetch.
-  /// - [model]         LLM model identifier.
-  /// - [skillsDir]     Optional directory of skill bundles.
+  /// - [apiKey]          Anthropic API key.
+  /// - [dbPath]          Absolute path to the SQLite database file.
+  /// - [secretsDbPath]   Absolute path to the encrypted secrets SQLite database file.
+  /// - [encryptionKey]   32-byte AES-256 key for encrypting secrets.
+  /// - [sandboxDir]      Root directory for file-system tools.
+  /// - [httpAllowlist]   URL prefixes the HTTP tool may fetch.
+  /// - [model]           LLM model identifier.
+  /// - [skillsDir]       Optional directory of skill bundles.
   ///
   /// throws ClawException if the Rust session cannot be created.
   static Future<MobileclawAgentImpl> create({
     required String apiKey,
     required String dbPath,
+    required String secretsDbPath,
+    required List<int> encryptionKey,
     required String sandboxDir,
     required List<String> httpAllowlist,
     String model = 'claude-opus-4-6',
@@ -203,6 +207,8 @@ class MobileclawAgentImpl implements MobileclawAgent {
     final config = AgentConfig(
       apiKey: apiKey,
       dbPath: dbPath,
+      secretsDbPath: secretsDbPath,
+      encryptionKey: encryptionKey,
       sandboxDir: sandboxDir,
       httpAllowlist: httpAllowlist,
       model: model,
@@ -270,6 +276,47 @@ class MobileclawAgentImpl implements MobileclawAgent {
   /// Reflects the state after the last completed [loadSkillsFromDir] call.
   @override
   List<SkillManifest> get skills => List.unmodifiable(_cachedSkills);
+
+  /// Save an email account configuration and its encrypted password via Rust FFI.
+  @override
+  Future<void> emailAccountSave({
+    required EmailAccountDto dto,
+    required String password,
+  }) async {
+    _checkAlive();
+    final ffiDto = EmailAccountDtoFfi(
+      id: dto.id,
+      smtpHost: dto.smtpHost,
+      smtpPort: dto.smtpPort,
+      imapHost: dto.imapHost,
+      imapPort: dto.imapPort,
+      username: dto.username,
+    );
+    await _session.emailAccountSave(dto: ffiDto, password: password);
+  }
+
+  /// Load an email account's configuration (no password returned).
+  @override
+  Future<EmailAccountDto?> emailAccountLoad({required String id}) async {
+    _checkAlive();
+    final ffiDto = await _session.emailAccountLoad(id: id);
+    if (ffiDto == null) return null;
+    return EmailAccountDto(
+      id: ffiDto.id,
+      smtpHost: ffiDto.smtpHost,
+      smtpPort: ffiDto.smtpPort,
+      imapHost: ffiDto.imapHost,
+      imapPort: ffiDto.imapPort,
+      username: ffiDto.username,
+    );
+  }
+
+  /// Delete an email account and its stored password.
+  @override
+  Future<void> emailAccountDelete({required String id}) async {
+    _checkAlive();
+    await _session.emailAccountDelete(id: id);
+  }
 
   // ---------------------------------------------------------------------------
   // Private helpers

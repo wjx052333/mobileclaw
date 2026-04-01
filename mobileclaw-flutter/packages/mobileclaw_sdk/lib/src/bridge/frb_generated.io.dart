@@ -69,6 +69,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   MemoryDocDto dco_decode_box_autoadd_memory_doc_dto(dynamic raw);
 
   @protected
+  EmailAccountDtoFfi dco_decode_box_autoadd_email_account_dto_ffi(dynamic raw);
+
+  @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
@@ -96,6 +99,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   MemoryDocDto dco_decode_memory_doc_dto(dynamic raw);
 
   @protected
+  EmailAccountDtoFfi dco_decode_email_account_dto_ffi(dynamic raw);
+
+  @protected
   MessageDto dco_decode_message_dto(dynamic raw);
 
   @protected
@@ -103,6 +109,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   MemoryDocDto? dco_decode_opt_box_autoadd_memory_doc_dto(dynamic raw);
+
+  @protected
+  EmailAccountDtoFfi? dco_decode_opt_box_autoadd_email_account_dto_ffi(dynamic raw);
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
@@ -115,6 +124,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   BigInt dco_decode_u_64(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -206,6 +218,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   MemoryDocDto sse_decode_memory_doc_dto(SseDeserializer deserializer);
 
   @protected
+  EmailAccountDtoFfi sse_decode_email_account_dto_ffi(SseDeserializer deserializer);
+
+  @protected
   MessageDto sse_decode_message_dto(SseDeserializer deserializer);
 
   @protected
@@ -215,6 +230,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   MemoryDocDto? sse_decode_opt_box_autoadd_memory_doc_dto(
     SseDeserializer deserializer,
   );
+
+  @protected
+  EmailAccountDtoFfi? sse_decode_opt_box_autoadd_email_account_dto_ffi(SseDeserializer deserializer);
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
@@ -299,6 +317,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_email_account_dto_ffi(EmailAccountDtoFfi self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
 
   @protected
@@ -339,6 +360,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   void sse_encode_memory_doc_dto(MemoryDocDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_email_account_dto_ffi(EmailAccountDtoFfi self, SseSerializer serializer);
 
   @protected
   void sse_encode_message_dto(MessageDto self, SseSerializer serializer);

@@ -12,6 +12,18 @@ part 'ffi.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>>
 abstract class AgentSession implements RustOpaqueInterface {
+  /// Delete an email account and its encrypted password from the secret store.
+  Future<void> emailAccountDelete({required String id});
+
+  /// Load an email account config. Returns null if the account does not exist.
+  /// The password is NOT returned — only config fields.
+  Future<EmailAccountDtoFfi?> emailAccountLoad({required String id});
+
+  /// Save an email account config and encrypt its password via AES-256-GCM.
+  Future<void> emailAccountSave({
+    required EmailAccountDtoFfi dto,
+    required String password,
+  });
   /// Send a user message and return all events produced by one agent turn.
   Future<List<AgentEventDto>> chat({
     required String input,
@@ -65,6 +77,20 @@ abstract class AgentSession implements RustOpaqueInterface {
 class AgentConfig {
   final String apiKey;
   final String dbPath;
+
+  /// Absolute path to the secrets SQLite database (stores AES-encrypted email
+  /// credentials and other secrets). Created if it does not exist.
+  final String secretsDbPath;
+
+  /// 32-byte AES-256 encryption key for the secrets database.
+  ///
+  /// On Android: derive from Android Keystore.
+  /// On iOS: derive from iOS Keychain.
+  /// Use [flutter_secure_storage] to generate and persist the key:
+  ///   generate once with Random.secure(), store as base64 under
+  ///   key 'mobileclaw.secrets_key', and read on subsequent launches.
+  final List<int> encryptionKey;
+
   final String sandboxDir;
   final List<String> httpAllowlist;
   final String model;
@@ -73,6 +99,8 @@ class AgentConfig {
   const AgentConfig({
     required this.apiKey,
     required this.dbPath,
+    required this.secretsDbPath,
+    required this.encryptionKey,
     required this.sandboxDir,
     required this.httpAllowlist,
     required this.model,
@@ -83,6 +111,8 @@ class AgentConfig {
   int get hashCode =>
       apiKey.hashCode ^
       dbPath.hashCode ^
+      secretsDbPath.hashCode ^
+      encryptionKey.hashCode ^
       sandboxDir.hashCode ^
       httpAllowlist.hashCode ^
       model.hashCode ^
@@ -95,10 +125,53 @@ class AgentConfig {
           runtimeType == other.runtimeType &&
           apiKey == other.apiKey &&
           dbPath == other.dbPath &&
+          secretsDbPath == other.secretsDbPath &&
+          encryptionKey == other.encryptionKey &&
           sandboxDir == other.sandboxDir &&
           httpAllowlist == other.httpAllowlist &&
           model == other.model &&
           skillsDir == other.skillsDir;
+}
+
+/// Email account configuration DTO for FFI crossing.
+/// No password field — by design. The password never travels back to Dart.
+class EmailAccountDtoFfi {
+  final String id;
+  final String smtpHost;
+  final int smtpPort;
+  final String imapHost;
+  final int imapPort;
+  final String username;
+
+  const EmailAccountDtoFfi({
+    required this.id,
+    required this.smtpHost,
+    required this.smtpPort,
+    required this.imapHost,
+    required this.imapPort,
+    required this.username,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      smtpHost.hashCode ^
+      smtpPort.hashCode ^
+      imapHost.hashCode ^
+      imapPort.hashCode ^
+      username.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EmailAccountDtoFfi &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          smtpHost == other.smtpHost &&
+          smtpPort == other.smtpPort &&
+          imapHost == other.imapHost &&
+          imapPort == other.imapPort &&
+          username == other.username;
 }
 
 @freezed
