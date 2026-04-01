@@ -74,9 +74,9 @@ pub struct SearchResultDto {
 pub struct EmailAccountDto {
     pub id: String,
     pub smtp_host: String,
-    pub smtp_port: u16,
+    pub smtp_port: i32,  // i32 matches Dart's int encoding via FRB SSE
     pub imap_host: String,
-    pub imap_port: u16,
+    pub imap_port: i32,  // i32 matches Dart's int encoding via FRB SSE
     pub username: String,
 }
 
@@ -294,9 +294,9 @@ impl AgentSession {
         let acc = EmailAccount {
             id: dto.id,
             smtp_host: dto.smtp_host,
-            smtp_port: dto.smtp_port,
+            smtp_port: dto.smtp_port as u16,
             imap_host: dto.imap_host,
-            imap_port: dto.imap_port,
+            imap_port: dto.imap_port as u16,
             username: dto.username,
         };
         self.secrets.put_email_account(&acc, &password).await.map_err(anyhow::Error::from)
@@ -315,9 +315,9 @@ impl AgentSession {
         Ok(Some(EmailAccountDto {
             id: acc.id,
             smtp_host: acc.smtp_host,
-            smtp_port: acc.smtp_port,
+            smtp_port: acc.smtp_port as i32,
             imap_host: acc.imap_host,
-            imap_port: acc.imap_port,
+            imap_port: acc.imap_port as i32,
             username: acc.username,
         }))
     }

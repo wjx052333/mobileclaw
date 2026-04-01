@@ -1051,9 +1051,9 @@ impl SseDecode for crate::ffi::EmailAccountDto {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
         let mut var_smtpHost = <String>::sse_decode(deserializer);
-        let mut var_smtpPort = <u16>::sse_decode(deserializer);
+        let mut var_smtpPort = <i32>::sse_decode(deserializer);
         let mut var_imapHost = <String>::sse_decode(deserializer);
-        let mut var_imapPort = <u16>::sse_decode(deserializer);
+        let mut var_imapPort = <i32>::sse_decode(deserializer);
         let mut var_username = <String>::sse_decode(deserializer);
         return crate::ffi::EmailAccountDto {
             id: var_id,
@@ -1558,9 +1558,9 @@ impl SseEncode for crate::ffi::EmailAccountDto {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.smtp_host, serializer);
-        <u16>::sse_encode(self.smtp_port, serializer);
+        <i32>::sse_encode(self.smtp_port, serializer);
         <String>::sse_encode(self.imap_host, serializer);
-        <u16>::sse_encode(self.imap_port, serializer);
+        <i32>::sse_encode(self.imap_port, serializer);
         <String>::sse_encode(self.username, serializer);
     }
 }
