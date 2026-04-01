@@ -78,6 +78,16 @@ pub struct SearchResultDto {
     pub score: f32,
 }
 
+/// Email account configuration DTO (no password — password is stored encrypted in SecretStore).
+pub struct EmailAccountDto {
+    pub id: String,
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub imap_host: String,
+    pub imap_port: u16,
+    pub username: String,
+}
+
 // ─── Private helpers ─────────────────────────────────────────────────────────
 
 fn category_to_string(c: &MemoryCategory) -> String {
@@ -119,7 +129,6 @@ fn doc_to_dto(doc: MemoryDoc) -> MemoryDocDto {
 pub struct AgentSession {
     inner: AgentLoop<ClaudeClient>,
     memory: Arc<SqliteMemory>,
-    #[allow(dead_code)] // held to keep the Arc alive for the session lifetime
     secrets: Arc<SqliteSecretStore>,
 }
 
@@ -278,5 +287,69 @@ impl AgentSession {
     /// Return the total number of memory documents.
     pub async fn memory_count(&self) -> anyhow::Result<usize> {
         self.memory.count().await.map_err(anyhow::Error::from)
+    }
+
+    /// Save an email account configuration and its password.
+    /// The password is encrypted with AES-256-GCM before storage.
+    /// After this call, the password cannot be retrieved in plaintext via any FFI method.
+    pub async fn email_account_save(
+        &self,
+        dto: EmailAccountDto,
+        password: String,
+    ) -> anyhow::Result<()> {
+        use crate::secrets::types::EmailAccount;
+        let acc = EmailAccount {
+            id: dto.id,
+            smtp_host: dto.smtp_host,
+            smtp_port: dto.smtp_port,
+            imap_host: dto.imap_host,
+            imap_port: dto.imap_port,
+            username: dto.username,
+        };
+        self.secrets.put_email_account(&acc, &password).await.map_err(anyhow::Error::from)
+    }
+
+    /// Load an email account's configuration. Returns None if the account does not exist.
+    /// The password is NOT returned — only the non-secret config fields.
+    pub async fn email_account_load(
+        &self,
+        id: String,
+    ) -> anyhow::Result<Option<EmailAccountDto>> {
+        let Some((acc, _pw)) = self.secrets.get_email_account(&id).await? else {
+            return Ok(None);
+        };
+        // _pw is dropped here, zeroing the password bytes
+        Ok(Some(EmailAccountDto {
+            id: acc.id,
+            smtp_host: acc.smtp_host,
+            smtp_port: acc.smtp_port,
+            imap_host: acc.imap_host,
+            imap_port: acc.imap_port,
+            username: acc.username,
+        }))
+    }
+
+    /// Delete an email account and its stored password.
+    pub async fn email_account_delete(&self, id: String) -> anyhow::Result<()> {
+        self.secrets.delete_email_account(&id).await.map_err(anyhow::Error::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn email_account_dto_fields() {
+        let dto = EmailAccountDto {
+            id: "work".into(),
+            smtp_host: "smtp.example.com".into(),
+            smtp_port: 587,
+            imap_host: "imap.example.com".into(),
+            imap_port: 993,
+            username: "alice@example.com".into(),
+        };
+        assert_eq!(dto.id, "work");
+        assert_eq!(dto.smtp_port, 587);
     }
 }
