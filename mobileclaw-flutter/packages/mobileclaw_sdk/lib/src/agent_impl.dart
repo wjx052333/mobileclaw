@@ -192,8 +192,9 @@ class MobileclawAgentImpl implements MobileclawAgent {
   }) async {
     // Initialize the FFI bridge on first call only.
     // flutter_rust_bridge v2 throws StateError if init() is called twice,
-    // so we guard with .initialized. Integration tests call init(externalLibrary:...)
-    // in setUpAll; this guard makes that call a no-op here.
+    // so we guard with .initialized. When integration tests call
+    // init(externalLibrary: ...) in setUpAll, the bridge is already
+    // initialized by the time create() is called, and this block is skipped.
     // On Android: loads libmobileclaw_core.so from jniLibs via System.loadLibrary.
     // On Linux:   dlopen("libmobileclaw_core.so") found via bundle RUNPATH.
     if (!MobileclawCoreBridge.instance.initialized) {
