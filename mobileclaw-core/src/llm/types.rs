@@ -64,4 +64,31 @@ mod tests {
         let event = StreamEvent::TextDelta { text: "hi".into() };
         assert!(matches!(event, StreamEvent::TextDelta { .. }));
     }
+
+    #[test]
+    fn message_user_constructor() {
+        let m = Message::user("hello");
+        assert_eq!(m.role, Role::User);
+        assert_eq!(m.text_content(), "hello");
+    }
+
+    #[test]
+    fn message_assistant_constructor() {
+        let m = Message::assistant("reply");
+        assert_eq!(m.role, Role::Assistant);
+        assert_eq!(m.text_content(), "reply");
+    }
+
+    #[test]
+    fn message_system_constructor() {
+        let m = Message::system("system prompt");
+        assert_eq!(m.role, Role::System);
+        assert_eq!(m.text_content(), "system prompt");
+    }
+
+    #[test]
+    fn text_content_empty_for_no_content() {
+        let m = Message { role: Role::User, content: vec![] };
+        assert_eq!(m.text_content(), "");
+    }
 }

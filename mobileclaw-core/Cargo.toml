@@ -24,7 +24,7 @@ futures     = { workspace = true }
 eventsource-stream = { workspace = true }
 regex       = { workspace = true }
 glob        = { workspace = true }
-flutter_rust_bridge = "=2.12.0"
+flutter_rust_bridge = { workspace = true }
 
 [features]
 test-utils = []

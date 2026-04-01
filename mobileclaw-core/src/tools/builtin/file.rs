@@ -162,4 +162,89 @@ mod tests {
             // Err is also acceptable (rejected)
         }
     }
+
+    #[tokio::test]
+    async fn file_write_creates_nested_directories() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = FileWriteTool.execute(
+            serde_json::json!({"path": "subdir/nested/file.txt", "content": "nested"}),
+            &ctx,
+        ).await.unwrap();
+        assert!(result.success);
+        let content = tokio::fs::read_to_string(dir.path().join("subdir/nested/file.txt")).await.unwrap();
+        assert_eq!(content, "nested");
+    }
+
+    #[tokio::test]
+    async fn file_read_nonexistent_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = FileReadTool.execute(
+            serde_json::json!({"path": "does_not_exist.txt"}),
+            &ctx,
+        ).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn file_write_absolute_path_rejected() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = FileWriteTool.execute(
+            serde_json::json!({"path": "/etc/passwd", "content": "hack"}),
+            &ctx,
+        ).await;
+        assert!(matches!(result, Err(crate::ClawError::PathTraversal(_))));
+    }
+
+    #[test]
+    fn resolve_sandbox_path_current_dir_component() {
+        let dir = TempDir::new().unwrap();
+        let sandbox = dir.path().to_path_buf();
+        // "." should resolve to sandbox itself
+        let result = resolve_sandbox_path(&sandbox, "foo/./bar.txt");
+        assert!(result.is_ok());
+        assert!(result.unwrap().starts_with(&sandbox));
+    }
+
+    #[test]
+    fn file_read_tool_metadata() {
+        assert_eq!(FileReadTool.name(), "file_read");
+        assert!(!FileReadTool.description().is_empty());
+        let schema = FileReadTool.parameters_schema();
+        assert_eq!(schema["type"], "object");
+        assert!(schema["required"].as_array().unwrap().contains(&serde_json::json!("path")));
+    }
+
+    #[test]
+    fn file_write_tool_metadata() {
+        assert_eq!(FileWriteTool.name(), "file_write");
+        assert!(!FileWriteTool.description().is_empty());
+        let schema = FileWriteTool.parameters_schema();
+        assert_eq!(schema["type"], "object");
+        assert!(schema["required"].as_array().unwrap().contains(&serde_json::json!("path")));
+    }
+
+    #[tokio::test]
+    async fn file_read_missing_path_arg_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = FileReadTool.execute(
+            serde_json::json!({}),
+            &ctx,
+        ).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn file_write_missing_content_arg_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = FileWriteTool.execute(
+            serde_json::json!({"path": "out.txt"}),
+            &ctx,
+        ).await;
+        assert!(result.is_err());
+    }
 }
