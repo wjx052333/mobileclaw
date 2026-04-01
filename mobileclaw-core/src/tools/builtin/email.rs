@@ -104,7 +104,10 @@ impl Tool for EmailSendTool {
 
         if let Some(cc_arr) = args["cc"].as_array() {
             for addr in cc_arr {
-                let addr_str = addr.as_str().unwrap_or_default();
+                let addr_str = addr.as_str().ok_or_else(|| ClawError::Tool {
+                    tool: self.name().into(),
+                    message: "cc[] must contain strings".into(),
+                })?;
                 if let Ok(mb) = addr_str.parse::<lettre::message::Mailbox>() {
                     builder = builder.cc(mb);
                 }
@@ -115,7 +118,9 @@ impl Tool for EmailSendTool {
             .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
 
         // Connect and send
-        let creds = Credentials::new(acc.username.clone(), password.expose().to_string());
+        // to_string() allocates a heap copy; lettre's Credentials does not zeroize on drop.
+        // This is unavoidable with the lettre API — the copy is short-lived (dropped with `mailer`).
+        let creds = Credentials::new(acc.username, password.expose().to_string());
         let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&acc.smtp_host)
             .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?
             .port(acc.smtp_port)
@@ -188,5 +193,18 @@ mod tests {
             &ctx,
         ).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn send_empty_to_errors() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = EmailSendTool.execute(
+            serde_json::json!({"account_id": "work", "to": [], "subject": "Hi", "body": "body"}),
+            &ctx,
+        ).await;
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("empty") || msg.contains("to"), "got: {}", msg);
     }
 }
