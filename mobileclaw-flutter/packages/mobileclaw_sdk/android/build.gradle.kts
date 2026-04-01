@@ -43,6 +43,8 @@ android {
     sourceSets {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
+            // Pre-built Rust native libraries for FFI bridge.
+            jniLibs.srcDirs("src/main/jniLibs")
         }
         getByName("test") {
             java.srcDirs("src/test/kotlin")
