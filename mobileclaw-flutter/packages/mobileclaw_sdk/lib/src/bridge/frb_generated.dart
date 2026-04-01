@@ -70,7 +70,7 @@ class MobileclawCoreBridge
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1934789171;
+  int get rustContentHash => -1462094073;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -90,6 +90,22 @@ abstract class MobileclawCoreBridgeApi extends BaseApi {
 
   Future<AgentSession> crateFfiAgentSessionCreate({
     required AgentConfig config,
+  });
+
+  Future<void> crateFfiAgentSessionEmailAccountDelete({
+    required AgentSession that,
+    required String id,
+  });
+
+  Future<EmailAccountDto?> crateFfiAgentSessionEmailAccountLoad({
+    required AgentSession that,
+    required String id,
+  });
+
+  Future<void> crateFfiAgentSessionEmailAccountSave({
+    required AgentSession that,
+    required EmailAccountDto dto,
+    required String password,
   });
 
   Future<List<MessageDto>> crateFfiAgentSessionHistory({
@@ -129,24 +145,37 @@ abstract class MobileclawCoreBridgeApi extends BaseApi {
     required String category,
   });
 
+  Future<void> crateFfiAgentSessionProviderDelete({
+    required AgentSession that,
+    required String id,
+  });
+
+  Future<ProviderConfigDto?> crateFfiAgentSessionProviderGetActive({
+    required AgentSession that,
+  });
+
+  Future<List<ProviderConfigDto>> crateFfiAgentSessionProviderList({
+    required AgentSession that,
+  });
+
+  Future<void> crateFfiAgentSessionProviderSave({
+    required AgentSession that,
+    required ProviderConfigDto config,
+    String? apiKey,
+  });
+
+  Future<void> crateFfiAgentSessionProviderSetActive({
+    required AgentSession that,
+    required String id,
+  });
+
   Future<List<SkillManifestDto>> crateFfiAgentSessionSkills({
     required AgentSession that,
   });
 
-  Future<void> crateFfiAgentSessionEmailAccountDelete({
-    required AgentSession that,
-    required String id,
-  });
-
-  Future<EmailAccountDtoFfi?> crateFfiAgentSessionEmailAccountLoad({
-    required AgentSession that,
-    required String id,
-  });
-
-  Future<void> crateFfiAgentSessionEmailAccountSave({
-    required AgentSession that,
-    required EmailAccountDtoFfi dto,
-    required String password,
+  Future<ProbeResultDto> crateFfiProviderProbe({
+    required ProviderConfigDto config,
+    String? apiKey,
   });
 
   RustArcIncrementStrongCountFnType
@@ -240,6 +269,122 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   );
 
   @override
+  Future<void> crateFfiAgentSessionEmailAccountDelete({
+    required AgentSession that,
+    required String id,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionEmailAccountDeleteConstMeta,
+        argValues: [that, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionEmailAccountDeleteConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_email_account_delete",
+        argNames: ["that", "id"],
+      );
+
+  @override
+  Future<EmailAccountDto?> crateFfiAgentSessionEmailAccountLoad({
+    required AgentSession that,
+    required String id,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_email_account_dto,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionEmailAccountLoadConstMeta,
+        argValues: [that, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionEmailAccountLoadConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_email_account_load",
+        argNames: ["that", "id"],
+      );
+
+  @override
+  Future<void> crateFfiAgentSessionEmailAccountSave({
+    required AgentSession that,
+    required EmailAccountDto dto,
+    required String password,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_email_account_dto(dto, serializer);
+          sse_encode_String(password, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionEmailAccountSaveConstMeta,
+        argValues: [that, dto, password],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionEmailAccountSaveConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_email_account_save",
+        argNames: ["that", "dto", "password"],
+      );
+
+  @override
   Future<List<MessageDto>> crateFfiAgentSessionHistory({
     required AgentSession that,
   }) {
@@ -254,7 +399,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 6,
             port: port_,
           );
         },
@@ -292,7 +437,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 7,
             port: port_,
           );
         },
@@ -326,7 +471,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 8,
             port: port_,
           );
         },
@@ -364,7 +509,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 9,
             port: port_,
           );
         },
@@ -402,7 +547,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 10,
             port: port_,
           );
         },
@@ -448,7 +593,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 11,
             port: port_,
           );
         },
@@ -490,7 +635,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 12,
             port: port_,
           );
         },
@@ -512,6 +657,194 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       );
 
   @override
+  Future<void> crateFfiAgentSessionProviderDelete({
+    required AgentSession that,
+    required String id,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionProviderDeleteConstMeta,
+        argValues: [that, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionProviderDeleteConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_provider_delete",
+        argNames: ["that", "id"],
+      );
+
+  @override
+  Future<ProviderConfigDto?> crateFfiAgentSessionProviderGetActive({
+    required AgentSession that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_provider_config_dto,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionProviderGetActiveConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionProviderGetActiveConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_provider_get_active",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<List<ProviderConfigDto>> crateFfiAgentSessionProviderList({
+    required AgentSession that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_provider_config_dto,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionProviderListConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionProviderListConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_provider_list",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateFfiAgentSessionProviderSave({
+    required AgentSession that,
+    required ProviderConfigDto config,
+    String? apiKey,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_provider_config_dto(config, serializer);
+          sse_encode_opt_String(apiKey, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionProviderSaveConstMeta,
+        argValues: [that, config, apiKey],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionProviderSaveConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_provider_save",
+        argNames: ["that", "config", "apiKey"],
+      );
+
+  @override
+  Future<void> crateFfiAgentSessionProviderSetActive({
+    required AgentSession that,
+    required String id,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionProviderSetActiveConstMeta,
+        argValues: [that, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionProviderSetActiveConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_provider_set_active",
+        argNames: ["that", "id"],
+      );
+
+  @override
   Future<List<SkillManifestDto>> crateFfiAgentSessionSkills({
     required AgentSession that,
   }) {
@@ -526,7 +859,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 18,
             port: port_,
           );
         },
@@ -545,87 +878,38 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       const TaskConstMeta(debugName: "AgentSession_skills", argNames: ["that"]);
 
   @override
-  Future<void> crateFfiAgentSessionEmailAccountDelete({
-    required AgentSession that,
-    required String id,
+  Future<ProbeResultDto> crateFfiProviderProbe({
+    required ProviderConfigDto config,
+    String? apiKey,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(that, serializer);
-          sse_encode_String(id, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11, port: port_);
+          sse_encode_box_autoadd_provider_config_dto(config, serializer);
+          sse_encode_opt_String(apiKey, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeSuccessData: sse_decode_probe_result_dto,
+          decodeErrorData: null,
         ),
-        constMeta: kCrateFfiAgentSessionEmailAccountDeleteConstMeta,
-        argValues: [that, id],
+        constMeta: kCrateFfiProviderProbeConstMeta,
+        argValues: [config, apiKey],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateFfiAgentSessionEmailAccountDeleteConstMeta =>
-      const TaskConstMeta(debugName: "AgentSession_email_account_delete", argNames: ["that", "id"]);
-
-  @override
-  Future<EmailAccountDtoFfi?> crateFfiAgentSessionEmailAccountLoad({
-    required AgentSession that,
-    required String id,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(that, serializer);
-          sse_encode_String(id, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12, port: port_);
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_email_account_dto_ffi,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateFfiAgentSessionEmailAccountLoadConstMeta,
-        argValues: [that, id],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateFfiAgentSessionEmailAccountLoadConstMeta =>
-      const TaskConstMeta(debugName: "AgentSession_email_account_load", argNames: ["that", "id"]);
-
-  @override
-  Future<void> crateFfiAgentSessionEmailAccountSave({
-    required AgentSession that,
-    required EmailAccountDtoFfi dto,
-    required String password,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(that, serializer);
-          sse_encode_box_autoadd_email_account_dto_ffi(dto, serializer);
-          sse_encode_String(password, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13, port: port_);
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateFfiAgentSessionEmailAccountSaveConstMeta,
-        argValues: [that, dto, password],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateFfiAgentSessionEmailAccountSaveConstMeta =>
-      const TaskConstMeta(debugName: "AgentSession_email_account_save", argNames: ["that", "dto", "password"]);
+  TaskConstMeta get kCrateFfiProviderProbeConstMeta => const TaskConstMeta(
+    debugName: "provider_probe",
+    argNames: ["config", "apiKey"],
+  );
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_AgentSession => wire
@@ -690,13 +974,13 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     if (arr.length != 8)
       throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return AgentConfig(
-      apiKey: dco_decode_String(arr[0]),
+      apiKey: dco_decode_opt_String(arr[0]),
       dbPath: dco_decode_String(arr[1]),
       secretsDbPath: dco_decode_String(arr[2]),
-      encryptionKey: dco_decode_list_prim_u_8_strict(arr[3]).toList(),
+      encryptionKey: dco_decode_list_prim_u_8_strict(arr[3]),
       sandboxDir: dco_decode_String(arr[4]),
       httpAllowlist: dco_decode_list_String(arr[5]),
-      model: dco_decode_String(arr[6]),
+      model: dco_decode_opt_String(arr[6]),
       skillsDir: dco_decode_opt_String(arr[7]),
     );
   }
@@ -734,15 +1018,21 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  EmailAccountDto dco_decode_box_autoadd_email_account_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_email_account_dto(raw);
+  }
+
+  @protected
   MemoryDocDto dco_decode_box_autoadd_memory_doc_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_memory_doc_dto(raw);
   }
 
   @protected
-  EmailAccountDtoFfi dco_decode_box_autoadd_email_account_dto_ffi(dynamic raw) {
+  ProviderConfigDto dco_decode_box_autoadd_provider_config_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_email_account_dto_ffi(raw);
+    return dco_decode_provider_config_dto(raw);
   }
 
   @protected
@@ -752,9 +1042,37 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  EmailAccountDto dco_decode_email_account_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return EmailAccountDto(
+      id: dco_decode_String(arr[0]),
+      smtpHost: dco_decode_String(arr[1]),
+      smtpPort: dco_decode_i_32(arr[2]),
+      imapHost: dco_decode_String(arr[3]),
+      imapPort: dco_decode_i_32(arr[4]),
+      username: dco_decode_String(arr[5]),
+    );
+  }
+
+  @protected
   double dco_decode_f_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
+  }
+
+  @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeI64(raw);
   }
 
   @protected
@@ -779,6 +1097,12 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  List<ProviderConfigDto> dco_decode_list_provider_config_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_provider_config_dto).toList();
   }
 
   @protected
@@ -810,22 +1134,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  EmailAccountDtoFfi dco_decode_email_account_dto_ffi(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
-    return EmailAccountDtoFfi(
-      id: dco_decode_String(arr[0]),
-      smtpHost: dco_decode_String(arr[1]),
-      smtpPort: dco_decode_i_32(arr[2]),
-      imapHost: dco_decode_String(arr[3]),
-      imapPort: dco_decode_i_32(arr[4]),
-      username: dco_decode_String(arr[5]),
-    );
-  }
-
-  @protected
   MessageDto dco_decode_message_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -844,22 +1152,59 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  EmailAccountDto? dco_decode_opt_box_autoadd_email_account_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_email_account_dto(raw);
+  }
+
+  @protected
   MemoryDocDto? dco_decode_opt_box_autoadd_memory_doc_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_memory_doc_dto(raw);
   }
 
   @protected
-  EmailAccountDtoFfi? dco_decode_opt_box_autoadd_email_account_dto_ffi(dynamic raw) {
+  ProviderConfigDto? dco_decode_opt_box_autoadd_provider_config_dto(
+    dynamic raw,
+  ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    if (raw == null) return null;
-    return dco_decode_email_account_dto_ffi(raw);
+    return raw == null ? null : dco_decode_box_autoadd_provider_config_dto(raw);
   }
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
+  ProbeResultDto dco_decode_probe_result_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ProbeResultDto(
+      ok: dco_decode_bool(arr[0]),
+      latencyMs: dco_decode_u_64(arr[1]),
+      degraded: dco_decode_bool(arr[2]),
+      error: dco_decode_opt_String(arr[3]),
+    );
+  }
+
+  @protected
+  ProviderConfigDto dco_decode_provider_config_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return ProviderConfigDto(
+      id: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      protocol: dco_decode_String(arr[2]),
+      baseUrl: dco_decode_String(arr[3]),
+      model: dco_decode_String(arr[4]),
+      createdAt: dco_decode_i_64(arr[5]),
+    );
   }
 
   @protected
@@ -893,12 +1238,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   BigInt dco_decode_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeU64(raw);
-  }
-
-  @protected
-  int dco_decode_i_32(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw as int;
   }
 
   @protected
@@ -984,13 +1323,13 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   @protected
   AgentConfig sse_decode_agent_config(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_apiKey = sse_decode_String(deserializer);
+    var var_apiKey = sse_decode_opt_String(deserializer);
     var var_dbPath = sse_decode_String(deserializer);
     var var_secretsDbPath = sse_decode_String(deserializer);
-    var var_encryptionKey = sse_decode_list_prim_u_8_strict(deserializer).toList();
+    var var_encryptionKey = sse_decode_list_prim_u_8_strict(deserializer);
     var var_sandboxDir = sse_decode_String(deserializer);
     var var_httpAllowlist = sse_decode_list_String(deserializer);
-    var var_model = sse_decode_String(deserializer);
+    var var_model = sse_decode_opt_String(deserializer);
     var var_skillsDir = sse_decode_opt_String(deserializer);
     return AgentConfig(
       apiKey: var_apiKey,
@@ -1042,11 +1381,27 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  EmailAccountDto sse_decode_box_autoadd_email_account_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_email_account_dto(deserializer));
+  }
+
+  @protected
   MemoryDocDto sse_decode_box_autoadd_memory_doc_dto(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_memory_doc_dto(deserializer));
+  }
+
+  @protected
+  ProviderConfigDto sse_decode_box_autoadd_provider_config_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_provider_config_dto(deserializer));
   }
 
   @protected
@@ -1056,9 +1411,40 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  EmailAccountDto sse_decode_email_account_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_smtpHost = sse_decode_String(deserializer);
+    var var_smtpPort = sse_decode_i_32(deserializer);
+    var var_imapHost = sse_decode_String(deserializer);
+    var var_imapPort = sse_decode_i_32(deserializer);
+    var var_username = sse_decode_String(deserializer);
+    return EmailAccountDto(
+      id: var_id,
+      smtpHost: var_smtpHost,
+      smtpPort: var_smtpPort,
+      imapHost: var_imapHost,
+      imapPort: var_imapPort,
+      username: var_username,
+    );
+  }
+
+  @protected
   double sse_decode_f_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat32();
+  }
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getPlatformInt64();
   }
 
   @protected
@@ -1104,6 +1490,20 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<ProviderConfigDto> sse_decode_list_provider_config_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ProviderConfigDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_provider_config_dto(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -1154,18 +1554,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  EmailAccountDtoFfi sse_decode_email_account_dto_ffi(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_id = sse_decode_String(deserializer);
-    var var_smtpHost = sse_decode_String(deserializer);
-    var var_smtpPort = sse_decode_i_32(deserializer);
-    var var_imapHost = sse_decode_String(deserializer);
-    var var_imapPort = sse_decode_i_32(deserializer);
-    var var_username = sse_decode_String(deserializer);
-    return EmailAccountDtoFfi(id: var_id, smtpHost: var_smtpHost, smtpPort: var_smtpPort, imapHost: var_imapHost, imapPort: var_imapPort, username: var_username);
-  }
-
-  @protected
   MessageDto sse_decode_message_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_role = sse_decode_String(deserializer);
@@ -1185,6 +1573,19 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  EmailAccountDto? sse_decode_opt_box_autoadd_email_account_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_email_account_dto(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   MemoryDocDto? sse_decode_opt_box_autoadd_memory_doc_dto(
     SseDeserializer deserializer,
   ) {
@@ -1198,10 +1599,13 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  EmailAccountDtoFfi? sse_decode_opt_box_autoadd_email_account_dto_ffi(SseDeserializer deserializer) {
+  ProviderConfigDto? sse_decode_opt_box_autoadd_provider_config_dto(
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_email_account_dto_ffi(deserializer));
+      return (sse_decode_box_autoadd_provider_config_dto(deserializer));
     } else {
       return null;
     }
@@ -1216,6 +1620,42 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     } else {
       return null;
     }
+  }
+
+  @protected
+  ProbeResultDto sse_decode_probe_result_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_latencyMs = sse_decode_u_64(deserializer);
+    var var_degraded = sse_decode_bool(deserializer);
+    var var_error = sse_decode_opt_String(deserializer);
+    return ProbeResultDto(
+      ok: var_ok,
+      latencyMs: var_latencyMs,
+      degraded: var_degraded,
+      error: var_error,
+    );
+  }
+
+  @protected
+  ProviderConfigDto sse_decode_provider_config_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_protocol = sse_decode_String(deserializer);
+    var var_baseUrl = sse_decode_String(deserializer);
+    var var_model = sse_decode_String(deserializer);
+    var var_createdAt = sse_decode_i_64(deserializer);
+    return ProviderConfigDto(
+      id: var_id,
+      name: var_name,
+      protocol: var_protocol,
+      baseUrl: var_baseUrl,
+      model: var_model,
+      createdAt: var_createdAt,
+    );
   }
 
   @protected
@@ -1264,12 +1704,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   BigInt sse_decode_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getBigUint64();
-  }
-
-  @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
   }
 
   @protected
@@ -1342,13 +1776,13 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   @protected
   void sse_encode_agent_config(AgentConfig self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.apiKey, serializer);
+    sse_encode_opt_String(self.apiKey, serializer);
     sse_encode_String(self.dbPath, serializer);
     sse_encode_String(self.secretsDbPath, serializer);
-    sse_encode_list_prim_u_8_strict(Uint8List.fromList(self.encryptionKey), serializer);
+    sse_encode_list_prim_u_8_strict(self.encryptionKey, serializer);
     sse_encode_String(self.sandboxDir, serializer);
     sse_encode_list_String(self.httpAllowlist, serializer);
-    sse_encode_String(self.model, serializer);
+    sse_encode_opt_String(self.model, serializer);
     sse_encode_opt_String(self.skillsDir, serializer);
   }
 
@@ -1390,6 +1824,15 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_email_account_dto(
+    EmailAccountDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_email_account_dto(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_memory_doc_dto(
     MemoryDocDto self,
     SseSerializer serializer,
@@ -1399,9 +1842,12 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_box_autoadd_email_account_dto_ffi(EmailAccountDtoFfi self, SseSerializer serializer) {
+  void sse_encode_box_autoadd_provider_config_dto(
+    ProviderConfigDto self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_email_account_dto_ffi(self, serializer);
+    sse_encode_provider_config_dto(self, serializer);
   }
 
   @protected
@@ -1411,9 +1857,35 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_email_account_dto(
+    EmailAccountDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.smtpHost, serializer);
+    sse_encode_i_32(self.smtpPort, serializer);
+    sse_encode_String(self.imapHost, serializer);
+    sse_encode_i_32(self.imapPort, serializer);
+    sse_encode_String(self.username, serializer);
+  }
+
+  @protected
   void sse_encode_f_32(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat32(self);
+  }
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putPlatformInt64(self);
   }
 
   @protected
@@ -1460,6 +1932,18 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_provider_config_dto(
+    List<ProviderConfigDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_provider_config_dto(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_search_result_dto(
     List<SearchResultDto> self,
     SseSerializer serializer,
@@ -1495,17 +1979,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  void sse_encode_email_account_dto_ffi(EmailAccountDtoFfi self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.id, serializer);
-    sse_encode_String(self.smtpHost, serializer);
-    sse_encode_i_32(self.smtpPort, serializer);
-    sse_encode_String(self.imapHost, serializer);
-    sse_encode_i_32(self.imapPort, serializer);
-    sse_encode_String(self.username, serializer);
-  }
-
-  @protected
   void sse_encode_message_dto(MessageDto self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.role, serializer);
@@ -1523,6 +1996,19 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_email_account_dto(
+    EmailAccountDto? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_email_account_dto(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_memory_doc_dto(
     MemoryDocDto? self,
     SseSerializer serializer,
@@ -1536,6 +2022,19 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_provider_config_dto(
+    ProviderConfigDto? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_provider_config_dto(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1543,6 +2042,32 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     if (self != null) {
       sse_encode_box_autoadd_u_64(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_probe_result_dto(
+    ProbeResultDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_u_64(self.latencyMs, serializer);
+    sse_encode_bool(self.degraded, serializer);
+    sse_encode_opt_String(self.error, serializer);
+  }
+
+  @protected
+  void sse_encode_provider_config_dto(
+    ProviderConfigDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.protocol, serializer);
+    sse_encode_String(self.baseUrl, serializer);
+    sse_encode_String(self.model, serializer);
+    sse_encode_i_64(self.createdAt, serializer);
   }
 
   @protected
@@ -1590,12 +2115,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
   }
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
-  }
 }
 
 @sealed
@@ -1631,6 +2150,32 @@ class AgentSessionImpl extends RustOpaque implements AgentSession {
     that: this,
     input: input,
     system: system,
+  );
+
+  /// Delete an email account and its stored password.
+  Future<void> emailAccountDelete({required String id}) => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionEmailAccountDelete(that: this, id: id);
+
+  /// Load an email account's configuration. Returns None if the account does not exist.
+  /// The password is NOT returned — only the non-secret config fields.
+  Future<EmailAccountDto?> emailAccountLoad({required String id}) =>
+      MobileclawCoreBridge.instance.api.crateFfiAgentSessionEmailAccountLoad(
+        that: this,
+        id: id,
+      );
+
+  /// Save an email account configuration and its password.
+  /// The password is encrypted with AES-256-GCM before storage.
+  /// After this call, the password cannot be retrieved in plaintext via any FFI method.
+  Future<void> emailAccountSave({
+    required EmailAccountDto dto,
+    required String password,
+  }) => MobileclawCoreBridge.instance.api.crateFfiAgentSessionEmailAccountSave(
+    that: this,
+    dto: dto,
+    password: password,
   );
 
   /// Return a snapshot of the conversation history.
@@ -1688,19 +2233,41 @@ class AgentSessionImpl extends RustOpaque implements AgentSession {
     category: category,
   );
 
+  /// Delete a provider config (and its API key via ON DELETE CASCADE).
+  Future<void> providerDelete({required String id}) => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionProviderDelete(that: this, id: id);
+
+  /// Return the active provider config, or `None` if no active provider is set.
+  Future<ProviderConfigDto?> providerGetActive() => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionProviderGetActive(that: this);
+
+  /// Return all stored provider configs as DTOs.
+  Future<List<ProviderConfigDto>> providerList() => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionProviderList(that: this);
+
+  /// Save (upsert) a provider config and optionally store its API key encrypted.
+  Future<void> providerSave({
+    required ProviderConfigDto config,
+    String? apiKey,
+  }) => MobileclawCoreBridge.instance.api.crateFfiAgentSessionProviderSave(
+    that: this,
+    config: config,
+    apiKey: apiKey,
+  );
+
+  /// Set the active provider by ID. Returns an error if the provider does not exist.
+  Future<void> providerSetActive({required String id}) => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionProviderSetActive(that: this, id: id);
+
   /// Return the loaded skills as DTOs.
   Future<List<SkillManifestDto>> skills() =>
       MobileclawCoreBridge.instance.api.crateFfiAgentSessionSkills(that: this);
-
-  @override
-  Future<void> emailAccountDelete({required String id}) =>
-      MobileclawCoreBridge.instance.api.crateFfiAgentSessionEmailAccountDelete(that: this, id: id);
-
-  @override
-  Future<EmailAccountDtoFfi?> emailAccountLoad({required String id}) =>
-      MobileclawCoreBridge.instance.api.crateFfiAgentSessionEmailAccountLoad(that: this, id: id);
-
-  @override
-  Future<void> emailAccountSave({required EmailAccountDtoFfi dto, required String password}) =>
-      MobileclawCoreBridge.instance.api.crateFfiAgentSessionEmailAccountSave(that: this, dto: dto, password: password);
 }

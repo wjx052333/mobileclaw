@@ -1,6 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
-import 'bridge/ffi.dart';
+import 'bridge/ffi.dart' as ffi;
 import 'bridge/frb_generated.dart';
 import 'engine.dart';
 import 'events.dart';
@@ -41,7 +42,7 @@ MemoryCategory _stringToCategory(String s) {
 // DTO → domain converters
 // ---------------------------------------------------------------------------
 
-MemoryDoc _docFromDto(MemoryDocDto dto) => MemoryDoc(
+MemoryDoc _docFromDto(ffi.MemoryDocDto dto) => MemoryDoc(
       id: dto.id,
       path: dto.path,
       content: dto.content,
@@ -50,7 +51,7 @@ MemoryDoc _docFromDto(MemoryDocDto dto) => MemoryDoc(
       updatedAt: dto.updatedAt.toInt(), // Safe: Unix timestamp in seconds, well within int64 range on all Dart targets
     );
 
-AgentEvent _eventFromDto(AgentEventDto dto) => dto.when(
+AgentEvent _eventFromDto(ffi.AgentEventDto dto) => dto.when(
       textDelta: (text) => TextDeltaEvent(text: text),
       toolCall: (name) => ToolCallEvent(toolName: name),
       toolResult: (name, success) =>
@@ -69,12 +70,41 @@ SkillTrust _trustFromString(String trust) {
   }
 }
 
-SkillManifest _skillFromDto(SkillManifestDto dto) => SkillManifest(
+SkillManifest _skillFromDto(ffi.SkillManifestDto dto) => SkillManifest(
       name: dto.name,
       description: dto.description,
       trust: _trustFromString(dto.trust),
       keywords: List.unmodifiable(dto.keywords),
       allowedTools: dto.allowedTools.isEmpty ? null : List.unmodifiable(dto.allowedTools),
+    );
+
+// ---------------------------------------------------------------------------
+// Provider converters (top-level so they can be used from static methods)
+// ---------------------------------------------------------------------------
+
+ffi.ProviderConfigDto _providerToFfi(ProviderConfigDto dto) => ffi.ProviderConfigDto(
+      id: dto.id,
+      name: dto.name,
+      protocol: dto.protocol,
+      baseUrl: dto.baseUrl,
+      model: dto.model,
+      createdAt: dto.createdAt,
+    );
+
+ProviderConfigDto _providerFromFfi(ffi.ProviderConfigDto f) => ProviderConfigDto(
+      id: f.id,
+      name: f.name,
+      protocol: f.protocol,
+      baseUrl: f.baseUrl,
+      model: f.model,
+      createdAt: f.createdAt.toInt(), // Safe: Unix timestamp in seconds
+    );
+
+ProbeResultDto _probeFromFfi(ffi.ProbeResultDto f) => ProbeResultDto(
+      ok: f.ok,
+      latencyMs: f.latencyMs.toInt(), // Safe: latency in ms will never exceed int max
+      degraded: f.degraded,
+      error: f.error,
     );
 
 // ---------------------------------------------------------------------------
@@ -85,7 +115,7 @@ SkillManifest _skillFromDto(SkillManifestDto dto) => SkillManifest(
 class _RealMemory implements MobileclawMemory {
   _RealMemory(this._session);
 
-  final AgentSession _session;
+  final ffi.AgentSession _session;
 
   /// Store a document in the memory database.
   /// throws ClawException on memory or I/O error from Rust.
@@ -164,7 +194,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
         _cachedHistory = [],
         _cachedSkills = [];
 
-  final AgentSession _session;
+  final ffi.AgentSession _session;
   final _RealMemory _memory;
   bool _disposed = false;
 
@@ -204,17 +234,17 @@ class MobileclawAgentImpl implements MobileclawAgent {
     if (!MobileclawCoreBridge.instance.initialized) {
       await MobileclawCoreBridge.init();
     }
-    final config = AgentConfig(
+    final config = ffi.AgentConfig(
       apiKey: apiKey,
       dbPath: dbPath,
       secretsDbPath: secretsDbPath,
-      encryptionKey: encryptionKey,
+      encryptionKey: Uint8List.fromList(encryptionKey),
       sandboxDir: sandboxDir,
       httpAllowlist: httpAllowlist,
       model: model,
       skillsDir: skillsDir,
     );
-    final session = await AgentSession.create(config: config);
+    final session = await ffi.AgentSession.create(config: config);
     return MobileclawAgentImpl._(session);
   }
 
@@ -284,7 +314,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
     required String password,
   }) async {
     _checkAlive();
-    final ffiDto = EmailAccountDtoFfi(
+    final ffiDto = ffi.EmailAccountDto(
       id: dto.id,
       smtpHost: dto.smtpHost,
       smtpPort: dto.smtpPort,
@@ -319,45 +349,57 @@ class MobileclawAgentImpl implements MobileclawAgent {
   }
 
   // ---------------------------------------------------------------------------
-  // Provider management — Phase 3 (FFI stubs; not yet wired to Rust)
+  // Provider management
   // ---------------------------------------------------------------------------
 
   @override
   Future<void> providerSave({
     required ProviderConfigDto config,
     String? apiKey,
-  }) {
-    throw UnimplementedError(
-      'Phase 3: wire providerSave to Rust FFI when AgentSession exposes it.',
-    );
+  }) async {
+    _checkAlive();
+    await _session.providerSave(config: _providerToFfi(config), apiKey: apiKey);
   }
 
   @override
-  Future<List<ProviderConfigDto>> providerList() {
-    throw UnimplementedError(
-      'Phase 3: wire providerList to Rust FFI when AgentSession exposes it.',
-    );
+  Future<List<ProviderConfigDto>> providerList() async {
+    _checkAlive();
+    final ffis = await _session.providerList();
+    return ffis.map(_providerFromFfi).toList();
   }
 
   @override
-  Future<void> providerDelete({required String id}) {
-    throw UnimplementedError(
-      'Phase 3: wire providerDelete to Rust FFI when AgentSession exposes it.',
-    );
+  Future<void> providerDelete({required String id}) async {
+    _checkAlive();
+    await _session.providerDelete(id: id);
   }
 
   @override
-  Future<void> providerSetActive({required String id}) {
-    throw UnimplementedError(
-      'Phase 3: wire providerSetActive to Rust FFI when AgentSession exposes it.',
-    );
+  Future<void> providerSetActive({required String id}) async {
+    _checkAlive();
+    await _session.providerSetActive(id: id);
   }
 
   @override
-  Future<ProviderConfigDto?> providerGetActive() {
-    throw UnimplementedError(
-      'Phase 3: wire providerGetActive to Rust FFI when AgentSession exposes it.',
+  Future<ProviderConfigDto?> providerGetActive() async {
+    _checkAlive();
+    final f = await _session.providerGetActive();
+    if (f == null) return null;
+    return _providerFromFfi(f);
+  }
+
+  static Future<ProbeResultDto> probe({
+    required ProviderConfigDto config,
+    String? apiKey,
+  }) async {
+    if (!MobileclawCoreBridge.instance.initialized) {
+      await MobileclawCoreBridge.init();
+    }
+    final result = await ffi.providerProbe(
+      config: _providerToFfi(config),
+      apiKey: apiKey,
     );
+    return _probeFromFfi(result);
   }
 
   // ---------------------------------------------------------------------------
@@ -368,7 +410,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
     if (_disposed) throw StateError('AgentSession has been disposed');
   }
 
-  void _refreshHistoryFromDtos(List<MessageDto> dtos) {
+  void _refreshHistoryFromDtos(List<ffi.MessageDto> dtos) {
     _cachedHistory = dtos
         .map((m) => ChatMessage(role: m.role, content: m.content))
         .toList();

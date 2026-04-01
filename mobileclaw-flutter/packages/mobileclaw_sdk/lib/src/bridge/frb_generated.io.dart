@@ -66,16 +66,28 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   AgentConfig dco_decode_box_autoadd_agent_config(dynamic raw);
 
   @protected
+  EmailAccountDto dco_decode_box_autoadd_email_account_dto(dynamic raw);
+
+  @protected
   MemoryDocDto dco_decode_box_autoadd_memory_doc_dto(dynamic raw);
 
   @protected
-  EmailAccountDtoFfi dco_decode_box_autoadd_email_account_dto_ffi(dynamic raw);
+  ProviderConfigDto dco_decode_box_autoadd_provider_config_dto(dynamic raw);
 
   @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
+  EmailAccountDto dco_decode_email_account_dto(dynamic raw);
+
+  @protected
   double dco_decode_f_32(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -90,6 +102,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<ProviderConfigDto> dco_decode_list_provider_config_dto(dynamic raw);
+
+  @protected
   List<SearchResultDto> dco_decode_list_search_result_dto(dynamic raw);
 
   @protected
@@ -99,22 +114,30 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   MemoryDocDto dco_decode_memory_doc_dto(dynamic raw);
 
   @protected
-  EmailAccountDtoFfi dco_decode_email_account_dto_ffi(dynamic raw);
-
-  @protected
   MessageDto dco_decode_message_dto(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  EmailAccountDto? dco_decode_opt_box_autoadd_email_account_dto(dynamic raw);
+
+  @protected
   MemoryDocDto? dco_decode_opt_box_autoadd_memory_doc_dto(dynamic raw);
 
   @protected
-  EmailAccountDtoFfi? dco_decode_opt_box_autoadd_email_account_dto_ffi(dynamic raw);
+  ProviderConfigDto? dco_decode_opt_box_autoadd_provider_config_dto(
+    dynamic raw,
+  );
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  ProbeResultDto dco_decode_probe_result_dto(dynamic raw);
+
+  @protected
+  ProviderConfigDto dco_decode_provider_config_dto(dynamic raw);
 
   @protected
   SearchResultDto dco_decode_search_result_dto(dynamic raw);
@@ -124,9 +147,6 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   BigInt dco_decode_u_64(dynamic raw);
-
-  @protected
-  int dco_decode_i_32(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -180,7 +200,17 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   AgentConfig sse_decode_box_autoadd_agent_config(SseDeserializer deserializer);
 
   @protected
+  EmailAccountDto sse_decode_box_autoadd_email_account_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MemoryDocDto sse_decode_box_autoadd_memory_doc_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ProviderConfigDto sse_decode_box_autoadd_provider_config_dto(
     SseDeserializer deserializer,
   );
 
@@ -188,7 +218,16 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
+  EmailAccountDto sse_decode_email_account_dto(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_32(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -205,6 +244,11 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<ProviderConfigDto> sse_decode_list_provider_config_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<SearchResultDto> sse_decode_list_search_result_dto(
     SseDeserializer deserializer,
   );
@@ -218,13 +262,15 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   MemoryDocDto sse_decode_memory_doc_dto(SseDeserializer deserializer);
 
   @protected
-  EmailAccountDtoFfi sse_decode_email_account_dto_ffi(SseDeserializer deserializer);
-
-  @protected
   MessageDto sse_decode_message_dto(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  EmailAccountDto? sse_decode_opt_box_autoadd_email_account_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MemoryDocDto? sse_decode_opt_box_autoadd_memory_doc_dto(
@@ -232,10 +278,20 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
-  EmailAccountDtoFfi? sse_decode_opt_box_autoadd_email_account_dto_ffi(SseDeserializer deserializer);
+  ProviderConfigDto? sse_decode_opt_box_autoadd_provider_config_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  ProbeResultDto sse_decode_probe_result_dto(SseDeserializer deserializer);
+
+  @protected
+  ProviderConfigDto sse_decode_provider_config_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SearchResultDto sse_decode_search_result_dto(SseDeserializer deserializer);
@@ -254,9 +310,6 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
-
-  @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -311,19 +364,40 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_email_account_dto(
+    EmailAccountDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_memory_doc_dto(
     MemoryDocDto self,
     SseSerializer serializer,
   );
 
   @protected
-  void sse_encode_box_autoadd_email_account_dto_ffi(EmailAccountDtoFfi self, SseSerializer serializer);
+  void sse_encode_box_autoadd_provider_config_dto(
+    ProviderConfigDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
 
   @protected
+  void sse_encode_email_account_dto(
+    EmailAccountDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -347,6 +421,12 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_provider_config_dto(
+    List<ProviderConfigDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_search_result_dto(
     List<SearchResultDto> self,
     SseSerializer serializer,
@@ -362,13 +442,16 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   void sse_encode_memory_doc_dto(MemoryDocDto self, SseSerializer serializer);
 
   @protected
-  void sse_encode_email_account_dto_ffi(EmailAccountDtoFfi self, SseSerializer serializer);
-
-  @protected
   void sse_encode_message_dto(MessageDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_email_account_dto(
+    EmailAccountDto? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_memory_doc_dto(
@@ -377,7 +460,25 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_provider_config_dto(
+    ProviderConfigDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_probe_result_dto(
+    ProbeResultDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_provider_config_dto(
+    ProviderConfigDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_search_result_dto(
@@ -402,9 +503,6 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
 }
 
 // Section: wire_class

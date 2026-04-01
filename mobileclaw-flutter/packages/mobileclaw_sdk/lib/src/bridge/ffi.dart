@@ -8,22 +8,21 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ffi.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `category_to_string`, `doc_to_dto`, `string_to_category`
+// These functions are ignored because they are not marked as `pub`: `category_to_string`, `doc_to_dto`, `string_to_category`, `to_provider_config`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`, `from`, `from`
+
+/// Probe an LLM provider for reachability without creating a full session.
+/// Returns a `ProbeResultDto` indicating whether the provider is reachable.
+Future<ProbeResultDto> providerProbe({
+  required ProviderConfigDto config,
+  String? apiKey,
+}) => MobileclawCoreBridge.instance.api.crateFfiProviderProbe(
+  config: config,
+  apiKey: apiKey,
+);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>>
 abstract class AgentSession implements RustOpaqueInterface {
-  /// Delete an email account and its encrypted password from the secret store.
-  Future<void> emailAccountDelete({required String id});
-
-  /// Load an email account config. Returns null if the account does not exist.
-  /// The password is NOT returned — only config fields.
-  Future<EmailAccountDtoFfi?> emailAccountLoad({required String id});
-
-  /// Save an email account config and encrypt its password via AES-256-GCM.
-  Future<void> emailAccountSave({
-    required EmailAccountDtoFfi dto,
-    required String password,
-  });
   /// Send a user message and return all events produced by one agent turn.
   Future<List<AgentEventDto>> chat({
     required String input,
@@ -37,6 +36,21 @@ abstract class AgentSession implements RustOpaqueInterface {
       MobileclawCoreBridge.instance.api.crateFfiAgentSessionCreate(
         config: config,
       );
+
+  /// Delete an email account and its stored password.
+  Future<void> emailAccountDelete({required String id});
+
+  /// Load an email account's configuration. Returns None if the account does not exist.
+  /// The password is NOT returned — only the non-secret config fields.
+  Future<EmailAccountDto?> emailAccountLoad({required String id});
+
+  /// Save an email account configuration and its password.
+  /// The password is encrypted with AES-256-GCM before storage.
+  /// After this call, the password cannot be retrieved in plaintext via any FFI method.
+  Future<void> emailAccountSave({
+    required EmailAccountDto dto,
+    required String password,
+  });
 
   /// Return a snapshot of the conversation history.
   Future<List<MessageDto>> history();
@@ -69,41 +83,47 @@ abstract class AgentSession implements RustOpaqueInterface {
     required String category,
   });
 
+  /// Delete a provider config (and its API key via ON DELETE CASCADE).
+  Future<void> providerDelete({required String id});
+
+  /// Return the active provider config, or `None` if no active provider is set.
+  Future<ProviderConfigDto?> providerGetActive();
+
+  /// Return all stored provider configs as DTOs.
+  Future<List<ProviderConfigDto>> providerList();
+
+  /// Save (upsert) a provider config and optionally store its API key encrypted.
+  Future<void> providerSave({
+    required ProviderConfigDto config,
+    String? apiKey,
+  });
+
+  /// Set the active provider by ID. Returns an error if the provider does not exist.
+  Future<void> providerSetActive({required String id});
+
   /// Return the loaded skills as DTOs.
   Future<List<SkillManifestDto>> skills();
 }
 
 /// Configuration passed from Dart when creating a new agent session.
 class AgentConfig {
-  final String apiKey;
+  final String? apiKey;
   final String dbPath;
-
-  /// Absolute path to the secrets SQLite database (stores AES-encrypted email
-  /// credentials and other secrets). Created if it does not exist.
   final String secretsDbPath;
-
-  /// 32-byte AES-256 encryption key for the secrets database.
-  ///
-  /// On Android: derive from Android Keystore.
-  /// On iOS: derive from iOS Keychain.
-  /// Use [flutter_secure_storage] to generate and persist the key:
-  ///   generate once with Random.secure(), store as base64 under
-  ///   key 'mobileclaw.secrets_key', and read on subsequent launches.
-  final List<int> encryptionKey;
-
+  final Uint8List encryptionKey;
   final String sandboxDir;
   final List<String> httpAllowlist;
-  final String model;
+  final String? model;
   final String? skillsDir;
 
   const AgentConfig({
-    required this.apiKey,
+    this.apiKey,
     required this.dbPath,
     required this.secretsDbPath,
     required this.encryptionKey,
     required this.sandboxDir,
     required this.httpAllowlist,
-    required this.model,
+    this.model,
     this.skillsDir,
   });
 
@@ -133,9 +153,23 @@ class AgentConfig {
           skillsDir == other.skillsDir;
 }
 
-/// Email account configuration DTO for FFI crossing.
-/// No password field — by design. The password never travels back to Dart.
-class EmailAccountDtoFfi {
+@freezed
+sealed class AgentEventDto with _$AgentEventDto {
+  const AgentEventDto._();
+
+  const factory AgentEventDto.textDelta({required String text}) =
+      AgentEventDto_TextDelta;
+  const factory AgentEventDto.toolCall({required String name}) =
+      AgentEventDto_ToolCall;
+  const factory AgentEventDto.toolResult({
+    required String name,
+    required bool success,
+  }) = AgentEventDto_ToolResult;
+  const factory AgentEventDto.done() = AgentEventDto_Done;
+}
+
+/// Email account configuration DTO (no password — password is stored encrypted in SecretStore).
+class EmailAccountDto {
   final String id;
   final String smtpHost;
   final int smtpPort;
@@ -143,7 +177,7 @@ class EmailAccountDtoFfi {
   final int imapPort;
   final String username;
 
-  const EmailAccountDtoFfi({
+  const EmailAccountDto({
     required this.id,
     required this.smtpHost,
     required this.smtpPort,
@@ -164,7 +198,7 @@ class EmailAccountDtoFfi {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is EmailAccountDtoFfi &&
+      other is EmailAccountDto &&
           runtimeType == other.runtimeType &&
           id == other.id &&
           smtpHost == other.smtpHost &&
@@ -172,21 +206,6 @@ class EmailAccountDtoFfi {
           imapHost == other.imapHost &&
           imapPort == other.imapPort &&
           username == other.username;
-}
-
-@freezed
-sealed class AgentEventDto with _$AgentEventDto {
-  const AgentEventDto._();
-
-  const factory AgentEventDto.textDelta({required String text}) =
-      AgentEventDto_TextDelta;
-  const factory AgentEventDto.toolCall({required String name}) =
-      AgentEventDto_ToolCall;
-  const factory AgentEventDto.toolResult({
-    required String name,
-    required bool success,
-  }) = AgentEventDto_ToolResult;
-  const factory AgentEventDto.done() = AgentEventDto_Done;
 }
 
 /// A stored memory document.
@@ -246,6 +265,75 @@ class MessageDto {
           runtimeType == other.runtimeType &&
           role == other.role &&
           content == other.content;
+}
+
+/// Result of a connectivity probe against an LLM provider.
+class ProbeResultDto {
+  final bool ok;
+  final BigInt latencyMs;
+  final bool degraded;
+  final String? error;
+
+  const ProbeResultDto({
+    required this.ok,
+    required this.latencyMs,
+    required this.degraded,
+    this.error,
+  });
+
+  @override
+  int get hashCode =>
+      ok.hashCode ^ latencyMs.hashCode ^ degraded.hashCode ^ error.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProbeResultDto &&
+          runtimeType == other.runtimeType &&
+          ok == other.ok &&
+          latencyMs == other.latencyMs &&
+          degraded == other.degraded &&
+          error == other.error;
+}
+
+/// LLM provider configuration DTO.
+class ProviderConfigDto {
+  final String id;
+  final String name;
+  final String protocol;
+  final String baseUrl;
+  final String model;
+  final PlatformInt64 createdAt;
+
+  const ProviderConfigDto({
+    required this.id,
+    required this.name,
+    required this.protocol,
+    required this.baseUrl,
+    required this.model,
+    required this.createdAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      protocol.hashCode ^
+      baseUrl.hashCode ^
+      model.hashCode ^
+      createdAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProviderConfigDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          protocol == other.protocol &&
+          baseUrl == other.baseUrl &&
+          model == other.model &&
+          createdAt == other.createdAt;
 }
 
 /// A memory search result.
