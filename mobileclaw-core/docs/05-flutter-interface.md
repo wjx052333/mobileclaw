@@ -1028,7 +1028,7 @@ What is NOT backed up (by design):
 ### Dart side
 
 - [x] Verify the generated `bridge_generated.dart` exports match the API contract in this document (2026-04-01, FRB2 v2.12.0 manual codecs)
-- [x] Implement a real `MobileclawAgent` that delegates to the generated bridge (`MobileclawAgentImpl`, 2026-04-01)
+- [x] Implement a real `MobileclawAgent` that delegates to the generated bridge (`MobileclawAgentImpl`, 2026-04-01 — includes email account save/load/delete via FFI)
 - [x] Wire `secretsDbPath` and `encryptionKey` into `MobileclawAgentImpl.create()` and `engine_provider.dart` (2026-04-01)
 - [ ] Confirm `ClawException` fields (`type`, `message`) match what the bridge emits
 - [ ] Replace mock-only fallbacks (non-Android platforms still use `MockMobileclawAgent`)
