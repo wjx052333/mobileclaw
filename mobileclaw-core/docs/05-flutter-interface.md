@@ -523,6 +523,65 @@ Full mapping of Rust `ClawError` variants to `ClawException.type` values:
 
 ---
 
+## 3.6 Email Account Management
+
+Email credentials are configured once by the user and stored encrypted in Rust. Dart never retrieves the password after saving.
+
+### FFI Methods
+
+```dart
+// Save account (call once from settings screen)
+await agent.emailAccountSave(
+  dto: EmailAccountDto(
+    id: 'work',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: 587,
+    imapHost: 'imap.gmail.com',
+    imapPort: 993,
+    username: 'alice@gmail.com',
+  ),
+  password: _passwordController.text,  // plaintext, used once
+);
+
+// Load config for display (password NOT returned)
+final EmailAccountDto? config = await agent.emailAccountLoad(id: 'work');
+
+// Remove account
+await agent.emailAccountDelete(id: 'work');
+```
+
+### Security Contract
+
+- `emailAccountSave`: password is encrypted with AES-256-GCM before storage. The plaintext is never written to disk, logs, or memory beyond the immediate encryption call.
+- `emailAccountLoad`: returns config fields only. There is no `emailAccountGetPassword` method. This is intentional and permanent.
+- `emailAccountDelete`: removes both config and encrypted password atomically.
+
+### Dart DTO
+
+```dart
+class EmailAccountDto {
+  final String id;
+  final String smtpHost;
+  final int smtpPort;
+  final String imapHost;
+  final int imapPort;
+  final String username;
+  // No password field — by design
+}
+```
+
+### Flutter Settings UI Pattern
+
+```dart
+// EmailSettingsScreen calls emailAccountSave with password from a
+// SecureTextField (obscured, not cached in widget state after submission).
+// After save, clear the password controller immediately:
+await agent.emailAccountSave(dto: dto, password: _pwCtrl.text);
+_pwCtrl.clear();
+```
+
+---
+
 ## 4. Streaming Chat Usage Example
 
 ### 4.1 StreamBuilder widget
