@@ -19,6 +19,8 @@ class MockMobileclawAgent implements MobileclawAgent {
   final List<SkillManifest> _skills = [];
   // Email accounts stored by id. Passwords are intentionally not stored.
   final Map<String, EmailAccountDto> _emailAccounts = {};
+  final Map<String, ProviderConfigDto> _providers = {};
+  String? _activeProviderId;
 
   static Future<MobileclawAgent> create({
     required String apiKey,
@@ -96,6 +98,59 @@ class MockMobileclawAgent implements MobileclawAgent {
   Future<void> emailAccountDelete({required String id}) async {
     _emailAccounts.remove(id);
   }
+
+  @override
+  Future<void> providerSave({
+    required ProviderConfigDto config,
+    String? apiKey,
+  }) async {
+    // Assign a synthetic id if empty (mirrors Rust UUID generation)
+    final id = config.id.isEmpty
+        ? 'mock-${_providers.length + 1}'
+        : config.id;
+    _providers[id] = ProviderConfigDto(
+      id: id,
+      name: config.name,
+      protocol: config.protocol,
+      baseUrl: config.baseUrl,
+      model: config.model,
+      createdAt: config.createdAt == 0
+          ? DateTime.now().millisecondsSinceEpoch ~/ 1000
+          : config.createdAt,
+    );
+  }
+
+  @override
+  Future<List<ProviderConfigDto>> providerList() async =>
+      _providers.values.toList()
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+  @override
+  Future<void> providerDelete({required String id}) async =>
+      _providers.remove(id);
+
+  @override
+  Future<void> providerSetActive({required String id}) async {
+    if (!_providers.containsKey(id)) {
+      throw ClawException(
+        type: 'ProviderNotFound',
+        message: "provider not found: '$id'",
+      );
+    }
+    _activeProviderId = id;
+  }
+
+  @override
+  Future<ProviderConfigDto?> providerGetActive() async {
+    if (_activeProviderId == null) return null;
+    return _providers[_activeProviderId];
+  }
+
+  static Future<ProbeResultDto> probe({
+    required ProviderConfigDto config,
+    String? apiKey,
+  }) async =>
+      const ProbeResultDto(ok: true, latencyMs: 0, degraded: false, error: null);
 }
 
 /// In-memory mock of [MobileclawMemory].

@@ -319,6 +319,48 @@ class MobileclawAgentImpl implements MobileclawAgent {
   }
 
   // ---------------------------------------------------------------------------
+  // Provider management — Phase 3 (FFI stubs; not yet wired to Rust)
+  // ---------------------------------------------------------------------------
+
+  @override
+  Future<void> providerSave({
+    required ProviderConfigDto config,
+    String? apiKey,
+  }) {
+    throw UnimplementedError(
+      'Phase 3: wire providerSave to Rust FFI when AgentSession exposes it.',
+    );
+  }
+
+  @override
+  Future<List<ProviderConfigDto>> providerList() {
+    throw UnimplementedError(
+      'Phase 3: wire providerList to Rust FFI when AgentSession exposes it.',
+    );
+  }
+
+  @override
+  Future<void> providerDelete({required String id}) {
+    throw UnimplementedError(
+      'Phase 3: wire providerDelete to Rust FFI when AgentSession exposes it.',
+    );
+  }
+
+  @override
+  Future<void> providerSetActive({required String id}) {
+    throw UnimplementedError(
+      'Phase 3: wire providerSetActive to Rust FFI when AgentSession exposes it.',
+    );
+  }
+
+  @override
+  Future<ProviderConfigDto?> providerGetActive() {
+    throw UnimplementedError(
+      'Phase 3: wire providerGetActive to Rust FFI when AgentSession exposes it.',
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
 
