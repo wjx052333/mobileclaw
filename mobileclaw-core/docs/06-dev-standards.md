@@ -116,7 +116,7 @@ The three lifelines below are inviolable. Never bypass them. Never weaken them. 
 - Extension tools **must** use `ToolRegistry::register_extension`, which enforces name uniqueness and rejects any name that conflicts with a built-in
 - The integration test `extension_cannot_override_builtin` must always exist and must always pass
 
-### 3.4 추가 보안 규칙 (Additional Security Rules)
+### 3.4 附加安全规则 (Additional Security Rules)
 
 - FTS5 user queries must be wrapped in double-quotes before being passed to SQLite to prevent FTS5 injection
 - `unsafe` code is forbidden without an explicit security review. Any `unsafe` block must carry a comment that (a) names the reviewer, (b) states the invariant that makes it safe, and (c) links to the review record
