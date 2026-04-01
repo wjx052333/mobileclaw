@@ -1006,7 +1006,12 @@ The following tasks must be completed before the mock can be removed.
 - [x] Add `secretsDbPath: String` to `AgentConfig` and `SqliteSecretStore` to `AgentSession`
 - [x] Add `EmailAccountDto` and `email_account_save/load/delete` methods to `AgentSession`
 - [ ] Wire `secretsDbPath` into `AgentConfig(...)` call site in `agent_impl.dart` (flutter-dev worktree)
-- [ ] Replace hardcoded AES dev key with Android Keystore / iOS Keychain derivation before release
+- [ ] Replace hardcoded AES dev key with a key derived from `flutter_secure_storage` (cross-platform):
+  - Dart: on first launch, generate a random 32-byte key with `dart:math` `Random.secure()`, store as base64 under key `mobileclaw.secrets_key` via `FlutterSecureStorage`
+  - Dart: on subsequent launches, read the key from secure storage (Android Keystore-backed on Android, iOS Keychain-backed on iOS — `flutter_secure_storage` handles this automatically)
+  - Dart: add `encryptionKey: List<int>` field to `AgentConfig` and pass the 32 raw bytes when calling `AgentSession.create`
+  - Rust: add `encryption_key: Vec<u8>` to `AgentConfig` in `ffi.rs`; replace `b"mobileclaw-dev-key-32bytes000000"` with `config.encryption_key.as_slice().try_into()` in `AgentSession::create`; remove `compile_error!` guard once done
+  - Dart: update `agent_impl.dart` `MobileclawAgentImpl.create` to accept and forward `encryptionKey`
 
 ### Dart side
 
