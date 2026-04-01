@@ -1,3 +1,4 @@
+#![cfg(feature = "test-utils")]
 // Run with: cargo test -p mobileclaw-core --features test-utils --test integration_agent
 use mobileclaw_core::{
     agent::AgentLoop,
