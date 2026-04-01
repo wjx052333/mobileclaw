@@ -898,5 +898,37 @@ void main() {
       }
     }, timeout: const Timeout(Duration(seconds: 10)));
   }, skip: Platform.environment['INTEGRATION'] != 'true' ? 'set INTEGRATION=true to run' : null);
+
+  // ---------------------------------------------------------------------------
+  // ProviderConfigDto
+  // ---------------------------------------------------------------------------
+  group('ProviderConfigDto', () {
+    test('equality', () {
+      const a = ProviderConfigDto(
+        id: '1', name: 'Claude', protocol: 'anthropic',
+        baseUrl: 'https://api.anthropic.com', model: 'claude-opus-4-6',
+        createdAt: 1000,
+      );
+      const b = ProviderConfigDto(
+        id: '1', name: 'Claude', protocol: 'anthropic',
+        baseUrl: 'https://api.anthropic.com', model: 'claude-opus-4-6',
+        createdAt: 1000,
+      );
+      expect(a, equals(b));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // ProbeResultDto
+  // ---------------------------------------------------------------------------
+  group('ProbeResultDto', () {
+    test('fields accessible', () {
+      const r = ProbeResultDto(ok: true, latencyMs: 120, degraded: false, error: null);
+      expect(r.ok, isTrue);
+      expect(r.latencyMs, 120);
+      expect(r.degraded, isFalse);
+      expect(r.error, isNull);
+    });
+  });
 }
 
