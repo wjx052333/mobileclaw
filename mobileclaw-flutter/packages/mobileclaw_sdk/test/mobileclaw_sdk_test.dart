@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobileclaw_sdk/mobileclaw_sdk.dart';
 
@@ -489,5 +491,54 @@ void main() {
       expect(s.keywords, ['kw1', 'kw2']);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // MobileclawAgentImpl (Linux integration)
+  // ---------------------------------------------------------------------------
+  group('MobileclawAgentImpl (Linux integration)', () {
+    const _run = bool.fromEnvironment('INTEGRATION');
+
+    test('create() succeeds and memory starts empty', () async {
+      if (!_run) return;
+
+      final dir = Directory.systemTemp.createTempSync('claw_test_');
+      try {
+        final agent = await MobileclawAgentImpl.create(
+          apiKey: 'test-key',
+          dbPath: '${dir.path}/m.db',
+          sandboxDir: dir.path,
+          httpAllowlist: [],
+        );
+        expect(await agent.memory.count(), 0);
+        agent.dispose();
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    }, timeout: const Timeout(Duration(seconds: 10)));
+
+    test('memory store / recall round-trip via real SQLite', () async {
+      if (!_run) return;
+
+      final dir = Directory.systemTemp.createTempSync('claw_test2_');
+      try {
+        final agent = await MobileclawAgentImpl.create(
+          apiKey: 'test-key',
+          dbPath: '${dir.path}/m.db',
+          sandboxDir: dir.path,
+          httpAllowlist: [],
+        );
+        final doc = await agent.memory.store(
+          'notes/test.md', 'hello world', MemoryCategory.core,
+        );
+        expect(doc.path, 'notes/test.md');
+        final results = await agent.memory.recall('hello');
+        expect(results, isNotEmpty);
+        expect(results.first.score, greaterThan(0));
+        agent.dispose();
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    }, timeout: const Timeout(Duration(seconds: 10)));
+  }, skip: !bool.fromEnvironment('INTEGRATION') ? 'pass --dart-define=INTEGRATION=1' : null);
 }
 

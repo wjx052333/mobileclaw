@@ -10,3 +10,4 @@ export 'src/exceptions.dart';
 export 'src/memory.dart';
 export 'src/models.dart';
 export 'src/mock.dart';
+export 'src/agent_impl.dart';
