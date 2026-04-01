@@ -22,19 +22,23 @@ final agentProvider = FutureProvider<MobileclawAgent>((ref) async {
   final dir = await getApplicationSupportDirectory();
 
   if (_nativeAvailable) {
-    return MobileclawAgentImpl.create(
+    final agent = await MobileclawAgentImpl.create(
       apiKey: const String.fromEnvironment('ANTHROPIC_API_KEY', defaultValue: ''),
       dbPath: '${dir.path}/claw.db',
       sandboxDir: '${dir.path}/workspace',
       httpAllowlist: ['https://api.anthropic.com/'],
     );
+    ref.onDispose(agent.dispose);
+    return agent;
   }
 
   // Fallback for development / unsupported platforms.
-  return MockMobileclawAgent.create(
+  final agent = await MockMobileclawAgent.create(
     apiKey: '',
     dbPath: '${dir.path}/claw.db',
     sandboxDir: '${dir.path}/workspace',
     httpAllowlist: [],
   );
+  ref.onDispose(agent.dispose);
+  return agent;
 });
