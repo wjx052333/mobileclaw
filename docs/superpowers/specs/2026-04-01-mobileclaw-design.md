@@ -309,7 +309,7 @@ updated_at: 2026-04-01T10:00:00Z
 ```markdown
 - [用户是后端工程师](user_role.md) — 10年Go经验，首次接触Flutter
 - [不要在响应末尾总结](feedback_no_summary.md) — 用户明确反感冗余输出
-- [MobileClaw 项目目标](project_mobileclaw.md) — MVP 截止 2026-Q3
+- [MobileClaw 项目目标](project_mobileclaw.md) — MVP 
 - [天气 API](reference_weather_api.md) — wttr.in 无需 Key，JSON 格式
 ```
 
