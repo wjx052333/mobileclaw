@@ -49,8 +49,13 @@ class SkillManifest {
       _listEq(other.allowedTools, allowedTools);
 
   @override
-  int get hashCode =>
-      Object.hash(name, description, trust, Object.hashAll(keywords));
+  int get hashCode => Object.hash(
+        name,
+        description,
+        trust,
+        Object.hashAll(keywords),
+        allowedTools == null ? null : Object.hashAll(allowedTools!),
+      );
 }
 
 bool _listEq<T>(List<T>? a, List<T>? b) {

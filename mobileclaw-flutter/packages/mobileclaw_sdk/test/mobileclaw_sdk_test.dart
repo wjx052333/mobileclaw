@@ -582,6 +582,20 @@ void main() {
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
       expect(a.hashCode, equals(b.hashCode));
+
+      // Two manifests differing only in allowedTools must be unequal
+      // and have different hash codes.
+      const withTools = SkillManifest(
+        name: 'n', description: 'd',
+        trust: SkillTrust.bundled, keywords: ['k'],
+        allowedTools: ['file_read'],
+      );
+      const withoutTools = SkillManifest(
+        name: 'n', description: 'd',
+        trust: SkillTrust.bundled, keywords: ['k'],
+      );
+      expect(withTools, isNot(equals(withoutTools)));
+      expect(withTools.hashCode, isNot(equals(withoutTools.hashCode)));
     });
 
     test('MemoryDoc equality', () {
