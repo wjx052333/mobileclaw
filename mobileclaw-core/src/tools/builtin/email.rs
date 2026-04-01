@@ -134,6 +134,168 @@ impl Tool for EmailSendTool {
     }
 }
 
+use async_imap::Client as ImapClient;
+use futures::StreamExt;
+use tokio::net::TcpStream;
+use tokio_rustls::TlsConnector;
+use tokio_rustls::client::TlsStream;
+use std::sync::Arc as StdArc;
+
+pub struct EmailFetchTool;
+
+#[async_trait]
+impl Tool for EmailFetchTool {
+    fn name(&self) -> &str { "email_fetch" }
+
+    fn description(&self) -> &str {
+        "Fetch recent emails from an IMAP mailbox. Returns subject, sender, date, and snippet for each message."
+    }
+
+    fn parameters_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "account_id": {
+                    "type": "string",
+                    "description": "Email account ID configured in app settings"
+                },
+                "folder": {
+                    "type": "string",
+                    "default": "INBOX",
+                    "description": "IMAP folder name (default: INBOX)"
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 10,
+                    "description": "Maximum number of recent messages to return (max 50)"
+                }
+            },
+            "required": ["account_id"]
+        })
+    }
+
+    fn required_permissions(&self) -> Vec<Permission> { vec![Permission::EmailReceive] }
+    fn timeout_ms(&self) -> u64 { 30_000 }
+
+    async fn execute(&self, args: Value, ctx: &ToolContext) -> ClawResult<ToolResult> {
+        let account_id = args["account_id"].as_str()
+            .ok_or_else(|| ClawError::Tool { tool: self.name().into(), message: "missing 'account_id'".into() })?;
+        let folder = args["folder"].as_str().unwrap_or("INBOX");
+        let limit = args["limit"].as_u64().unwrap_or(10).min(50) as u32;
+
+        // Load credentials
+        let config_key = format!("email:{}:config", account_id);
+        let pw_key = format!("email:{}:password", account_id);
+
+        let config_secret = ctx.secrets.get(&config_key).await?
+            .ok_or_else(|| ClawError::Tool {
+                tool: self.name().into(),
+                message: format!("email account '{}' not found; configure it in app settings", account_id),
+            })?;
+        let acc: crate::secrets::types::EmailAccount =
+            serde_json::from_str(config_secret.expose())
+                .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+        let password = ctx.secrets.get(&pw_key).await?
+            .ok_or_else(|| ClawError::Tool {
+                tool: self.name().into(),
+                message: format!("password missing for account '{}'", account_id),
+            })?;
+
+        // TLS connection
+        let mut root_store = rustls::RootCertStore::empty();
+        root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let tls_config = rustls::ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+        let connector = TlsConnector::from(StdArc::new(tls_config));
+        let addr = format!("{}:{}", acc.imap_host, acc.imap_port);
+        let tcp = TcpStream::connect(&addr).await
+            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: format!("connect: {}", e) })?;
+        let server_name: rustls::pki_types::ServerName<'static> =
+            rustls::pki_types::ServerName::try_from(acc.imap_host.as_str())
+                .map_err(|e: rustls::pki_types::InvalidDnsNameError|
+                    ClawError::Tool { tool: self.name().into(), message: e.to_string() })?
+                .to_owned();
+        let tls: TlsStream<TcpStream> = connector.connect(server_name, tcp).await
+            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: format!("tls: {}", e) })?;
+
+        let client = ImapClient::new(tls);
+        let mut imap_session = client
+            .login(&acc.username, password.expose())
+            .await
+            .map_err(|(e, _)| ClawError::Tool { tool: self.name().into(), message: format!("login: {}", e) })?;
+
+        // Select folder
+        let mailbox = imap_session.select(folder).await
+            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: format!("select: {}", e) })?;
+
+        let total = mailbox.exists;
+        let emails = if total == 0 {
+            vec![]
+        } else {
+            let start = total.saturating_sub(limit - 1);
+            let seq = format!("{}:{}", start, total);
+            let fetch_stream = imap_session
+                .fetch(&seq, "(ENVELOPE BODY[TEXT]<0.500>)")
+                .await
+                .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+
+            let messages: Vec<_> = fetch_stream
+                .filter_map(|r| async move { r.ok() })
+                .collect()
+                .await;
+
+            messages.iter().rev().map(|msg| {
+                let env = msg.envelope();
+                let subject = env
+                    .and_then(|e| e.subject.as_ref())
+                    .and_then(|s| std::str::from_utf8(s).ok())
+                    .unwrap_or("(no subject)")
+                    .to_string();
+                let from = env
+                    .and_then(|e| e.from.as_ref())
+                    .and_then(|f| f.first())
+                    .map(|a| {
+                        let name = a.name.as_ref()
+                            .and_then(|n| std::str::from_utf8(n).ok())
+                            .unwrap_or("")
+                            .to_string();
+                        let mbox = a.mailbox.as_ref()
+                            .and_then(|m| std::str::from_utf8(m).ok())
+                            .unwrap_or("")
+                            .to_string();
+                        let host = a.host.as_ref()
+                            .and_then(|h| std::str::from_utf8(h).ok())
+                            .unwrap_or("")
+                            .to_string();
+                        if name.is_empty() { format!("{}@{}", mbox, host) }
+                        else { format!("{} <{}@{}>", name, mbox, host) }
+                    })
+                    .unwrap_or_default();
+                let date = env
+                    .and_then(|e| e.date.as_ref())
+                    .and_then(|d| std::str::from_utf8(d).ok())
+                    .unwrap_or("")
+                    .to_string();
+                let snippet = msg.text()
+                    .and_then(|b| std::str::from_utf8(b).ok())
+                    .map(|s| s.chars().take(200).collect::<String>())
+                    .unwrap_or_default();
+                json!({ "subject": subject, "from": from, "date": date, "snippet": snippet })
+            }).collect()
+        };
+
+        imap_session.logout().await.ok(); // best-effort
+
+        Ok(ToolResult::ok(json!({
+            "folder": folder,
+            "total": total,
+            "fetched": emails.len(),
+            "messages": emails
+        })))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,5 +368,35 @@ mod tests {
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("empty") || msg.contains("to"), "got: {}", msg);
+    }
+
+    #[tokio::test]
+    async fn fetch_missing_account_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = EmailFetchTool.execute(
+            serde_json::json!({"account_id": "work", "folder": "INBOX", "limit": 5}),
+            &ctx,
+        ).await;
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("account") || msg.contains("work"), "got: {}", msg);
+    }
+
+    #[test]
+    fn fetch_tool_metadata() {
+        let t = EmailFetchTool;
+        assert_eq!(t.name(), "email_fetch");
+        assert!(!t.description().is_empty());
+        assert!(t.required_permissions().contains(&crate::tools::Permission::EmailReceive));
+        assert_eq!(t.timeout_ms(), 30_000);
+    }
+
+    #[tokio::test]
+    async fn fetch_missing_account_id_errors() {
+        let dir = TempDir::new().unwrap();
+        let ctx = make_ctx(&dir).await;
+        let result = EmailFetchTool.execute(serde_json::json!({}), &ctx).await;
+        assert!(result.is_err());
     }
 }

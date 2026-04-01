@@ -18,5 +18,5 @@ pub fn register_all_builtins(registry: &mut ToolRegistry) {
     registry.register_builtin(Arc::new(system::GrepTool));
     registry.register_builtin(Arc::new(system::GlobTool));
     registry.register_builtin(Arc::new(email::EmailSendTool));
-    // email::EmailFetchTool registered in Task 6
+    registry.register_builtin(Arc::new(email::EmailFetchTool));
 }
