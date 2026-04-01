@@ -9,7 +9,7 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use rusqlite::{Connection, OptionalExtension};
 use tokio::sync::Mutex;
 
-use crate::{ClawError, ClawResult, secrets::types::SecretString};
+use crate::{ClawError, ClawResult, secrets::types::{EmailAccount, SecretString}};
 
 /// Trait for opaque secret storage. Implementors must never expose values in logs.
 #[async_trait]
@@ -87,6 +87,43 @@ impl SqliteSecretStore {
         let s = String::from_utf8(plaintext)
             .map_err(|e| ClawError::SecretStore(e.to_string()))?;
         Ok(SecretString::new(s))
+    }
+
+    /// Store an email account's config (as JSON) and password, both encrypted.
+    /// Config is stored under `email:<id>:config`, password under `email:<id>:password`.
+    pub async fn put_email_account(&self, acc: &EmailAccount, password: &str) -> ClawResult<()> {
+        let config_json = serde_json::to_string(acc)
+            .map_err(|e| ClawError::SecretStore(e.to_string()))?;
+        self.put(&format!("email:{}:config", acc.id), &config_json).await?;
+        self.put(&format!("email:{}:password", acc.id), password).await?;
+        Ok(())
+    }
+
+    /// Load an email account config and its password.
+    /// Returns `None` if the account does not exist.
+    /// The config JSON is decrypted and deserialized; the password is returned as a `SecretString`.
+    pub async fn get_email_account(
+        &self,
+        id: &str,
+    ) -> ClawResult<Option<(EmailAccount, SecretString)>> {
+        let config_key = format!("email:{}:config", id);
+        let Some(config_secret) = self.get(&config_key).await? else {
+            return Ok(None);
+        };
+        let acc: EmailAccount = serde_json::from_str(config_secret.expose())
+            .map_err(|e| ClawError::SecretStore(e.to_string()))?;
+        let pw_key = format!("email:{}:password", id);
+        let Some(pw) = self.get(&pw_key).await? else {
+            return Err(ClawError::SecretStore(format!("password missing for account '{}'", id)));
+        };
+        Ok(Some((acc, pw)))
+    }
+
+    /// Delete all entries for an email account (both config and password).
+    pub async fn delete_email_account(&self, id: &str) -> ClawResult<()> {
+        self.delete(&format!("email:{}:config", id)).await?;
+        self.delete(&format!("email:{}:password", id)).await?;
+        Ok(())
     }
 }
 
@@ -221,5 +258,49 @@ mod tests {
         .unwrap();
         let result = store2.get("pw").await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn email_account_save_and_load() {
+        let dir = TempDir::new().unwrap();
+        let store = open_store(&dir).await;
+        let acc = EmailAccount {
+            id: "work".into(),
+            smtp_host: "smtp.example.com".into(),
+            smtp_port: 587,
+            imap_host: "imap.example.com".into(),
+            imap_port: 993,
+            username: "alice@example.com".into(),
+        };
+        store.put_email_account(&acc, "s3cr3t").await.unwrap();
+
+        let (loaded_acc, loaded_pw) = store.get_email_account("work").await.unwrap().unwrap();
+        assert_eq!(loaded_acc.username, "alice@example.com");
+        assert_eq!(loaded_acc.smtp_port, 587);
+        assert_eq!(loaded_pw.expose(), "s3cr3t");
+    }
+
+    #[tokio::test]
+    async fn email_account_delete_removes_both_entries() {
+        let dir = TempDir::new().unwrap();
+        let store = open_store(&dir).await;
+        let acc = EmailAccount {
+            id: "tmp".into(),
+            smtp_host: "s".into(),
+            smtp_port: 25,
+            imap_host: "i".into(),
+            imap_port: 143,
+            username: "u".into(),
+        };
+        store.put_email_account(&acc, "pw").await.unwrap();
+        store.delete_email_account("tmp").await.unwrap();
+        assert!(store.get_email_account("tmp").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn email_account_not_found_returns_none() {
+        let dir = TempDir::new().unwrap();
+        let store = open_store(&dir).await;
+        assert!(store.get_email_account("missing").await.unwrap().is_none());
     }
 }
