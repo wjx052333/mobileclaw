@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobileclaw_sdk/mobileclaw_sdk.dart';
 
 import '../chat/chat_page.dart';
 import 'provider_form_screen.dart';
