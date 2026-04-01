@@ -1,0 +1,31 @@
+[package]
+name    = "mobileclaw-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio       = { workspace = true }
+async-trait = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+serde_yaml  = { workspace = true }
+quick-xml   = { workspace = true }
+url         = { workspace = true }
+reqwest     = { workspace = true }
+rusqlite    = { workspace = true }
+tracing     = { workspace = true }
+anyhow      = { workspace = true }
+thiserror   = { workspace = true }
+futures     = { workspace = true }
+eventsource-stream = { workspace = true }
+regex       = { workspace = true }
+glob        = { workspace = true }
+
+[features]
+test-utils = []
+
+[dev-dependencies]
+proptest   = { workspace = true }
+mockall    = { workspace = true }
+tempfile   = { workspace = true }
+tokio-test = { workspace = true }
