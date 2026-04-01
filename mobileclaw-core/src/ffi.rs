@@ -79,6 +79,70 @@ pub struct EmailAccountDto {
     pub username: String,
 }
 
+/// LLM provider configuration DTO.
+#[derive(Debug, Clone)]
+pub struct ProviderConfigDto {
+    pub id: String,
+    pub name: String,
+    pub protocol: String,    // "anthropic" | "openai_compat" | "ollama"
+    pub base_url: String,
+    pub model: String,
+    pub created_at: i64,
+}
+
+/// Result of a connectivity probe against an LLM provider.
+#[derive(Debug, Clone)]
+pub struct ProbeResultDto {
+    pub ok: bool,
+    pub latency_ms: u64,
+    pub degraded: bool,
+    pub error: Option<String>,
+}
+
+impl ProviderConfigDto {
+    fn to_provider_config(&self) -> crate::ClawResult<crate::llm::provider::ProviderConfig> {
+        use crate::llm::provider::ProviderProtocol;
+        let protocol = match self.protocol.as_str() {
+            "anthropic"     => ProviderProtocol::Anthropic,
+            "openai_compat" => ProviderProtocol::OpenAiCompat,
+            "ollama"        => ProviderProtocol::Ollama,
+            other => return Err(crate::ClawError::Llm(format!("unknown protocol: {other}"))),
+        };
+        Ok(crate::llm::provider::ProviderConfig {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            protocol,
+            base_url: self.base_url.clone(),
+            model: self.model.clone(),
+            created_at: self.created_at,
+        })
+    }
+}
+
+impl From<crate::llm::provider::ProviderConfig> for ProviderConfigDto {
+    fn from(c: crate::llm::provider::ProviderConfig) -> Self {
+        let protocol = match c.protocol {
+            crate::llm::provider::ProviderProtocol::Anthropic    => "anthropic",
+            crate::llm::provider::ProviderProtocol::OpenAiCompat => "openai_compat",
+            crate::llm::provider::ProviderProtocol::Ollama       => "ollama",
+        };
+        Self {
+            id: c.id,
+            name: c.name,
+            protocol: protocol.into(),
+            base_url: c.base_url,
+            model: c.model,
+            created_at: c.created_at,
+        }
+    }
+}
+
+impl From<crate::llm::probe::ProbeResult> for ProbeResultDto {
+    fn from(r: crate::llm::probe::ProbeResult) -> Self {
+        Self { ok: r.ok, latency_ms: r.latency_ms, degraded: r.degraded, error: r.error }
+    }
+}
+
 // ─── Private helpers ─────────────────────────────────────────────────────────
 
 fn category_to_string(c: &MemoryCategory) -> String {
@@ -349,6 +413,66 @@ impl AgentSession {
     pub async fn email_account_delete(&self, id: String) -> anyhow::Result<()> {
         self.secrets.delete_email_account(&id).await.map_err(anyhow::Error::from)
     }
+
+    /// Save (upsert) a provider config and optionally store its API key encrypted.
+    pub async fn provider_save(
+        &self,
+        config: ProviderConfigDto,
+        api_key: Option<String>,
+    ) -> anyhow::Result<()> {
+        let cfg = config.to_provider_config().map_err(anyhow::Error::from)?;
+        self.secrets.provider_save(&cfg, api_key.as_deref()).await.map_err(anyhow::Error::from)
+    }
+
+    /// Return all stored provider configs as DTOs.
+    pub async fn provider_list(&self) -> anyhow::Result<Vec<ProviderConfigDto>> {
+        self.secrets
+            .provider_list()
+            .await
+            .map(|v| v.into_iter().map(ProviderConfigDto::from).collect())
+            .map_err(anyhow::Error::from)
+    }
+
+    /// Delete a provider config (and its API key via ON DELETE CASCADE).
+    pub async fn provider_delete(&self, id: String) -> anyhow::Result<()> {
+        self.secrets.provider_delete(&id).await.map_err(anyhow::Error::from)
+    }
+
+    /// Set the active provider by ID. Returns an error if the provider does not exist.
+    pub async fn provider_set_active(&self, id: String) -> anyhow::Result<()> {
+        // Verify provider exists before setting active
+        self.secrets.provider_load(&id).await.map_err(anyhow::Error::from)?;
+        self.secrets.set_active_provider_id(&id).await.map_err(anyhow::Error::from)
+    }
+
+    /// Return the active provider config, or `None` if no active provider is set.
+    pub async fn provider_get_active(&self) -> anyhow::Result<Option<ProviderConfigDto>> {
+        match self.secrets.active_provider_id().await.map_err(anyhow::Error::from)? {
+            None => Ok(None),
+            Some(id) => {
+                let cfg = self.secrets.provider_load(&id).await.map_err(anyhow::Error::from)?;
+                Ok(Some(ProviderConfigDto::from(cfg)))
+            }
+        }
+    }
+}
+
+/// Probe an LLM provider for reachability without creating a full session.
+/// Returns a `ProbeResultDto` indicating whether the provider is reachable.
+pub async fn provider_probe(
+    config: ProviderConfigDto,
+    api_key: Option<String>,
+) -> ProbeResultDto {
+    let cfg = match config.to_provider_config() {
+        Ok(c) => c,
+        Err(e) => return ProbeResultDto {
+            ok: false,
+            latency_ms: 0,
+            degraded: false,
+            error: Some(e.to_string()),
+        },
+    };
+    crate::llm::probe::probe_provider(&cfg, api_key.as_deref()).await.into()
 }
 
 #[cfg(test)]
@@ -367,5 +491,68 @@ mod tests {
         };
         assert_eq!(dto.id, "work");
         assert_eq!(dto.smtp_port, 587);
+    }
+
+    #[test]
+    fn provider_config_dto_to_provider_config_anthropic() {
+        let dto = ProviderConfigDto {
+            id: "p1".into(),
+            name: "Claude".into(),
+            protocol: "anthropic".into(),
+            base_url: "https://api.anthropic.com".into(),
+            model: "claude-opus-4-6".into(),
+            created_at: 1000,
+        };
+        let cfg = dto.to_provider_config().unwrap();
+        assert_eq!(cfg.id, "p1");
+        assert_eq!(cfg.model, "claude-opus-4-6");
+        assert!(matches!(cfg.protocol, crate::llm::provider::ProviderProtocol::Anthropic));
+    }
+
+    #[test]
+    fn provider_config_dto_unknown_protocol_returns_err() {
+        let dto = ProviderConfigDto {
+            id: "p2".into(),
+            name: "Bad".into(),
+            protocol: "grpc".into(),
+            base_url: "https://example.com".into(),
+            model: "m".into(),
+            created_at: 0,
+        };
+        assert!(dto.to_provider_config().is_err());
+    }
+
+    #[test]
+    fn provider_config_roundtrip_via_dto() {
+        use crate::llm::provider::{ProviderConfig, ProviderProtocol};
+        let cfg = ProviderConfig {
+            id: "p3".into(),
+            name: "Ollama Local".into(),
+            protocol: ProviderProtocol::Ollama,
+            base_url: "http://localhost:11434".into(),
+            model: "llama3".into(),
+            created_at: 9999,
+        };
+        let dto = ProviderConfigDto::from(cfg.clone());
+        assert_eq!(dto.protocol, "ollama");
+        assert_eq!(dto.model, "llama3");
+        let cfg2 = dto.to_provider_config().unwrap();
+        assert_eq!(cfg2.id, cfg.id);
+        assert_eq!(cfg2.base_url, cfg.base_url);
+        assert!(matches!(cfg2.protocol, ProviderProtocol::Ollama));
+    }
+
+    #[test]
+    fn probe_result_dto_from_probe_result() {
+        let r = crate::llm::probe::ProbeResult {
+            ok: true,
+            latency_ms: 42,
+            degraded: false,
+            error: None,
+        };
+        let dto = ProbeResultDto::from(r);
+        assert!(dto.ok);
+        assert_eq!(dto.latency_ms, 42);
+        assert!(dto.error.is_none());
     }
 }
