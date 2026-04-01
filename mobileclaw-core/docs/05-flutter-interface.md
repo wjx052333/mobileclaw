@@ -1012,6 +1012,17 @@ The following tasks must be completed before the mock can be removed.
   - Dart: add `encryptionKey: List<int>` field to `AgentConfig` and pass the 32 raw bytes when calling `AgentSession.create`
   - Rust: add `encryption_key: Vec<u8>` to `AgentConfig` in `ffi.rs`; replace `b"mobileclaw-dev-key-32bytes000000"` with `config.encryption_key.as_slice().try_into()` in `AgentSession::create`; remove `compile_error!` guard once done
   - Dart: update `agent_impl.dart` `MobileclawAgentImpl.create` to accept and forward `encryptionKey`
+  - **Note:** the `flutter_secure_storage` key is intentionally NOT included in any backup. On device migration the user must re-enter all email passwords and LLM API keys.
+
+### Backup Policy
+
+What IS backed up: `mem.db` (agent memory — conversations, notes, documents).
+
+What is NOT backed up (by design):
+- `secrets.db` — AES-encrypted credentials. The encryption key lives only in `flutter_secure_storage`, which is tied to the device (Android Keystore / iOS Keychain). Backing up `secrets.db` without the key is useless; backing up both together defeats the security model.
+- `flutter_secure_storage` key itself — never exported or synced.
+
+**Migration path:** when a user moves to a new device, restore `mem.db` from backup, then re-enter email passwords and LLM API keys from the settings screen. The agent's memory is preserved; credentials are re-provisioned.
 
 ### Dart side
 

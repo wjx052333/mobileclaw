@@ -86,8 +86,20 @@ Warnings are treated as errors. If a lint is a false positive, document the exce
 
 - All credentials (email passwords, API keys) must be stored exclusively via `SecretStore::put()` — never in `ToolContext`, `AgentConfig`, logs, or memory without `SecretString`
 - `SecretString` must never be passed to `tracing::*!` macros, formatted into error messages, or serialized to JSON
-- The AES-256-GCM key passed to `SqliteSecretStore::open()` must originate from the platform keystore (Android Keystore / iOS Keychain) in production builds. The placeholder key in `ffi.rs` must be replaced before Phase 2 release
+- The AES-256-GCM encryption key passed to `SqliteSecretStore::open()` must be derived from `flutter_secure_storage` in production builds (Android Keystore-backed on Android, iOS Keychain-backed on iOS). The placeholder key in `ffi.rs` must be replaced before Phase 2 release
 - `FFI`: no `get_password` or equivalent method may ever be added to the Flutter API surface. If the user needs to change a password, they call `email_account_save` again with the new password
+
+### 3.6 备份策略 (Backup Policy)
+
+The encryption key and `secrets.db` are **never backed up** — by design.
+
+| File | Backed up? | Reason |
+|------|-----------|--------|
+| `mem.db` | ✅ Yes | Agent memory (conversations, notes) — no secrets |
+| `secrets.db` | ❌ No | AES ciphertext is useless without the key |
+| `flutter_secure_storage` key | ❌ No | Device-bound by platform keystore; cannot be exported |
+
+**Migration path:** when a user moves to a new device, they restore `mem.db` from backup and re-enter email passwords and LLM API keys from the app settings screen. The agent's memory is fully preserved; credentials are re-provisioned fresh.
 
 ---
 
