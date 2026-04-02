@@ -77,6 +77,7 @@ struct TurnMetrics {
     pruning_threshold: usize,
     response_chars: usize,
     pruning_fired: bool,
+    tool_calls: usize,
 }
 
 // ─── RSS helper ──────────────────────────────────────────────────────────────
@@ -166,10 +167,10 @@ pub async fn cmd_bench(
 
     // ── Print table header ───────────────────────────────────────────────────
     println!(
-        "{:>4}  {:<28}  {:>8}  {:>7}  {:>7}  {:>6}  {:>5}  {:>7}  {:>7}",
-        "turn", "label", "elapsed", "tok_bef", "tok_aft", "pruned", "h_len", "resp_ch", "rss_MiB"
+        "{:>4}  {:<28}  {:>8}  {:>7}  {:>7}  {:>6}  {:>5}  {:>7}  {:>5}  {:>7}",
+        "turn", "label", "elapsed", "tok_bef", "tok_aft", "pruned", "h_len", "resp_ch", "tools", "rss_MiB"
     );
-    println!("{}", "─".repeat(100));
+    println!("{}", "─".repeat(106));
 
     let mut all_metrics: Vec<TurnMetrics> = Vec::with_capacity(turns.len());
     let bench_start = Instant::now();
@@ -232,6 +233,7 @@ pub async fn cmd_bench(
                     pruning_threshold: 0,
                     response_chars: 0,
                     pruning_fired: false,
+                    tool_calls: 0,
                 });
                 continue;
             }
@@ -244,6 +246,7 @@ pub async fn cmd_bench(
         let mut response_chars: usize = 0;
         let mut response_text = String::new();
         let mut events_seen: Vec<String> = Vec::new();
+        let mut tool_call_names: Vec<String> = Vec::new();
         for event in &events {
             match event {
                 AgentEventDto::TextDelta { text } => {
@@ -269,7 +272,11 @@ pub async fn cmd_bench(
                     ));
                     events_seen.push("ContextStats".to_string());
                 }
-                AgentEventDto::ToolCall { .. } => events_seen.push("ToolCall".to_string()),
+                AgentEventDto::ToolCall { name } => {
+                    tracing::info!(turn = turn.id, tool = %name, "bench: tool call");
+                    tool_call_names.push(name.clone());
+                    events_seen.push("ToolCall".to_string());
+                }
                 AgentEventDto::ToolResult { .. } => events_seen.push("ToolResult".to_string()),
                 AgentEventDto::Done => events_seen.push("Done".to_string()),
             }
@@ -278,6 +285,7 @@ pub async fn cmd_bench(
         let (tok_before, tok_after, pruned, h_len, threshold) =
             ctx_stats.unwrap_or((0, 0, 0, 0, 0));
         let pruning_fired = pruned > 0;
+        let tool_calls = tool_call_names.len();
         let rss_after = rss_kib();
         let rss_mib = rss_after / 1024;
 
@@ -314,7 +322,7 @@ pub async fn cmd_bench(
         let prune_marker = if pruning_fired { "✂" } else { " " };
 
         println!(
-            "{:>4}  {:<28}  {:>7}ms{} {:>7}  {:>7}  {:>6}  {:>5}  {:>7}  {:>6}MiB",
+            "{:>4}  {:<28}  {:>7}ms{} {:>7}  {:>7}  {:>6}  {:>5}  {:>7}  {:>5}  {:>6}MiB",
             turn.id,
             label_short,
             elapsed.as_millis(),
@@ -324,8 +332,13 @@ pub async fn cmd_bench(
             pruned,
             h_len,
             response_chars,
+            tool_calls,
             rss_mib,
         );
+
+        if !tool_call_names.is_empty() {
+            println!("       🔧 tools: {}", tool_call_names.join(", "));
+        }
 
         if pruning_fired {
             println!(
@@ -345,6 +358,7 @@ pub async fn cmd_bench(
             pruning_threshold: threshold,
             response_chars,
             pruning_fired,
+            tool_calls,
         });
     }
 
@@ -352,6 +366,7 @@ pub async fn cmd_bench(
     let total_elapsed = bench_start.elapsed();
     let prune_events: Vec<&TurnMetrics> = all_metrics.iter().filter(|m| m.pruning_fired).collect();
     let total_pruned_msgs: usize = all_metrics.iter().map(|m| m.messages_pruned).sum();
+    let total_tool_calls: usize = all_metrics.iter().map(|m| m.tool_calls).sum();
     let max_tokens = all_metrics.iter().map(|m| m.tokens_before_turn).max().unwrap_or(0);
     let avg_elapsed_ms = if all_metrics.is_empty() {
         0
@@ -360,13 +375,14 @@ pub async fn cmd_bench(
     };
 
     println!();
-    println!("{}", "═".repeat(100));
+    println!("{}", "═".repeat(106));
     println!("  BENCH SUMMARY");
-    println!("{}", "─".repeat(100));
+    println!("{}", "─".repeat(106));
     println!("  Total turns         : {}", all_metrics.len());
     println!("  Total wall time     : {:.1}s", total_elapsed.as_secs_f64());
     println!("  Avg turn latency    : {}ms", avg_elapsed_ms);
     println!("  Peak token estimate : {} tokens", max_tokens);
+    println!("  Total tool calls    : {}", total_tool_calls);
     println!(
         "  Pruning events      : {} (turns: {})",
         prune_events.len(),
@@ -393,7 +409,7 @@ pub async fn cmd_bench(
         println!("  ✓ Context-window pruning is working correctly.");
     }
 
-    println!("{}", "═".repeat(100));
+    println!("{}", "═".repeat(106));
 
     Ok(())
 }
