@@ -52,6 +52,7 @@ pub async fn cmd_chat(data_dir: &Path, system: Option<String>) -> Result<()> {
                     let status = if success { "ok" } else { "error" };
                     println!("  [{name}: {status}]");
                 }
+                AgentEventDto::ContextStats { .. } => {} // bench-only; ignored in interactive chat
                 AgentEventDto::Done => {}
             }
         }

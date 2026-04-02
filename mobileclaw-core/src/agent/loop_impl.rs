@@ -105,11 +105,30 @@ Rules:
     s
 }
 
+/// Snapshot of context-window state emitted once per `chat()` call,
+/// just before returning events. Useful for bench/monitoring tooling.
+#[derive(Debug, Clone)]
+pub struct ContextStats {
+    /// Estimated tokens in history *before* this turn's user message was pushed.
+    pub tokens_before_turn: usize,
+    /// Estimated tokens after pruning (or same as before if no pruning triggered).
+    pub tokens_after_prune: usize,
+    /// Number of messages removed by the pruner this turn (0 if no pruning).
+    pub messages_pruned: usize,
+    /// Current message count in history after this full chat() call.
+    pub history_len: usize,
+    /// Configured pruning threshold (max_tokens - buffer_tokens).
+    pub pruning_threshold: usize,
+}
+
 #[derive(Debug, Clone)]
 pub enum AgentEvent {
     TextDelta { text: String },
     ToolCall { name: String },
     ToolResult { name: String, success: bool },
+    /// Context-window observability snapshot — emitted once per chat() turn,
+    /// as the second-to-last event (before Done).
+    ContextStats(ContextStats),
     Done,
 }
 
@@ -184,9 +203,14 @@ impl<L: LlmClient> AgentLoop<L> {
 
         self.history.push(Message::user(user_input));
 
+        // Snapshot token count *before* pruning — used in ContextStats event.
+        let tokens_before_turn = crate::agent::token_counter::estimate_tokens(&self.history);
+
         // Context pruning: remove oldest messages when approaching context window
-        let current_tokens = crate::agent::token_counter::estimate_tokens(&self.history);
+        let current_tokens = tokens_before_turn;
         let threshold = crate::agent::context_manager::pruning_threshold(&self.ctx_config);
+        let mut messages_pruned: usize = 0;
+        let mut tokens_after_prune = current_tokens;
         if current_tokens > threshold {
             match crate::agent::context_manager::prune_oldest_messages(
                 &mut self.history,
@@ -195,10 +219,13 @@ impl<L: LlmClient> AgentLoop<L> {
                 self.ctx_config.min_user_turns,
             ) {
                 Ok(result) if result.pruned_count > 0 => {
+                    messages_pruned = result.pruned_count;
+                    tokens_after_prune = result.tokens_after;
                     tracing::info!(
                         pruned = result.pruned_count,
                         tokens_before = result.tokens_before,
                         tokens_after = result.tokens_after,
+                        history_len = self.history.len(),
                         "context pruned"
                     );
                 }
@@ -284,6 +311,17 @@ impl<L: LlmClient> AgentLoop<L> {
             tracing::warn!("tool rounds exhausted without clean completion");
             all_events.push(AgentEvent::Done);
         }
+
+        // Inject ContextStats before Done so bench/monitoring tools can observe it.
+        // Insert second-to-last (before Done).
+        let done_pos = all_events.len() - 1;
+        all_events.insert(done_pos, AgentEvent::ContextStats(ContextStats {
+            tokens_before_turn,
+            tokens_after_prune,
+            messages_pruned,
+            history_len: self.history.len(),
+            pruning_threshold: threshold,
+        }));
 
         // Session persistence: save history to disk if configured (non-fatal)
         if let Some(ref dir) = self.session_dir {

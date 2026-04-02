@@ -1447,6 +1447,20 @@ impl SseDecode for crate::ffi::AgentEventDto {
                 };
             }
             3 => {
+                let mut var_tokens_before_turn = <usize>::sse_decode(deserializer);
+                let mut var_tokens_after_prune = <usize>::sse_decode(deserializer);
+                let mut var_messages_pruned = <usize>::sse_decode(deserializer);
+                let mut var_history_len = <usize>::sse_decode(deserializer);
+                let mut var_pruning_threshold = <usize>::sse_decode(deserializer);
+                return crate::ffi::AgentEventDto::ContextStats {
+                    tokens_before_turn: var_tokens_before_turn,
+                    tokens_after_prune: var_tokens_after_prune,
+                    messages_pruned: var_messages_pruned,
+                    history_len: var_history_len,
+                    pruning_threshold: var_pruning_threshold,
+                };
+            }
+            4 => {
                 return crate::ffi::AgentEventDto::Done;
             }
             _ => {
@@ -1953,7 +1967,22 @@ impl flutter_rust_bridge::IntoDart for crate::ffi::AgentEventDto {
                 success.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::ffi::AgentEventDto::Done => [3.into_dart()].into_dart(),
+            crate::ffi::AgentEventDto::ContextStats {
+                tokens_before_turn,
+                tokens_after_prune,
+                messages_pruned,
+                history_len,
+                pruning_threshold,
+            } => [
+                3.into_dart(),
+                tokens_before_turn.into_into_dart().into_dart(),
+                tokens_after_prune.into_into_dart().into_dart(),
+                messages_pruned.into_into_dart().into_dart(),
+                history_len.into_into_dart().into_dart(),
+                pruning_threshold.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::ffi::AgentEventDto::Done => [4.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -2190,8 +2219,22 @@ impl SseEncode for crate::ffi::AgentEventDto {
                 <String>::sse_encode(name, serializer);
                 <bool>::sse_encode(success, serializer);
             }
-            crate::ffi::AgentEventDto::Done => {
+            crate::ffi::AgentEventDto::ContextStats {
+                tokens_before_turn,
+                tokens_after_prune,
+                messages_pruned,
+                history_len,
+                pruning_threshold,
+            } => {
                 <i32>::sse_encode(3, serializer);
+                <usize>::sse_encode(tokens_before_turn, serializer);
+                <usize>::sse_encode(tokens_after_prune, serializer);
+                <usize>::sse_encode(messages_pruned, serializer);
+                <usize>::sse_encode(history_len, serializer);
+                <usize>::sse_encode(pruning_threshold, serializer);
+            }
+            crate::ffi::AgentEventDto::Done => {
+                <i32>::sse_encode(4, serializer);
             }
             _ => {
                 unimplemented!("");

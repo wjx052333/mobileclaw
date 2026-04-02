@@ -85,6 +85,14 @@ pub enum AgentEventDto {
     TextDelta { text: String },
     ToolCall { name: String },
     ToolResult { name: String, success: bool },
+    /// Context-window observability snapshot emitted once per chat() turn.
+    ContextStats {
+        tokens_before_turn: usize,
+        tokens_after_prune: usize,
+        messages_pruned: usize,
+        history_len: usize,
+        pruning_threshold: usize,
+    },
     Done,
 }
 
@@ -389,6 +397,13 @@ impl AgentSession {
                 AgentEvent::ToolResult { name, success } => {
                     AgentEventDto::ToolResult { name, success }
                 }
+                AgentEvent::ContextStats(s) => AgentEventDto::ContextStats {
+                    tokens_before_turn: s.tokens_before_turn,
+                    tokens_after_prune: s.tokens_after_prune,
+                    messages_pruned: s.messages_pruned,
+                    history_len: s.history_len,
+                    pruning_threshold: s.pruning_threshold,
+                },
                 AgentEvent::Done => AgentEventDto::Done,
             })
             .collect();

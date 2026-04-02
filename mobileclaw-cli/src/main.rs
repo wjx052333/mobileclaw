@@ -35,6 +35,21 @@ enum Command {
         #[arg(long)]
         system: Option<String>,
     },
+    /// Run context-window stress benchmark from a prompts JSON file
+    Bench {
+        /// Path to bench_prompts.json (default: docs/bench_prompts.json relative to cwd)
+        #[arg(long, default_value = "docs/bench_prompts.json")]
+        prompts: std::path::PathBuf,
+        /// Override system prompt
+        #[arg(long)]
+        system: Option<String>,
+        /// Only run the first N turns
+        #[arg(long)]
+        max_turns: Option<usize>,
+        /// Print prompts without calling LLM (for inspection)
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -114,6 +129,9 @@ async fn main() -> anyhow::Result<()> {
         },
         Command::Chat { system } => {
             cmd::chat::cmd_chat(&data_dir, system).await?;
+        }
+        Command::Bench { prompts, system, max_turns, dry_run } => {
+            cmd::bench::cmd_bench(&data_dir, &prompts, system, max_turns, dry_run).await?;
         }
     }
 
