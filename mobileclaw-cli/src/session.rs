@@ -58,7 +58,7 @@ pub async fn open_session(data_dir: &Path) -> Result<AgentSession> {
         model: std::env::var("ANTHROPIC_MODEL").ok(),
         db_path: memory_db.to_string_lossy().into_owned(),
         sandbox_dir: data_dir.join("sandbox").to_string_lossy().into_owned(),
-        http_allowlist: vec![],
+        http_allowlist: vec!["*".to_string()],
         skills_dir: None,
         secrets_db_path: secrets_db.to_string_lossy().into_owned(),
         encryption_key: b"mobileclaw-dev-key-32bytes000000".to_vec(),

@@ -8,11 +8,21 @@ use crate::{ClawError, ClawResult, tools::{Permission, Tool, ToolContext, ToolRe
 /// Uses `url` crate for structured field parsing to prevent path injection,
 /// userinfo bypass, and hostname spoofing.
 ///
+/// Special value: `"*"` in the allowlist means allow all HTTPS URLs (open mode).
+///
 /// Allowlist format: "https://api.github.com" or "https://api.github.com/v1" (optional path prefix)
 /// Match rules: scheme (exact) + host (exact) + path (prefix) must all match.
 /// Security guarantee: "https://api.github.com.evil.com/" will NOT match "https://api.github.com"
 /// because host comparison is exact, not string prefix.
 pub fn is_url_allowed(raw_url: &str, allowlist: &[impl AsRef<str>]) -> bool {
+    // "*" anywhere in the allowlist = open mode (allow all HTTPS URLs).
+    if allowlist.iter().any(|e| e.as_ref() == "*") {
+        // Still reject non-HTTPS and malformed URLs even in open mode.
+        return Url::parse(raw_url)
+            .map(|u| u.scheme() == "https" && u.username().is_empty() && u.password().is_none())
+            .unwrap_or(false);
+    }
+
     let parsed = match Url::parse(raw_url) {
         Ok(u) => u,
         Err(_) => return false,
