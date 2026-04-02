@@ -182,6 +182,8 @@ pub async fn cmd_bench(
         let _ = rss_before; // used only for potential delta reporting; suppress dead_code warning
         let t_start = Instant::now();
 
+        let label_short: String = turn.label.chars().take(28).collect();
+
         // Snapshot history before this turn (for interaction log)
         let history_before: Vec<HistoryEntry> = if ilog.is_some() {
             session.history().into_iter().map(|m| HistoryEntry { role: m.role, content: m.content }).collect()
@@ -189,10 +191,29 @@ pub async fn cmd_bench(
             vec![]
         };
 
-        let events = session
-            .chat(turn.prompt.clone(), system.clone())
-            .await
-            .with_context(|| format!("turn {} chat failed", turn.id))?;
+        let events = match session.chat(turn.prompt.clone(), system.clone()).await {
+            Ok(evts) => evts,
+            Err(e) => {
+                let elapsed = t_start.elapsed();
+                println!(
+                    "{:>4}  {:<28}  {:>7}ms  ERROR: {}",
+                    turn.id, label_short, elapsed.as_millis(), e
+                );
+                all_metrics.push(TurnMetrics {
+                    id: turn.id,
+                    label: turn.label.clone(),
+                    elapsed_ms: elapsed.as_millis(),
+                    tokens_before_turn: 0,
+                    tokens_after_prune: 0,
+                    messages_pruned: 0,
+                    history_len: 0,
+                    pruning_threshold: 0,
+                    response_chars: 0,
+                    pruning_fired: false,
+                });
+                continue;
+            }
+        };
 
         let elapsed = t_start.elapsed();
 
@@ -268,7 +289,6 @@ pub async fn cmd_bench(
             log_writer.flush().context("flushing interaction log")?;
         }
 
-        let label_short: String = turn.label.chars().take(28).collect();
         let prune_marker = if pruning_fired { "✂" } else { " " };
 
         println!(

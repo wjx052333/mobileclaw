@@ -1,170 +1,187 @@
-# Bug Report: LLM 不调用工具 及关联问题
+# Bug: OpenAI-compat 客户端静默丢弃 native tool_calls
 
-**日期:** 2026-04-02  
-**影响版本:** mobileclaw-core (Phase 1 all commits up to this date)  
-**状态:** 已修复
-
----
-
-## Bug 1: LLM 从不调用工具（主 bug）
-
-### 现象
-
-用户通过 `mclaw chat` 输入自然语言请求，例如：
-
-```
-you> 帮我获取 work 账号最近 5 封邮件
-```
-
-LLM 直接返回纯文本回答，从未产生任何 `<tool_call>` XML，工具完全没有被调用。查看 `mclaw.log`（添加日志后）可以看到 `tool_calls_found=0`，即 parser 在 LLM 响应里一个工具调用也没有找到。
-
-### 根本原因
-
-`AgentLoop::chat()`（`src/agent/loop_impl.rs`）在构建每轮 system prompt 时，只拼接了 base_system 和 skill_prompt，从未向 LLM 描述过任何工具：
-
-```rust
-// 修复前（伪代码）
-let system = format!("{}{}", base_system, skill_prompt);
-// → LLM 不知道有工具，不知道 <tool_call> 格式
-```
-
-LLM 遵循的是 system prompt 里的指令。没有工具描述段，LLM 既不知道 `<tool_call>` XML 格式存在，也不知道注册了哪些工具，自然永远不会产生工具调用。
-
-### 修复
-
-新增纯函数 `build_tools_section(registry, matched_skills)` 生成 `## Available Tools` 段落，内容包括：
-
-- 完整的 `<tool_call>` XML 调用格式说明
-- 每个工具的名称、描述、参数列表（类型、是否必填）
-
-在 `chat()` 中将该段落拼接到每轮 system prompt 末尾：
-
-```rust
-// 修复后
-let matched = self.skill_mgr.match_skills(user_input);
-let skill_prompt = self.skill_mgr.build_system_prompt(base_system, &matched);
-let tools_section = build_tools_section(&self.registry, &matched);
-let system = format!("{}{}", skill_prompt, tools_section);
-```
-
-修复后 `mclaw.log` 可以观察到 `tool_calls_found=1`，以及 `executing tool tool=email_fetch args={...}`。
-
-### 影响范围
-
-- CLI（`mclaw chat`）和 Flutter 均受影响——两者底层都走同一个 `AgentLoop`
-- 所有注册工具（文件读写、HTTP、邮件、内存、时间等）在修复前均无法被调用
-- Skill 机制不受影响（skill 匹配和 prompt 注入是独立路径，已正常工作）
+**日期：** 2026-04-02  
+**文件：** `mobileclaw-core/src/llm/openai_compat.rs`  
+**严重程度：** 高（导致模型响应为空，bench 30% 轮次 resp_ch=0）
 
 ---
 
-## Bug 2: `allowed_tools=None` 的 skill 无法解除工具过滤
+## 现象
 
-### 现象
+在 `mclaw bench` 50 轮压测中，约 15/50 轮出现 `resp_ch=0`，对应 assistant history 消息内容为空字符串。这些空响应耗时与正常轮次相当（~50s），说明模型**确实被调用并返回了内容**，只是被静默丢弃了。
 
-`build_tools_section` 中，当同时匹配到：
-- Skill A：`allowed_tools = Some(["email_fetch"])` — 只允许 email_fetch
-- Skill B：`allowed_tools = None` — 无限制（应显示所有工具）
+从 `bench_interactions_50.jsonl` 交互日志确认：
+- `history_before/after` 每轮精确 +2，上下文累积**完全正常**
+- `events_seen` 空响应轮次只有 `['ContextStats', 'Done']`，无 `TextDelta`
+- `history_after[-1].content = ''`：模型回答被存为空字符串
 
-实际结果：system prompt 中只出现 `email_fetch`，其余工具全部被过滤掉，违反了 Skill B 的语义（`None` 表示"此 skill 对工具无限制"）。
+从 `mclaw.log` 确认：
+```
+OpenAiCompatClient: streaming response started status=200 OK   ← HTTP 200 正常
+[62 秒后]
+LLM response received round=0 response_len=0 response=         ← 内容为空
+```
 
-### 根本原因
+---
 
-原实现用 `filter_map` 跳过 `None` 的 skill，然后对剩余的 `Some(...)` 求并集：
+## 根本原因
+
+`parse_openai_event`（以及 `stream_messages` 中的内联逻辑）只读取 `choices[0].delta.content` 提取文本，对 `choices[0].delta.tool_calls` 字段**完全忽略（返回 None 静默跳过）**：
 
 ```rust
 // 修复前
-let allowed_filter = matched_skills
-    .iter()
-    .filter_map(|s| s.manifest.allowed_tools.as_deref())  // None 被静默丢弃
-    .fold(None, |acc, names| { /* 求并集 */ });
-```
-
-`filter_map` 把 `allowed_tools=None` 的 skill 直接丢掉，其"不限制"的语义完全丢失。最终只有 `Some(...)` 的 skill 参与了过滤，结果等同于"所有参与 skill 的并集"，而非"任何一个 None 就放行全部"。
-
-### 修复
-
-先检查是否存在任何 `allowed_tools=None` 的 skill；若有，直接跳过过滤（`allowed_filter = None`）：
-
-```rust
-// 修复后
-let any_unrestricted = matched_skills.iter().any(|s| s.manifest.allowed_tools.is_none());
-let allowed_filter: Option<HashSet<&str>> = if any_unrestricted || matched_skills.is_empty() {
-    None  // 无限制，显示所有工具
+let text = v["choices"][0]["delta"]["content"]
+    .as_str()
+    .unwrap_or("")
+    .to_string();
+if text.is_empty() {
+    Ok(None)   // ← tool_calls 分片全部走这条路，静默丢弃
 } else {
-    Some(
-        matched_skills
-            .iter()
-            .filter_map(|s| s.manifest.allowed_tools.as_deref())
-            .flat_map(|names| names.iter().map(|n| n.as_str()))
-            .collect(),
-    )
-};
+    Ok(Some(StreamEvent::TextDelta { text }))
+}
 ```
 
-### 设计说明
+当 OpenAI-compat 模型（如 `step-3.5-flash`、OpenRouter 上的各模型）收到含工具描述的 system prompt 后，倾向于用 **native function calling 格式**响应（`choices[0].delta.tool_calls`），而不是在 content 文本里嵌入 XML。这些分片全部被过滤，`full_text` 保持空字符串，最终：
+- `extract_tool_calls("")` 返回空 → 不触发工具执行
+- `Message::assistant("")` 存入 history → 上下文积累了空消息
+- 模型后续轮次看到空的 assistant 消息，行为越来越异常
 
-`allowed_tools` 的语义：
-
-| 场景 | 结果 |
-|---|---|
-| 无匹配 skill | 显示所有工具 |
-| 所有匹配 skill 都有 `allowed_tools=Some(...)` | 显示各 skill `allowed_tools` 的并集 |
-| 任意一个匹配 skill 有 `allowed_tools=None` | 显示所有工具（该 skill 可能需要任何工具） |
+OpenAI streaming tool_calls 的 SSE 分片格式：
+```
+chunk 1: choices[0].delta.tool_calls[{index:0, id:"c1", type:"function", function:{name:"memory_recall", arguments:""}}]
+chunk 2: choices[0].delta.tool_calls[{index:0, function:{arguments:"{\"query\":"}}]
+chunk 3: choices[0].delta.tool_calls[{index:0, function:{arguments:"\"rust async\"}"}}]
+[DONE]
+```
 
 ---
 
-## Bug 3: 测试断言误判（`section.contains("tool_c")` 假阳性）
+## 为什么 ironclaw 没有此问题
 
-### 现象
+ironclaw 和 mobileclaw 是定位不同的 AI Agent 项目：
 
-针对 `build_tools_section` 过滤逻辑的单元测试中，以下断言始终失败（即使过滤逻辑本身已正确）：
+| 维度 | ironclaw | mobileclaw |
+|------|----------|------------|
+| **目标平台** | 服务器/桌面进程（Rust binary + HTTP server） | Flutter 移动 App（Rust core via FFI） |
+| **对外接口** | 暴露 OpenAI 兼容 HTTP API（`channels/web/openai_compat.rs` 是**服务端接收器**，接受外部 OpenAI 客户端连接） | Flutter FFI（`AgentSession` 跨 Dart/Rust 边界） |
+| **LLM 接入** | 8+ 后端：NEAR AI、OpenAI Codex、AWS Bedrock、GitHub Copilot、Gemini、Anthropic… | Anthropic + OpenAI-compat + Ollama |
+| **工具调用格式** | **native function calling**（rig-core 库统一处理，`complete_with_tools()` 返回结构化 `ToolCall`，不需要解析 SSE 分片） | **XML-in-text 自定义格式**（`<tool_call>` 嵌入响应文本） |
+| **响应方式** | **非流式**，blocking 等全量结果，rig-core 做 JSON 反序列化 | **SSE 流式**，逐事件解析 `choices[0].delta.*` |
+| **韧性层** | circuit breaker + retry + failover + smart routing | 无 |
+| **认证** | OAuth 流程（NEAR AI session token、Codex device flow、Copilot token exchange） | API key only |
+| **LLM 抽象** | rig-core 库 + RigAdapter（不直接解析 SSE） | 自实现 HTTP 客户端，直接解析 SSE 分片流 |
 
-```rust
-assert!(!section.contains("tool_c"), "tool_c not in any allowed_tools");
-// 报错：tool_c not in any allowed_tools（断言 false）
-```
+ironclaw 的 `src/channels/web/openai_compat.rs` 是**服务端接收器**（让外部 OpenAI 客户端能连接到 ironclaw），与 mobileclaw 的 `openai_compat.rs`（作为 OpenAI API 的客户端）角色完全相反。
 
-### 根本原因
-
-`build_tools_section` 生成的 section 固定包含如下模板头：
-
-```
-<tool_call>{"name": "tool_name", "args": {"param": "value"}}</tool_call>
-```
-
-字符串 `"tool_call"` 包含子串 `"tool_c"`（`t-o-o-l-_-c-a-l-l`），因此 `section.contains("tool_c")` 永远为 `true`，断言 `!section.contains("tool_c")` 永远失败，与过滤是否成功无关。
-
-### 修复
-
-将断言从"是否包含工具名"改为"是否包含工具标题行"，格式为 `#### \`{name}\``：
-
-```rust
-// 修复前（假阳性）
-assert!(!section.contains("tool_c"), "...");
-
-// 修复后（精确匹配工具标题行）
-assert!(!section.contains("`tool_c`"), "...");
-```
-
-反引号包裹的工具名只出现在 `#### \`tool_c\`` 标题行中，不会与模板头中的 `tool_call` 冲突。
-
-### 教训
-
-对 section 级别的 `contains` 断言需注意模板本身可能包含的固定内容（`<tool_call>`、`tool_result`、`tool_name` 等），建议使用更精确的格式（如标题行）而非裸名称。
+ironclaw 使用 rig-core 的 `complete_with_tools()` 方法，返回完整的 `ToolCompletionResponse { tool_calls: Vec<ToolCall>, ... }`，native tool_calls 由 rig-core 解析，根本不需要处理 `choices[0].delta.tool_calls` 的 SSE 分片。该 bug 在 ironclaw 中没有对应代码路径。
 
 ---
 
-## 关联修复：增加 core 日志
+## 修复方案
 
-上述 Bug 1 的排查依赖日志。修复期间同步在 `AgentLoop` 各关键路径添加了 `tracing` 日志：
+在 `stream_messages` 中引入 **`ToolCallAcc`** 状态机，跨多个 SSE 事件累积 tool_calls 分片，在 `[DONE]` 时转换为 agent 兼容的 XML TextDelta：
 
-| 位置 | 日志内容 |
-|---|---|
-| `chat()` 入口 | `user_input`, `turn` 编号 |
-| system prompt 构建后 | 完整 system prompt（DEBUG 级别） |
-| 每轮 LLM 请求 | `round` 编号 |
-| LLM 响应解析后 | `tool_calls_found` 数量 |
-| 工具执行 | `tool`, `args`, 执行结果 |
-| 错误路径 | `error` 详情 |
+```rust
+// ─── ToolCallAcc ──────────────────────────────────────────────────────────────
+// 跨 SSE 事件累积 choices[0].delta.tool_calls 分片
+// [DONE] 时 to_xml() → "<tool_call>{...}</tool_call>" → agent XML parser 正常处理
+#[derive(Default)]
+pub(crate) struct ToolCallAcc {
+    calls: BTreeMap<usize, ToolCallEntry>,  // index → entry
+}
 
-CLI 端（`mobileclaw-cli`）通过 `init_logging()` 将 DEBUG+ 日志写入当前目录的 `mclaw.log`，日志级别由环境变量 `MCLAW_LOG` 控制（默认 `debug`）。
+// ─── stream_messages 修复 ─────────────────────────────────────────────────────
+let tool_acc = Arc::new(Mutex::new(ToolCallAcc::default()));
+let data_stream = resp.bytes_stream().eventsource().filter_map(move |ev| {
+    let acc = tool_acc.clone();
+    async move {
+        match ev {
+            Ok(e) if e.data == "[DONE]" => {
+                let locked = acc.lock().unwrap();
+                if locked.has_calls() {
+                    // native tool_calls → XML TextDelta，agent XML parser 照常处理
+                    Some(Ok(StreamEvent::TextDelta { text: locked.to_xml() }))
+                } else {
+                    Some(Ok(StreamEvent::MessageStop))
+                }
+            }
+            Ok(e) => {
+                let v = serde_json::from_str(&e.data)?;
+                acc.lock().unwrap().feed(&v);  // 累积 tool_calls 分片
+                // 同时提取 content 文本（模型也可能同时返回 content + tool_calls）
+                let text = v["choices"][0]["delta"]["content"].as_str().unwrap_or("");
+                if text.is_empty() { None } else { Some(Ok(StreamEvent::TextDelta { text.into() })) }
+            }
+            Err(e) => Some(Err(ClawError::Llm(e.to_string()))),
+        }
+    }
+});
+```
+
+**兼容性：**
+- 模型只返回 content → 行为与修复前完全相同
+- 模型只返回 tool_calls → `[DONE]` 时发出 XML TextDelta
+- 模型同时返回 content + tool_calls → text 先流出，XML 在 `[DONE]` 追加
+- tool_calls arguments JSON 截断 → 降级为 `{}`，不 panic
+
+---
+
+## 新增测试（16 个，全部通过）
+
+| 测试 | 覆盖点 |
+|------|--------|
+| `test_parse_text_content` | content 提取正常 |
+| `test_parse_role_only_skipped` | role-only delta 返回 None |
+| `test_parse_done_sentinel` | `[DONE]` 返回 MessageStop |
+| `test_parse_null_content_skipped` | null content 返回 None |
+| `test_parse_tool_calls_only_returns_none` | tool_calls-only chunk 返回 None（acc 负责） |
+| `test_parse_never_panics` (proptest) | 任意输入不 panic |
+| `test_acc_empty_initially` | 初始状态 |
+| `test_acc_single_tool_call_single_chunk` | 单工具单分片 |
+| `test_acc_arguments_assembled_from_chunks` | 三分片拼接 arguments |
+| `test_acc_multiple_tool_calls` | 多工具按 index 排序 |
+| `test_acc_xml_is_parseable_by_agent` | to_xml() 被 `extract_tool_calls` 正确解析 |
+| `test_acc_malformed_arguments_fallback_to_empty_object` | 截断 JSON 降级 `{}` |
+| `test_acc_no_tool_calls_field_is_noop` | 无 tool_calls 字段时 acc 不变 |
+| `test_acc_feed_ignores_missing_choices` | 畸形 JSON 不 panic |
+| `test_acc_feed_never_panics` (proptest) | 任意 JSON Value 不 panic |
+| `test_normalise_base_url_appends_v1` | URL 规范化 |
+
+---
+
+## 当前状态
+
+**代码已修复**（worktree `feat+memory-optimization`，commit 待提交），**需 `cargo build -p mobileclaw-cli --release` 重新构建后生效。**
+
+最新 bench 运行（修复前 binary）：
+```
+turn  1  resp_ch=15507  ✅
+turn  2  resp_ch=0      ← tool_calls 被丢弃（旧 binary，修复未生效）
+turn  3  Error: 429 Too Many Requests  ← 独立问题，见下方
+```
+
+turn 2 的 `resp_ch=0` 确认 bug 复现，等待重新构建后验证。
+
+---
+
+## 关联问题：bench 遭遇 429 直接崩溃
+
+错误信息：
+```
+Error: turn 3 chat failed
+Caused by:
+    llm error: OpenAI-compat 429 Too Many Requests:
+    {"error":{"message":"litellm.RateLimitError: ...OpenrouterException - rate_limit_exceeded"...}}
+```
+
+**原因：** bench 命令在 `session.chat()` 返回 Err 时使用 `?` 直接传播，整个 bench 进程终止。
+
+```rust
+// bench.rs 第 184 行（修复前）
+let events = session
+    .chat(turn.prompt.clone(), system.clone())
+    .await
+    .with_context(|| format!("turn {} chat failed", turn.id))?;  // ← ? 直接崩溃
+```
+
+429 是临时的 rate limit 错误，不应终止整个压测。**已修复**（见下方 bench 错误处理修复）。
