@@ -13,7 +13,7 @@ use crate::{
     memory::{Memory, MemoryCategory, MemoryDoc, SearchQuery, category_to_string, sqlite::SqliteMemory},
     secrets::store::SqliteSecretStore,
     skill::{SkillManager, SkillTrust, load_skills_from_dir},
-    tools::{PermissionChecker, ToolContext, ToolRegistry, builtin::register_all_builtins},
+    tools::{PermissionChecker, ToolContext, ToolRegistry, builtin::{register_core_builtins, register_email_builtins}},
 };
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
@@ -325,7 +325,13 @@ impl AgentSession {
         };
 
         let mut registry = ToolRegistry::new();
-        register_all_builtins(&mut registry);
+        register_core_builtins(&mut registry);
+        if secrets.has_email_accounts().await.unwrap_or(false) {
+            register_email_builtins(&mut registry);
+            tracing::debug!("email tools registered");
+        } else {
+            tracing::debug!("email tools skipped: no accounts configured");
+        }
         tracing::debug!(tool_count = registry.list().len(), "builtins registered");
 
         let ctx = ToolContext {

@@ -143,6 +143,18 @@ impl SqliteSecretStore {
         Ok(())
     }
 
+    /// Returns true if at least one email account has been configured.
+    /// Used to conditionally register email tools at session creation.
+    pub async fn has_email_accounts(&self) -> ClawResult<bool> {
+        let conn = self.conn.lock().await;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM secrets WHERE key LIKE 'email:%:config'",
+            [],
+            |r| r.get(0),
+        ).map_err(ClawError::Sql)?;
+        Ok(count > 0)
+    }
+
     /// Save (upsert) a provider config. Optionally encrypts and stores an API key.
     pub async fn provider_save(
         &self,
