@@ -52,6 +52,9 @@ enum Command {
         /// Write full interaction records (history, response, stats) to this JSONL file
         #[arg(long)]
         interaction_log: Option<std::path::PathBuf>,
+        /// Sleep between turns in milliseconds (helps avoid rate limits; default 0)
+        #[arg(long, default_value = "0")]
+        turn_delay_ms: u64,
     },
 }
 
@@ -133,8 +136,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Chat { system } => {
             cmd::chat::cmd_chat(&data_dir, system).await?;
         }
-        Command::Bench { prompts, system, max_turns, dry_run, interaction_log } => {
-            cmd::bench::cmd_bench(&data_dir, &prompts, system, max_turns, dry_run, interaction_log.as_deref()).await?;
+        Command::Bench { prompts, system, max_turns, dry_run, interaction_log, turn_delay_ms } => {
+            cmd::bench::cmd_bench(&data_dir, &prompts, system, max_turns, dry_run, interaction_log.as_deref(), turn_delay_ms).await?;
         }
     }
 

@@ -104,6 +104,7 @@ pub async fn cmd_bench(
     max_turns: Option<usize>,
     dry_run: bool,
     interaction_log: Option<&Path>,
+    turn_delay_ms: u64,
 ) -> Result<()> {
     init_logging();
 
@@ -177,7 +178,14 @@ pub async fn cmd_bench(
         .unwrap_or_default()
         .as_millis() as u64;
 
-    for turn in &turns {
+    const RETRY_429_WAIT_SECS: u64 = 30;
+
+    for (turn_idx, turn) in turns.iter().enumerate() {
+        // Inter-turn delay (skip before first turn)
+        if turn_delay_ms > 0 && turn_idx > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(turn_delay_ms)).await;
+        }
+
         let rss_before = rss_kib();
         let _ = rss_before; // used only for potential delta reporting; suppress dead_code warning
         let t_start = Instant::now();
@@ -191,7 +199,21 @@ pub async fn cmd_bench(
             vec![]
         };
 
-        let events = match session.chat(turn.prompt.clone(), system.clone()).await {
+        // Attempt chat; retry once on 429 rate-limit after RETRY_429_WAIT_SECS.
+        let chat_result = session.chat(turn.prompt.clone(), system.clone()).await;
+        let chat_result = match chat_result {
+            Err(ref e) if e.to_string().contains("429") => {
+                println!(
+                    "       ⏳ turn {} rate-limited (429), retrying in {}s…",
+                    turn.id, RETRY_429_WAIT_SECS
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(RETRY_429_WAIT_SECS)).await;
+                session.chat(turn.prompt.clone(), system.clone()).await
+            }
+            other => other,
+        };
+
+        let events = match chat_result {
             Ok(evts) => evts,
             Err(e) => {
                 let elapsed = t_start.elapsed();
