@@ -191,4 +191,42 @@ mod tests {
         // Even if allowlist has http://, target https:// won't match because scheme must be identical
         assert!(!is_url_allowed("https://allowed.com/api", &["http://allowed.com"]));
     }
+
+    // ── Wildcard "*" tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn wildcard_allows_any_https_url() {
+        assert!(is_url_allowed("https://crates.io/api/v1/crates/clap", &["*"]));
+        assert!(is_url_allowed("https://docs.rs/tokio", &["*"]));
+        assert!(is_url_allowed("https://example.com/anything/deep/path", &["*"]));
+    }
+
+    #[test]
+    fn wildcard_still_blocks_http() {
+        assert!(!is_url_allowed("http://crates.io/api", &["*"]));
+    }
+
+    #[test]
+    fn wildcard_still_blocks_userinfo() {
+        assert!(!is_url_allowed("https://user:pass@crates.io/", &["*"]));
+    }
+
+    #[test]
+    fn wildcard_still_blocks_malformed_url() {
+        assert!(!is_url_allowed("not_a_url", &["*"]));
+        assert!(!is_url_allowed("", &["*"]));
+    }
+
+    #[test]
+    fn wildcard_among_other_entries_enables_open_mode() {
+        // "*" anywhere in the list activates open mode, regardless of other entries
+        assert!(is_url_allowed("https://crates.io/", &["https://docs.rs", "*"]));
+    }
+
+    proptest! {
+        #[test]
+        fn wildcard_never_panics(url in r"[a-zA-Z0-9:/?#\[\]@!$&'()*+,;=.%_~-]{0,200}") {
+            let _ = is_url_allowed(&url, &["*"]);
+        }
+    }
 }
