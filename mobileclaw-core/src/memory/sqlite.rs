@@ -2,28 +2,23 @@ use async_trait::async_trait;
 use rusqlite::{Connection, params};
 use std::{path::Path, sync::Mutex};
 use crate::{ClawError, ClawResult};
-use super::{traits::Memory, types::{MemoryCategory, MemoryDoc, SearchQuery, SearchResult}};
+use super::{traits::Memory, types::{MemoryCategory, MemoryDoc, SearchQuery, SearchResult, category_to_string}};
 
 pub struct SqliteMemory {
     conn: Mutex<Connection>,
 }
 
-fn category_to_str(c: &MemoryCategory) -> String {
-    match c {
-        MemoryCategory::Core => "core".into(),
-        MemoryCategory::Daily => "daily".into(),
-        MemoryCategory::Conversation => "conversation".into(),
-        MemoryCategory::Custom(s) => format!("custom:{}", s),
-    }
-}
-
 fn str_to_category(s: &str) -> MemoryCategory {
     match s {
-        "core" => MemoryCategory::Core,
+        "core" | "project" => MemoryCategory::Core,
         "daily" => MemoryCategory::Daily,
+        // New taxonomy takes priority over legacy "conversation" → "user" conflict
+        "user" => MemoryCategory::User,
+        "feedback" => MemoryCategory::Feedback,
+        "reference" => MemoryCategory::Reference,
         "conversation" => MemoryCategory::Conversation,
         other if other.starts_with("custom:") => {
-            MemoryCategory::Custom(other.trim_start_matches("custom:").into())
+            MemoryCategory::Custom(other.strip_prefix("custom:").unwrap_or(other).into())
         }
         other => {
             tracing::warn!("Unknown memory category string '{}', treating as Custom", other);
@@ -79,7 +74,7 @@ impl SqliteMemory {
 #[async_trait]
 impl Memory for SqliteMemory {
     async fn store(&self, path: &str, content: &str, category: MemoryCategory) -> ClawResult<MemoryDoc> {
-        let cat_str = category_to_str(&category);
+        let cat_str = category_to_string(&category);
         let doc = MemoryDoc::new(path, content, category);
         let conn = self.conn.lock().unwrap();
         conn.execute(
@@ -104,7 +99,7 @@ impl Memory for SqliteMemory {
         let fts_query = format!("\"{}\"", query.text.replace('"', "\"\""));
         let limit = if query.limit == 0 { 10 } else { query.limit };
         let conn = self.conn.lock().unwrap();
-        let cat_filter = query.category.as_ref().map(category_to_str);
+        let cat_filter = query.category.as_ref().map(category_to_string);
 
         let mut stmt = conn.prepare_cached(
             "SELECT d.id, d.path, d.category, d.content, d.created_at, d.updated_at,
@@ -182,3 +177,26 @@ impl Memory for SqliteMemory {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn str_to_category_never_panics(s in ".*") {
+            // Must not panic for any string input
+            let _ = str_to_category(&s);
+        }
+
+        #[test]
+        fn custom_prefix_strips_exactly_once(suffix in "[a-zA-Z0-9_]+") {
+            let input = format!("custom:{}", suffix);
+            let cat = str_to_category(&input);
+            match cat {
+                MemoryCategory::Custom(s) => prop_assert_eq!(s, suffix, "suffix must equal the part after 'custom:'"),
+                _ => prop_assert!(false, "custom: prefix must produce Custom variant"),
+            }
+        }
+    }
+}

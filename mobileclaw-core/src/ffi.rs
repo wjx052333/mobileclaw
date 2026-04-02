@@ -10,7 +10,7 @@ use flutter_rust_bridge::frb;
 
 use crate::{
     agent::loop_impl::AgentLoop,
-    memory::{Memory, MemoryCategory, MemoryDoc, SearchQuery, sqlite::SqliteMemory},
+    memory::{Memory, MemoryCategory, MemoryDoc, SearchQuery, category_to_string, sqlite::SqliteMemory},
     secrets::store::SqliteSecretStore,
     skill::{SkillManager, SkillTrust, load_skills_from_dir},
     tools::{PermissionChecker, ToolContext, ToolRegistry, builtin::register_all_builtins},
@@ -38,6 +38,13 @@ pub struct AgentConfig {
     /// When `None`, tracing output goes wherever the caller already registered a
     /// subscriber (no-op if none was registered).
     pub log_dir: Option<String>,
+    /// Directory for JSONL session transcripts.
+    /// When set, each `chat()` call persists the full conversation history.
+    /// Platform guidance: pass a writable directory inside the app's sandbox.
+    pub session_dir: Option<String>,
+    /// Maximum context window tokens (default: 200_000 for Claude Sonnet 4.6).
+    /// Controls when context pruning triggers.
+    pub context_window: Option<u32>,
 }
 
 /// Initialize file-based tracing to `{dir}/mobileclaw.log`.
@@ -186,24 +193,27 @@ impl From<crate::llm::probe::ProbeResult> for ProbeResultDto {
     }
 }
 
-// ─── Private helpers ─────────────────────────────────────────────────────────
-
-fn category_to_string(c: &MemoryCategory) -> String {
-    match c {
-        MemoryCategory::Core => "core".into(),
-        MemoryCategory::Daily => "daily".into(),
-        MemoryCategory::Conversation => "conversation".into(),
-        MemoryCategory::Custom(s) => format!("custom:{}", s),
-    }
+/// Summary of a saved session file — returned by `AgentSession::session_list()`.
+#[derive(Debug, Clone)]
+pub struct SessionEntryDto {
+    pub id: String,
+    pub modified: u64,
+    pub message_count: usize,
+    pub file_path: String,
 }
+
+// ─── Private helpers ─────────────────────────────────────────────────────────
 
 fn string_to_category(s: &str) -> MemoryCategory {
     match s {
-        "core" => MemoryCategory::Core,
+        "core" | "project" => MemoryCategory::Core,
         "daily" => MemoryCategory::Daily,
         "conversation" => MemoryCategory::Conversation,
+        "user" => MemoryCategory::User,
+        "feedback" => MemoryCategory::Feedback,
+        "reference" => MemoryCategory::Reference,
         other if other.starts_with("custom:") => {
-            MemoryCategory::Custom(other.trim_start_matches("custom:").into())
+            MemoryCategory::Custom(other.strip_prefix("custom:").unwrap_or(other).into())
         }
         other => MemoryCategory::Custom(other.into()),
     }
@@ -228,6 +238,7 @@ pub struct AgentSession {
     inner: AgentLoop<std::sync::Arc<dyn crate::llm::client::LlmClient>>,
     memory: Arc<SqliteMemory>,
     secrets: Arc<SqliteSecretStore>,
+    session_dir: Option<std::path::PathBuf>,
 }
 
 impl AgentSession {
@@ -325,8 +336,25 @@ impl AgentSession {
         let skill_mgr = SkillManager::new(skills);
 
         let inner = AgentLoop::new(llm, registry, ctx, skill_mgr);
+
+        // Apply context configuration
+        let ctx_config = crate::agent::context_manager::ContextConfig {
+            max_tokens: config.context_window.unwrap_or(200_000) as usize,
+            buffer_tokens: 13_000,
+            min_user_turns: 3,
+        };
+        let inner = inner.with_context_config(ctx_config);
+
+        // Apply session directory
+        let inner = if let Some(ref dir_str) = config.session_dir {
+            inner.with_session_dir(std::path::PathBuf::from(dir_str))
+        } else {
+            inner
+        };
+
+        let session_dir = config.session_dir.map(std::path::PathBuf::from);
         tracing::info!("AgentSession created successfully");
-        Ok(AgentSession { inner, memory, secrets })
+        Ok(AgentSession { inner, memory, secrets, session_dir })
     }
 
     /// Send a user message and return all events produced by one agent turn.
@@ -509,6 +537,50 @@ impl AgentSession {
         self.secrets.delete_email_account(&id).await.map_err(anyhow::Error::from)
     }
 
+    /// Save the current conversation history to a session file.
+    /// Returns the absolute path of the saved file, or an error if session_dir is not configured.
+    pub async fn session_save(&self) -> anyhow::Result<String> {
+        let dir = self.session_dir.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("session_dir not configured in AgentConfig"))?;
+        let path = crate::agent::session::save_session(dir, self.inner.history()).await?;
+        Ok(path.to_string_lossy().into_owned())
+    }
+
+    /// Load a session from a JSONL file. Replaces current history.
+    /// Returns the number of messages loaded.
+    pub async fn session_load(&mut self, file_path: String) -> anyhow::Result<usize> {
+        let path = std::path::Path::new(&file_path);
+        let messages = crate::agent::session::load_session(path).await?;
+        let count = messages.len();
+        self.inner.set_history(messages);
+        Ok(count)
+    }
+
+    /// List all saved sessions in the configured session_dir.
+    /// Returns an empty vec if session_dir is not configured.
+    pub async fn session_list(&self) -> anyhow::Result<Vec<SessionEntryDto>> {
+        let dir = match &self.session_dir {
+            Some(d) => d,
+            None => return Ok(vec![]),
+        };
+        let entries = crate::agent::session::list_sessions(dir).await?;
+        Ok(entries.into_iter().map(|e| SessionEntryDto {
+            id: e.id,
+            modified: e.modified,
+            message_count: e.message_count,
+            file_path: e.file_path,
+        }).collect())
+    }
+
+    /// Delete a saved session file. Path is validated against session_dir.
+    /// Returns true if the file existed and was deleted.
+    pub async fn session_delete(&self, file_path: String) -> anyhow::Result<bool> {
+        let dir = self.session_dir.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("session_dir not configured in AgentConfig"))?;
+        let path = std::path::Path::new(&file_path);
+        Ok(crate::agent::session::delete_session(dir, path).await?)
+    }
+
     /// Save (upsert) a provider config and optionally store its API key encrypted.
     pub async fn provider_save(
         &self,
@@ -568,6 +640,63 @@ pub async fn provider_probe(
         },
     };
     crate::llm::probe::probe_provider(&cfg, api_key.as_deref()).await.into()
+}
+
+#[cfg(feature = "test-utils")]
+#[cfg(test)]
+mod session_ffi_tests {
+    use super::*;
+
+    #[test]
+    fn session_entry_dto_fields_are_complete() {
+        // Verify SessionEntryDto has all expected fields and can be constructed
+        let dto = SessionEntryDto {
+            id: "session_abc".into(),
+            modified: 1234567890,
+            message_count: 5,
+            file_path: "/tmp/session_abc.jsonl".into(),
+        };
+        assert_eq!(dto.id, "session_abc");
+        assert_eq!(dto.modified, 1234567890);
+        assert_eq!(dto.message_count, 5);
+        assert_eq!(dto.file_path, "/tmp/session_abc.jsonl");
+    }
+
+    #[test]
+    fn agent_config_session_fields_are_optional() {
+        // Verify AgentConfig can be created without session fields
+        let config_without_session = AgentConfig {
+            api_key: None,
+            db_path: "/tmp/test.db".into(),
+            secrets_db_path: "/tmp/secrets.db".into(),
+            encryption_key: vec![0u8; 32],
+            sandbox_dir: "/tmp/sandbox".into(),
+            http_allowlist: vec![],
+            model: None,
+            skills_dir: None,
+            log_dir: None,
+            session_dir: None,
+            context_window: None,
+        };
+        assert!(config_without_session.session_dir.is_none());
+        assert!(config_without_session.context_window.is_none());
+
+        let config_with_session = AgentConfig {
+            api_key: None,
+            db_path: "/tmp/test.db".into(),
+            secrets_db_path: "/tmp/secrets.db".into(),
+            encryption_key: vec![0u8; 32],
+            sandbox_dir: "/tmp/sandbox".into(),
+            http_allowlist: vec![],
+            model: None,
+            skills_dir: None,
+            log_dir: None,
+            session_dir: Some("/tmp/sessions".into()),
+            context_window: Some(100_000),
+        };
+        assert_eq!(config_with_session.session_dir.as_deref(), Some("/tmp/sessions"));
+        assert_eq!(config_with_session.context_window, Some(100_000));
+    }
 }
 
 #[cfg(test)]
@@ -649,5 +778,28 @@ mod tests {
         assert!(dto.ok);
         assert_eq!(dto.latency_ms, 42);
         assert!(dto.error.is_none());
+    }
+}
+
+#[cfg(test)]
+mod category_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn string_to_category_never_panics(s in ".*") {
+            let _ = string_to_category(&s);
+        }
+
+        #[test]
+        fn custom_prefix_strips_exactly_once(suffix in "[a-zA-Z0-9_]+") {
+            let input = format!("custom:{}", suffix);
+            let cat = string_to_category(&input);
+            match cat {
+                MemoryCategory::Custom(s) => prop_assert_eq!(s, suffix),
+                _ => prop_assert!(false, "custom: prefix must produce Custom variant"),
+            }
+        }
     }
 }

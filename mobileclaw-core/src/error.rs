@@ -38,6 +38,9 @@ pub enum ClawError {
     #[error(transparent)]
     Sql(#[from] rusqlite::Error),
 
+    #[error("session error: {0}")]
+    Session(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 

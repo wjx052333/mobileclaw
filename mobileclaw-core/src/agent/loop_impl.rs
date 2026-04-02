@@ -119,14 +119,44 @@ pub struct AgentLoop<L: LlmClient> {
     ctx: ToolContext,
     skill_mgr: SkillManager,
     history: Vec<Message>,
+    // Context management: threshold-based pruning of message history.
+    ctx_config: crate::agent::context_manager::ContextConfig,
+    // Optional directory for session transcript persistence.
+    session_dir: Option<std::path::PathBuf>,
 }
 
 impl<L: LlmClient> AgentLoop<L> {
     pub fn new(llm: L, registry: ToolRegistry, ctx: ToolContext, skill_mgr: SkillManager) -> Self {
-        Self { llm, registry, ctx, skill_mgr, history: Vec::new() }
+        Self {
+            llm,
+            registry,
+            ctx,
+            skill_mgr,
+            history: Vec::new(),
+            ctx_config: crate::agent::context_manager::ContextConfig::default(),
+            session_dir: None,
+        }
+    }
+
+    /// Override the context pruning configuration.
+    pub fn with_context_config(mut self, config: crate::agent::context_manager::ContextConfig) -> Self {
+        self.ctx_config = config;
+        self
+    }
+
+    /// Set the directory for session transcript persistence.
+    /// When set, the full message history is saved to a JSONL file after every chat turn.
+    pub fn with_session_dir(mut self, dir: std::path::PathBuf) -> Self {
+        self.session_dir = Some(dir);
+        self
     }
 
     pub fn history(&self) -> &[Message] { &self.history }
+
+    /// Replace the message history (used by session_load).
+    pub fn set_history(&mut self, messages: Vec<Message>) {
+        self.history = messages;
+    }
 
     /// Returns a reference to the loaded skills.
     pub fn skills(&self) -> &[crate::skill::Skill] {
@@ -153,6 +183,33 @@ impl<L: LlmClient> AgentLoop<L> {
         tracing::debug!(system_prompt = %system, "full system prompt");
 
         self.history.push(Message::user(user_input));
+
+        // Context pruning: remove oldest messages when approaching context window
+        let current_tokens = crate::agent::token_counter::estimate_tokens(&self.history);
+        let threshold = crate::agent::context_manager::pruning_threshold(&self.ctx_config);
+        if current_tokens > threshold {
+            match crate::agent::context_manager::prune_oldest_messages(
+                &mut self.history,
+                threshold,
+                current_tokens,
+                self.ctx_config.min_user_turns,
+            ) {
+                Ok(result) if result.pruned_count > 0 => {
+                    tracing::info!(
+                        pruned = result.pruned_count,
+                        tokens_before = result.tokens_before,
+                        tokens_after = result.tokens_after,
+                        "context pruned"
+                    );
+                }
+                Ok(_) => {} // nothing pruned
+                Err(e) => {
+                    // Non-fatal: log and continue with unpruned history
+                    tracing::warn!(error = %e, "context pruning failed");
+                }
+            }
+        }
+
         let mut all_events = Vec::new();
 
         for round in 0..MAX_TOOL_ROUNDS {
@@ -226,6 +283,13 @@ impl<L: LlmClient> AgentLoop<L> {
         if !matches!(all_events.last(), Some(AgentEvent::Done)) {
             tracing::warn!("tool rounds exhausted without clean completion");
             all_events.push(AgentEvent::Done);
+        }
+
+        // Session persistence: save history to disk if configured (non-fatal)
+        if let Some(ref dir) = self.session_dir {
+            if let Err(e) = crate::agent::session::save_session(dir, &self.history).await {
+                tracing::warn!(error = %e, "failed to save session transcript");
+            }
         }
 
         Ok(all_events)
@@ -660,5 +724,69 @@ mod tests {
         assert!(system.contains("email_fetch"),  "allowed tool must be in prompt");
         assert!(!system.contains("file_read"),   "non-allowed tool must NOT be in prompt");
         assert!(!system.contains("memory_store"),"non-allowed tool must NOT be in prompt");
+    }
+
+    // -----------------------------------------------------------------------
+    // New: context pruning + session persistence integration tests
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn context_pruning_fires_when_threshold_exceeded() {
+        use crate::agent::context_manager::ContextConfig;
+        // Use a very small context window to force pruning
+        let config = ContextConfig { max_tokens: 50, buffer_tokens: 10, min_user_turns: 2 };
+        let dir = TempDir::new().unwrap();
+        let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+        let registry = ToolRegistry::new();
+        let ctx = ToolContext {
+            memory: mem,
+            sandbox_dir: dir.path().to_path_buf(),
+            http_allowlist: vec![],
+            permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
+        };
+        let mut agent = AgentLoop::new(
+            MockLlmClient { response: "ok".to_string() },
+            registry, ctx, SkillManager::new(vec![]),
+        ).with_context_config(config);
+
+        // Pump enough turns to exceed the tiny context window
+        for i in 0..10 {
+            agent.chat(&format!("message {i} with extra padding to exceed token budget"), "").await.unwrap();
+        }
+
+        // History should be bounded (pruning fired), not 20+ messages
+        let history_len = agent.history().len();
+        assert!(history_len < 20, "history must be pruned, got {} messages", history_len);
+    }
+
+    #[tokio::test]
+    async fn session_save_creates_file_when_dir_configured() {
+        let dir = TempDir::new().unwrap();
+        let session_dir = dir.path().join("sessions");
+
+        let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+        let registry = ToolRegistry::new();
+        let ctx = ToolContext {
+            memory: mem,
+            sandbox_dir: dir.path().to_path_buf(),
+            http_allowlist: vec![],
+            permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
+        };
+        let mut agent = AgentLoop::new(
+            MockLlmClient { response: "hello".to_string() },
+            registry, ctx, SkillManager::new(vec![]),
+        ).with_session_dir(session_dir.clone());
+
+        agent.chat("hi", "").await.unwrap();
+
+        // Session file should exist
+        let files: Vec<_> = std::fs::read_dir(&session_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".jsonl"))
+            .collect();
+        assert_eq!(files.len(), 1, "exactly one session file should be saved");
     }
 }

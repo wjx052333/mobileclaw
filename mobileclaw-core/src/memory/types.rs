@@ -1,13 +1,43 @@
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Memory category — aligns with claude-code taxonomy (user/feedback/project/reference)
+/// while preserving backward-compatible deserialization of existing Core/Daily/Conversation names.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum MemoryCategory {
+    /// Long-term project context (alias: "project" for claude-code compat)
+    #[serde(alias = "project")]
     Core,
+    /// Time-scoped daily notes (kept for long-session logging)
     Daily,
+    /// Ephemeral conversation context
     Conversation,
+    /// User profile — name, role, preferences (NEW)
+    User,
+    /// Behavioral guidance — corrections, preferences (NEW)
+    Feedback,
+    /// External resource pointers — dashboards, Linear projects, etc. (NEW)
+    Reference,
+    /// Extensible custom categories
     Custom(String),
+}
+
+/// Convert category to a String (for SQLite TEXT column storage and FFI display).
+/// Core displays as "project" (claude-code naming convention).
+///
+/// Returns owned String because `Custom(s)` borrows from the enum — returning
+/// `&'static str` is impossible. The clone is cheap (typically short strings).
+pub fn category_to_string(category: &MemoryCategory) -> String {
+    match category {
+        MemoryCategory::Core => "project".into(),
+        MemoryCategory::Daily => "daily".into(),
+        MemoryCategory::Conversation => "conversation".into(),
+        MemoryCategory::User => "user".into(),
+        MemoryCategory::Feedback => "feedback".into(),
+        MemoryCategory::Reference => "reference".into(),
+        MemoryCategory::Custom(s) => s.clone(),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
