@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use eventsource_stream::Eventsource;
+use async_stream::stream;
 
 use crate::{ClawError, ClawResult, llm::{client::{EventStream, LlmClient}, types::{Message, StreamEvent}}};
 
@@ -175,49 +176,74 @@ impl LlmClient for OpenAiCompatClient {
         // as XML text in `choices[0].delta.content`. Previously these chunks were
         // silently dropped, resulting in empty assistant messages.
         //
-        // Fix: accumulate tool_call fragments across streaming chunks; on `[DONE]`
-        // emit the accumulated calls as `<tool_call>…</tool_call>` XML text so the
-        // agent's existing XML parser handles them transparently.
-        let tool_acc = std::sync::Arc::new(std::sync::Mutex::new(ToolCallAcc::default()));
+        // Fix: use async_stream to iterate SSE events with a local ToolCallAcc.
+        // Accumulated calls are emitted as XML on [DONE] **or** when the byte
+        // stream ends without a [DONE] sentinel (some gateway implementations
+        // close the connection without sending [DONE]).
+        let url_for_log = url.clone();
+        let s = stream! {
+            yield Ok(StreamEvent::MessageStart);
 
-        let initial = futures::stream::once(async { Ok(StreamEvent::MessageStart) });
-        let data_stream = resp.bytes_stream().eventsource().filter_map(move |ev| {
-            let acc = tool_acc.clone();
-            async move {
+            let mut acc = ToolCallAcc::default();
+            let mut byte_stream = resp.bytes_stream().eventsource();
+
+            while let Some(ev) = byte_stream.next().await {
                 match ev {
                     Ok(e) => {
+                        tracing::trace!(
+                            data_preview = &e.data[..e.data.len().min(120)],
+                            "OpenAiCompatClient: SSE event"
+                        );
                         if e.data == "[DONE]" {
-                            // Emit accumulated tool calls as XML before stopping.
-                            let locked = acc.lock().unwrap();
-                            if locked.has_calls() {
-                                let xml = locked.to_xml();
-                                tracing::debug!(
-                                    tool_calls = locked.calls.len(),
-                                    xml_len = xml.len(),
-                                    "OpenAiCompatClient: emitting native tool calls as XML"
-                                );
-                                return Some(Ok(StreamEvent::TextDelta { text: xml }));
+                            tracing::debug!(
+                                url = %url_for_log,
+                                tool_calls = acc.calls.len(),
+                                "[DONE] received"
+                            );
+                            if acc.has_calls() {
+                                let xml = acc.to_xml();
+                                tracing::debug!(xml_len = xml.len(), "emitting native tool calls as XML");
+                                yield Ok(StreamEvent::TextDelta { text: xml });
                             }
-                            return Some(Ok(StreamEvent::MessageStop));
+                            yield Ok(StreamEvent::MessageStop);
+                            return;
                         }
-                        // Parse JSON, feed tool_calls to accumulator, extract text.
                         let v: serde_json::Value = match serde_json::from_str(&e.data) {
                             Ok(v) => v,
-                            Err(e) => return Some(Err(ClawError::Parse(e.to_string()))),
+                            Err(e) => { yield Err(ClawError::Parse(e.to_string())); continue; }
                         };
-                        acc.lock().unwrap().feed(&v);
+                        let had_calls_before = acc.has_calls();
+                        acc.feed(&v);
+                        if !had_calls_before && acc.has_calls() {
+                            tracing::debug!("OpenAiCompatClient: first tool_call chunk accumulated");
+                        }
                         let text = v["choices"][0]["delta"]["content"]
                             .as_str()
                             .unwrap_or("")
                             .to_string();
-                        if text.is_empty() { None } else { Some(Ok(StreamEvent::TextDelta { text })) }
+                        if !text.is_empty() {
+                            yield Ok(StreamEvent::TextDelta { text });
+                        }
                     }
-                    Err(e) => Some(Err(ClawError::Llm(e.to_string()))),
+                    Err(e) => yield Err(ClawError::Llm(e.to_string())),
                 }
             }
-        });
 
-        Ok(Box::pin(initial.chain(data_stream)))
+            // Stream ended without [DONE] — flush any accumulated tool calls.
+            tracing::debug!(
+                url = %url_for_log,
+                tool_calls = acc.calls.len(),
+                "OpenAiCompatClient: stream ended without [DONE], flushing accumulator"
+            );
+            if acc.has_calls() {
+                let xml = acc.to_xml();
+                tracing::debug!(xml_len = xml.len(), "emitting native tool calls as XML (no-DONE flush)");
+                yield Ok(StreamEvent::TextDelta { text: xml });
+            }
+            yield Ok(StreamEvent::MessageStop);
+        };
+
+        Ok(Box::pin(s))
     }
 }
 

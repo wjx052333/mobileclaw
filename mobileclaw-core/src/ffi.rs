@@ -260,6 +260,10 @@ impl AgentSession {
         }
 
         tracing::info!(
+            version = concat!(env!("CARGO_PKG_VERSION"), "-", env!("GIT_SHORT_SHA")),
+            "mobileclaw-core version"
+        );
+        tracing::info!(
             db_path = %config.db_path,
             secrets_db = %config.secrets_db_path,
             sandbox_dir = %config.sandbox_dir,

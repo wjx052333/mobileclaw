@@ -108,6 +108,8 @@ async fn main() -> anyhow::Result<()> {
     // install_default() is idempotent — safe to call multiple times.
     let _ = rustls::crypto::ring::default_provider().install_default();
 
+    eprintln!("mclaw {}", concat!(env!("CARGO_PKG_VERSION"), "-", env!("GIT_SHORT_SHA")));
+
     let cli = Cli::parse();
     let data_dir = cli.data_dir.unwrap_or_else(default_data_dir);
 
