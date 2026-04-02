@@ -49,6 +49,9 @@ enum Command {
         /// Print prompts without calling LLM (for inspection)
         #[arg(long)]
         dry_run: bool,
+        /// Write full interaction records (history, response, stats) to this JSONL file
+        #[arg(long)]
+        interaction_log: Option<std::path::PathBuf>,
     },
 }
 
@@ -130,8 +133,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Chat { system } => {
             cmd::chat::cmd_chat(&data_dir, system).await?;
         }
-        Command::Bench { prompts, system, max_turns, dry_run } => {
-            cmd::bench::cmd_bench(&data_dir, &prompts, system, max_turns, dry_run).await?;
+        Command::Bench { prompts, system, max_turns, dry_run, interaction_log } => {
+            cmd::bench::cmd_bench(&data_dir, &prompts, system, max_turns, dry_run, interaction_log.as_deref()).await?;
         }
     }
 

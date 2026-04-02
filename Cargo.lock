@@ -1514,6 +1514,7 @@ dependencies = [
  "mobileclaw-core",
  "rustls",
  "rustyline",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",

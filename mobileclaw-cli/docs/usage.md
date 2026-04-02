@@ -271,6 +271,7 @@ pruning 机制是否按预期保护内存。
 | `--system <TEXT>` | 内置系统提示 | 覆盖 agent 系统提示词 |
 | `--max-turns <N>` | 全部 | 只跑前 N 轮（快速冒烟用）|
 | `--dry-run` | false | 打印 prompt 预览，不实际调用 LLM |
+| `--interaction-log <PATH>` | 不写入 | 将每轮完整交互记录写入 JSONL 文件（用于诊断上下文累积和模型响应问题）|
 
 #### 快速开始
 
@@ -286,6 +287,9 @@ pruning 机制是否按预期保护内存。
 
 # 使用自定义 prompts 文件
 ./target/release/mclaw bench --prompts /path/to/stress.json
+
+# 记录完整交互日志（用于诊断上下文累积和 resp_ch=0 问题）
+./target/release/mclaw bench --interaction-log /tmp/bench_interactions.jsonl
 ```
 
 #### 输出格式
@@ -362,9 +366,57 @@ turn  label                         elapsed  tok_bef  tok_aft  pruned  h_len  re
 每轮 prompt 含大量代码片段和详细问题，约 600–1200 tokens/轮，可快速将 history 推入
 pruning 触发区间。
 
-#### 关键设计
+#### 交互日志（`--interaction-log`）
 
-**`ContextStats` 事件（core 层打点）**
+`--interaction-log <PATH>` 将每轮的完整交互上下文追加写入指定的 JSONL 文件（一行一条记录）。
+用于诊断以下问题：
+- **多轮上下文未累积**：`history_before.len()` 应随轮次单调递增
+- **模型响应为空（resp_ch=0）**：通过 `response_text` 查看模型实际返回了什么
+- **上下文是否完整传递**：`history_before` 包含本轮调用 `chat()` 之前的完整 history 快照
+
+每条 JSON 记录包含以下字段：
+
+| 字段 | 说明 |
+|------|------|
+| `turn_id` | 轮次编号 |
+| `label` | 轮次标签 |
+| `timestamp_ms` | Unix 毫秒时间戳 |
+| `system` | 本轮使用的系统提示词 |
+| `prompt` | 本轮用户 prompt |
+| `history_before` | 调用 `chat()` 前的完整 history（`[{role, content}, ...]`）|
+| `response_text` | 模型响应的完整文本（所有 TextDelta 拼接）|
+| `history_after` | 调用 `chat()` 后的完整 history（含本轮新增的 user/assistant 消息）|
+| `context_stats` | ContextStats 数据（见上方字段说明），无则为 `null` |
+| `events_seen` | 本轮收到的所有事件类型列表（如 `["TextDelta", "ContextStats", "Done"]`）|
+| `elapsed_ms` | 本轮耗时（毫秒）|
+
+**快速分析示例：**
+
+```bash
+# 检查每轮 history 是否在增长、resp_ch 是否为 0
+cat /tmp/bench_interactions.jsonl | python3 -c "
+import sys, json
+for line in sys.stdin:
+    r = json.loads(line)
+    hb, ha = len(r['history_before']), len(r['history_after'])
+    resp = len(r['response_text'])
+    print(f\"turn {r['turn_id']:2d}  hist {hb:2d}→{ha:2d}  resp_chars={resp:6d}  events={r['events_seen']}\")
+"
+
+# 查看某轮响应为空时模型实际收到的最后一条 history 消息
+cat /tmp/bench_interactions.jsonl | python3 -c "
+import sys, json
+for line in sys.stdin:
+    r = json.loads(line)
+    if not r['response_text']:
+        print(f\"=== turn {r['turn_id']} response_text is empty ===\")
+        if r['history_before']:
+            last = r['history_before'][-1]
+            print(f\"  last history entry: role={last['role']}, content[:200]={last['content'][:200]}\")
+"
+```
+
+#### 关键设计
 
 每次 `AgentSession.chat()` 返回前，core 都会在 `Done` 事件之前插入一个
 `ContextStats` 事件：
@@ -453,4 +505,4 @@ mclaw provider list                  # 确认 ✓ active 标记已更新
 | `email add-from-env` | `AgentSession.emailAccountSave()` |
 | `email delete` | `AgentSession.emailAccountDelete()` |
 | `chat` | `AgentSession.chat()` |
-| `bench` | `AgentSession.chat()` × N（读取 `AgentEventDto::ContextStats` 做可观测性）|
+| `bench` | `AgentSession.chat()` × N（读取 `AgentEventDto::ContextStats` 做可观测性；`--interaction-log` 追加写 JSONL 用于调试）|

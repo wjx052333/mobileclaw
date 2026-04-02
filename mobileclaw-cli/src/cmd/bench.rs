@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use mobileclaw_core::ffi::AgentEventDto;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::Path;
 use std::time::Instant;
 
@@ -25,6 +26,38 @@ struct BenchTurn {
     id: u32,
     label: String,
     prompt: String,
+}
+
+// ─── Interaction log record (one per turn, written as JSONL) ─────────────────
+
+#[derive(Debug, Serialize)]
+struct InteractionRecord {
+    turn_id: u32,
+    label: String,
+    timestamp_ms: u64,
+    system: String,
+    prompt: String,
+    history_before: Vec<HistoryEntry>,
+    response_text: String,
+    history_after: Vec<HistoryEntry>,
+    context_stats: Option<ContextStatsRecord>,
+    events_seen: Vec<String>,
+    elapsed_ms: u128,
+}
+
+#[derive(Debug, Serialize)]
+struct HistoryEntry {
+    role: String,
+    content: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ContextStatsRecord {
+    tokens_before_turn: usize,
+    tokens_after_prune: usize,
+    messages_pruned: usize,
+    history_len: usize,
+    pruning_threshold: usize,
 }
 
 // ─── Per-turn metrics ────────────────────────────────────────────────────────
@@ -70,6 +103,7 @@ pub async fn cmd_bench(
     system: Option<String>,
     max_turns: Option<usize>,
     dry_run: bool,
+    interaction_log: Option<&Path>,
 ) -> Result<()> {
     init_logging();
 
@@ -116,6 +150,19 @@ pub async fn cmd_bench(
             .into()
     });
 
+    // ── Open interaction log (optional) ──────────────────────────────────────
+    let mut ilog: Option<std::io::BufWriter<std::fs::File>> = if let Some(p) = interaction_log {
+        let f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(p)
+            .with_context(|| format!("opening interaction log {}", p.display()))?;
+        println!("Interaction log: {}", p.display());
+        Some(std::io::BufWriter::new(f))
+    } else {
+        None
+    };
+
     // ── Print table header ───────────────────────────────────────────────────
     println!(
         "{:>4}  {:<28}  {:>8}  {:>7}  {:>7}  {:>6}  {:>5}  {:>7}  {:>7}",
@@ -125,11 +172,22 @@ pub async fn cmd_bench(
 
     let mut all_metrics: Vec<TurnMetrics> = Vec::with_capacity(turns.len());
     let bench_start = Instant::now();
+    let bench_start_unix = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
 
     for turn in &turns {
         let rss_before = rss_kib();
         let _ = rss_before; // used only for potential delta reporting; suppress dead_code warning
         let t_start = Instant::now();
+
+        // Snapshot history before this turn (for interaction log)
+        let history_before: Vec<HistoryEntry> = if ilog.is_some() {
+            session.history().into_iter().map(|m| HistoryEntry { role: m.role, content: m.content }).collect()
+        } else {
+            vec![]
+        };
 
         let events = session
             .chat(turn.prompt.clone(), system.clone())
@@ -138,12 +196,20 @@ pub async fn cmd_bench(
 
         let elapsed = t_start.elapsed();
 
-        // Extract ContextStats and response text from events
+        // Extract ContextStats, response text, and event type names
         let mut ctx_stats: Option<(usize, usize, usize, usize, usize)> = None;
         let mut response_chars: usize = 0;
+        let mut response_text = String::new();
+        let mut events_seen: Vec<String> = Vec::new();
         for event in &events {
             match event {
-                AgentEventDto::TextDelta { text } => response_chars += text.len(),
+                AgentEventDto::TextDelta { text } => {
+                    response_chars += text.len();
+                    if ilog.is_some() {
+                        response_text.push_str(text);
+                    }
+                    events_seen.push("TextDelta".to_string());
+                }
                 AgentEventDto::ContextStats {
                     tokens_before_turn,
                     tokens_after_prune,
@@ -158,8 +224,11 @@ pub async fn cmd_bench(
                         *history_len,
                         *pruning_threshold,
                     ));
+                    events_seen.push("ContextStats".to_string());
                 }
-                _ => {}
+                AgentEventDto::ToolCall { .. } => events_seen.push("ToolCall".to_string()),
+                AgentEventDto::ToolResult { .. } => events_seen.push("ToolResult".to_string()),
+                AgentEventDto::Done => events_seen.push("Done".to_string()),
             }
         }
 
@@ -168,6 +237,36 @@ pub async fn cmd_bench(
         let pruning_fired = pruned > 0;
         let rss_after = rss_kib();
         let rss_mib = rss_after / 1024;
+
+        // Write interaction log record
+        if let Some(ref mut log_writer) = ilog {
+            let history_after: Vec<HistoryEntry> = session.history().into_iter()
+                .map(|m| HistoryEntry { role: m.role, content: m.content })
+                .collect();
+
+            let record = InteractionRecord {
+                turn_id: turn.id,
+                label: turn.label.clone(),
+                timestamp_ms: bench_start_unix + bench_start.elapsed().as_millis() as u64,
+                system: system.clone(),
+                prompt: turn.prompt.clone(),
+                history_before,
+                response_text,
+                history_after,
+                context_stats: ctx_stats.map(|(tb, ta, mp, hl, pt)| ContextStatsRecord {
+                    tokens_before_turn: tb,
+                    tokens_after_prune: ta,
+                    messages_pruned: mp,
+                    history_len: hl,
+                    pruning_threshold: pt,
+                }),
+                events_seen,
+                elapsed_ms: elapsed.as_millis(),
+            };
+            let line = serde_json::to_string(&record).context("serializing interaction record")?;
+            writeln!(log_writer, "{}", line).context("writing interaction log")?;
+            log_writer.flush().context("flushing interaction log")?;
+        }
 
         let label_short: String = turn.label.chars().take(28).collect();
         let prune_marker = if pruning_fired { "✂" } else { " " };
