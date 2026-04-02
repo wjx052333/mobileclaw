@@ -182,6 +182,51 @@ mod tests {
     use super::*;
     use proptest::prelude::*;
 
+        #[test]
+        fn trigram_short_token_behavior() {
+            // FTS5 trigram tokenizer requires >=3 chars per token.
+            // Tokens shorter than 3 chars produce no trigrams and cause
+            // phrase queries containing them to return 0 results.
+            let conn = Connection::open_in_memory().unwrap();
+            conn.execute_batch(
+                "CREATE VIRTUAL TABLE t USING fts5(content, tokenize='trigram');
+                 INSERT INTO t VALUES ('Early Optimization Turns 9 15 Lazy-load saves 320ms');
+                 INSERT INTO t VALUES ('Startup Time Baseline Turn 9 15 two second acceptable');",
+            ).unwrap();
+
+            // Long words match fine
+            let n: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM t WHERE t MATCH ?1", [r#""optimization""#], |r| r.get(0)
+            ).unwrap();
+            assert_eq!(n, 1, "single long word should match");
+
+            // Short token "9" (1 char) alone → no trigrams → 0 results
+            let n: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM t WHERE t MATCH ?1", [r#""9""#], |r| r.get(0)
+            ).unwrap_or(0);
+            assert_eq!(n, 0, "1-char token '9' should not match with trigram tokenizer");
+
+            // Short token "15" (2 chars) alone → 0 results
+            let n: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM t WHERE t MATCH ?1", [r#""15""#], |r| r.get(0)
+            ).unwrap_or(0);
+            assert_eq!(n, 0, "2-char token '15' should not match with trigram tokenizer");
+
+            // Phrase containing short token → whole phrase fails to match
+            let n: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM t WHERE t MATCH ?1",
+                [r#""optimization startup performance early attempt turn 9 15""#],
+                |r| r.get(0)
+            ).unwrap_or(0);
+            assert_eq!(n, 0, "phrase with short tokens produces no results");
+
+            // Query without short tokens → works
+            let n: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM t WHERE t MATCH ?1", [r#""optimization""#], |r| r.get(0)
+            ).unwrap();
+            assert!(n > 0, "phrase without short tokens should match");
+        }
+
     proptest! {
         #[test]
         fn str_to_category_never_panics(s in ".*") {
