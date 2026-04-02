@@ -62,6 +62,7 @@ pub async fn open_session(data_dir: &Path) -> Result<AgentSession> {
         skills_dir: None,
         secrets_db_path: secrets_db.to_string_lossy().into_owned(),
         encryption_key: b"mobileclaw-dev-key-32bytes000000".to_vec(),
+        log_dir: None,  // CLI uses init_logging() directly; core need not re-initialize
     };
 
     AgentSession::create(config).await

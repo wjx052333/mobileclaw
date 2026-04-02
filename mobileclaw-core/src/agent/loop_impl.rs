@@ -1,9 +1,10 @@
 use futures::StreamExt;
+use std::collections::HashSet;
 use crate::{
     ClawResult,
     agent::parser::{extract_tool_calls, extract_text_without_tool_calls, format_tool_result},
     llm::{client::LlmClient, types::{Message, StreamEvent}},
-    skill::SkillManager,
+    skill::{Skill, SkillManager},
     tools::{ToolContext, ToolRegistry},
 };
 
@@ -14,11 +15,43 @@ const MAX_TOKENS: u32 = 4096;
 // Tool descriptions injected into every system prompt
 // ---------------------------------------------------------------------------
 
-/// Build the `## Available Tools` section from the registered tool list.
-/// This is appended to every system prompt so the LLM knows what tools exist
-/// and how to call them using the `<tool_call>` XML format.
-fn build_tools_section(registry: &ToolRegistry) -> String {
-    let tools = registry.list();
+/// Build the `## Available Tools` section.
+///
+/// - If any matched skill declares `allowed_tools`, only those tools (union across
+///   all matched skills) are described.  This keeps the prompt focused and
+///   prevents the LLM from calling tools that a restricted skill should not use.
+/// - If no matched skills, or all matched skills leave `allowed_tools` as `None`,
+///   **all** registered tools are described.
+///
+/// The section is appended to the system prompt so the LLM knows the `<tool_call>`
+/// XML format and which tools exist.
+pub(crate) fn build_tools_section(registry: &ToolRegistry, matched_skills: &[&Skill]) -> String {
+    let all_tools = registry.list();
+    if all_tools.is_empty() {
+        return String::new();
+    }
+
+    // Collect the union of `allowed_tools` from all matched skills that restrict tools.
+    // If ANY matched skill has `allowed_tools = None`, no restriction is applied — that
+    // skill may need any tool, so we show everything.
+    let any_unrestricted = matched_skills.iter().any(|s| s.manifest.allowed_tools.is_none());
+    let allowed_filter: Option<HashSet<&str>> = if any_unrestricted || matched_skills.is_empty() {
+        None
+    } else {
+        Some(
+            matched_skills
+                .iter()
+                .filter_map(|s| s.manifest.allowed_tools.as_deref())
+                .flat_map(|names| names.iter().map(|n| n.as_str()))
+                .collect(),
+        )
+    };
+
+    let tools: Vec<_> = match &allowed_filter {
+        Some(allowed) => all_tools.into_iter().filter(|t| allowed.contains(t.name())).collect(),
+        None => all_tools,
+    };
+
     if tools.is_empty() {
         return String::new();
     }
@@ -108,8 +141,7 @@ impl<L: LlmClient> AgentLoop<L> {
     pub async fn chat(&mut self, user_input: &str, base_system: &str) -> ClawResult<Vec<AgentEvent>> {
         let matched = self.skill_mgr.match_skills(user_input);
         let skill_prompt = self.skill_mgr.build_system_prompt(base_system, &matched);
-        // Append tool descriptions so the LLM knows the call format and what tools exist.
-        let tools_section = build_tools_section(&self.registry);
+        let tools_section = build_tools_section(&self.registry, &matched);
         let system = format!("{}{}", skill_prompt, tools_section);
 
         tracing::info!(
@@ -339,5 +371,294 @@ mod tests {
             events.last()
         );
     }
-}
 
+    // -----------------------------------------------------------------------
+    // CapturingMockLlmClient: records the system prompt for inspection
+    // -----------------------------------------------------------------------
+
+    use std::sync::Mutex;
+    use futures::stream;
+    use crate::llm::types::StreamEvent;
+
+    struct CapturingMockLlmClient {
+        captured_system: Arc<Mutex<String>>,
+        response: String,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::llm::client::LlmClient for CapturingMockLlmClient {
+        async fn stream_messages(
+            &self,
+            system: &str,
+            _messages: &[crate::llm::types::Message],
+            _max_tokens: u32,
+        ) -> crate::ClawResult<crate::llm::client::EventStream> {
+            *self.captured_system.lock().unwrap() = system.to_string();
+            let text = self.response.clone();
+            let events: Vec<crate::ClawResult<StreamEvent>> = vec![
+                Ok(StreamEvent::MessageStart),
+                Ok(StreamEvent::TextDelta { text }),
+                Ok(StreamEvent::MessageStop),
+            ];
+            Ok(Box::pin(stream::iter(events)))
+        }
+    }
+
+    async fn make_capturing_agent(
+        response: &str,
+    ) -> (AgentLoop<CapturingMockLlmClient>, Arc<Mutex<String>>, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+        let mut registry = ToolRegistry::new();
+        register_all_builtins(&mut registry);
+        let ctx = ToolContext {
+            memory: mem,
+            sandbox_dir: dir.path().to_path_buf(),
+            http_allowlist: vec![],
+            permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
+        };
+        let captured = Arc::new(Mutex::new(String::new()));
+        let client = CapturingMockLlmClient {
+            captured_system: captured.clone(),
+            response: response.to_string(),
+        };
+        let agent = AgentLoop::new(client, registry, ctx, SkillManager::new(vec![]));
+        (agent, captured, dir)
+    }
+
+    // -----------------------------------------------------------------------
+    // Tests: build_tools_section (unit, no async needed)
+    // -----------------------------------------------------------------------
+
+    fn make_tool_registry_with(names: &[(&str, &str)]) -> ToolRegistry {
+        use crate::tools::traits::{Tool, ToolContext, ToolResult};
+        use async_trait::async_trait;
+
+        struct FakeTool { name: &'static str, desc: &'static str }
+        #[async_trait]
+        impl Tool for FakeTool {
+            fn name(&self) -> &str { self.name }
+            fn description(&self) -> &str { self.desc }
+            fn parameters_schema(&self) -> serde_json::Value {
+                serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "input": { "type": "string", "description": "the input" }
+                    },
+                    "required": ["input"]
+                })
+            }
+            async fn execute(&self, _args: serde_json::Value, _ctx: &ToolContext)
+                -> crate::ClawResult<ToolResult> { Ok(ToolResult::ok("ok")) }
+        }
+
+        let mut reg = ToolRegistry::new();
+        for &(name, desc) in names {
+            // SAFETY: these are 'static str literals — outlive the test
+            let tool: Arc<dyn Tool> = Arc::new(FakeTool {
+                name: Box::leak(name.to_string().into_boxed_str()),
+                desc: Box::leak(desc.to_string().into_boxed_str()),
+            });
+            reg.register_builtin(tool);
+        }
+        reg
+    }
+
+    fn make_skill_with_allowed(name: &str, keywords: Vec<&str>, allowed: Option<Vec<&str>>) -> Skill {
+        use crate::skill::types::{SkillActivation, SkillManifest, SkillTrust};
+        Skill {
+            manifest: SkillManifest {
+                name: name.into(),
+                description: "test".into(),
+                trust: SkillTrust::Bundled,
+                activation: SkillActivation {
+                    keywords: keywords.into_iter().map(String::from).collect(),
+                },
+                allowed_tools: allowed.map(|v| v.into_iter().map(String::from).collect()),
+            },
+            prompt: format!("You are the {} skill.", name),
+        }
+    }
+
+    #[test]
+    fn build_tools_section_empty_registry_returns_empty_string() {
+        let reg = ToolRegistry::new();
+        let section = build_tools_section(&reg, &[]);
+        assert!(section.is_empty(), "empty registry must produce empty section");
+    }
+
+    #[test]
+    fn build_tools_section_no_skills_shows_all_tools() {
+        let reg = make_tool_registry_with(&[
+            ("tool_alpha", "Alpha does alpha things"),
+            ("tool_beta",  "Beta does beta things"),
+        ]);
+        let section = build_tools_section(&reg, &[]);
+        assert!(section.contains("tool_alpha"), "must contain tool_alpha");
+        assert!(section.contains("tool_beta"),  "must contain tool_beta");
+        assert!(section.contains("<tool_call>"), "must explain call format");
+    }
+
+    #[test]
+    fn build_tools_section_includes_description_and_params() {
+        let reg = make_tool_registry_with(&[("my_tool", "Does something important")]);
+        let section = build_tools_section(&reg, &[]);
+        assert!(section.contains("my_tool"), "tool name missing");
+        assert!(section.contains("Does something important"), "tool description missing");
+        assert!(section.contains("`input`"), "parameter name missing");
+        assert!(section.contains("required"), "required flag missing");
+    }
+
+    #[test]
+    fn build_tools_section_skill_with_allowed_tools_filters() {
+        let reg = make_tool_registry_with(&[
+            ("email_fetch", "Fetch emails"),
+            ("email_send",  "Send emails"),
+            ("file_read",   "Read files"),
+        ]);
+        let skill = make_skill_with_allowed("email-skill", vec!["email"], Some(vec!["email_fetch", "email_send"]));
+        let matched = vec![&skill];
+        let section = build_tools_section(&reg, &matched);
+        assert!(section.contains("email_fetch"), "email_fetch should be in section");
+        assert!(section.contains("email_send"),  "email_send should be in section");
+        assert!(!section.contains("file_read"),  "file_read must NOT be in section — not in allowed_tools");
+    }
+
+    #[test]
+    fn build_tools_section_skill_with_no_allowed_tools_shows_all() {
+        let reg = make_tool_registry_with(&[
+            ("tool_a", "Tool A"),
+            ("tool_b", "Tool B"),
+        ]);
+        // allowed_tools = None → no restriction
+        let skill = make_skill_with_allowed("unrestricted", vec!["test"], None);
+        let matched = vec![&skill];
+        let section = build_tools_section(&reg, &matched);
+        assert!(section.contains("tool_a"), "tool_a must appear when no restriction");
+        assert!(section.contains("tool_b"), "tool_b must appear when no restriction");
+    }
+
+    #[test]
+    fn build_tools_section_multiple_skills_union_of_allowed() {
+        let reg = make_tool_registry_with(&[
+            ("tool_a", "Tool A"),
+            ("tool_b", "Tool B"),
+            ("tool_c", "Tool C"),
+        ]);
+        let skill1 = make_skill_with_allowed("skill1", vec!["s1"], Some(vec!["tool_a"]));
+        let skill2 = make_skill_with_allowed("skill2", vec!["s2"], Some(vec!["tool_b"]));
+        let matched = vec![&skill1, &skill2];
+        let section = build_tools_section(&reg, &matched);
+        assert!(section.contains("tool_a"),           "tool_a in skill1 allowed_tools");
+        assert!(section.contains("tool_b"),           "tool_b in skill2 allowed_tools");
+        assert!(!section.contains("`tool_c`"),        "tool_c not in any allowed_tools");
+    }
+
+    #[test]
+    fn build_tools_section_mixed_restricted_unrestricted_skills_shows_all() {
+        // If ANY matched skill has allowed_tools=None, treat as "no restriction"
+        // because that skill needs all tools.
+        let reg = make_tool_registry_with(&[
+            ("tool_a", "Tool A"),
+            ("tool_b", "Tool B"),
+        ]);
+        let restricted   = make_skill_with_allowed("restricted",   vec!["r"], Some(vec!["tool_a"]));
+        let unrestricted = make_skill_with_allowed("unrestricted", vec!["u"], None);
+        let matched = vec![&restricted, &unrestricted];
+        let section = build_tools_section(&reg, &matched);
+        // unrestricted skill has None → override: show all tools
+        assert!(section.contains("tool_a"), "tool_a must appear");
+        assert!(section.contains("tool_b"), "tool_b must appear — unrestricted skill lifts filter");
+    }
+
+    #[test]
+    fn build_tools_section_extension_tool_appears_in_section() {
+        use crate::tools::traits::{Tool, ToolContext, ToolResult};
+        use async_trait::async_trait;
+
+        struct ExtTool;
+        #[async_trait]
+        impl Tool for ExtTool {
+            fn name(&self) -> &str { "custom_ext_tool" }
+            fn description(&self) -> &str { "A customer-added extension tool" }
+            fn parameters_schema(&self) -> serde_json::Value {
+                serde_json::json!({"type": "object", "properties": {}})
+            }
+            async fn execute(&self, _: serde_json::Value, _: &ToolContext) -> crate::ClawResult<ToolResult> {
+                Ok(ToolResult::ok("ok"))
+            }
+        }
+
+        let mut reg = ToolRegistry::new();
+        reg.register_extension(Arc::new(ExtTool)).unwrap();
+        let section = build_tools_section(&reg, &[]);
+        assert!(section.contains("custom_ext_tool"),               "extension tool name must appear");
+        assert!(section.contains("A customer-added extension tool"), "extension tool description must appear");
+    }
+
+    // -----------------------------------------------------------------------
+    // Integration: system prompt sent to LLM contains tool section
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn chat_sends_tool_descriptions_in_system_prompt() {
+        let (mut agent, captured, _dir) = make_capturing_agent("hello").await;
+        agent.chat("hi", "Base system.").await.unwrap();
+
+        let system = captured.lock().unwrap().clone();
+        assert!(system.starts_with("Base system."), "base system must come first");
+        assert!(system.contains("## Available Tools"),  "tool section header must be present");
+        assert!(system.contains("<tool_call>"),          "call format example must be present");
+        // Builtins registered by register_all_builtins should appear
+        assert!(system.contains("email_fetch"), "email_fetch must be in system prompt");
+        assert!(system.contains("file_read"),   "file_read must be in system prompt");
+        assert!(system.contains("time"),        "time must be in system prompt");
+    }
+
+    #[tokio::test]
+    async fn chat_filters_tools_to_skill_allowed_tools() {
+        use crate::skill::types::{SkillActivation, SkillManifest, SkillTrust};
+
+        let dir = TempDir::new().unwrap();
+        let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+        let mut registry = ToolRegistry::new();
+        register_all_builtins(&mut registry);
+        let ctx = ToolContext {
+            memory: mem,
+            sandbox_dir: dir.path().to_path_buf(),
+            http_allowlist: vec![],
+            permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
+        };
+        let captured = Arc::new(Mutex::new(String::new()));
+        let client = CapturingMockLlmClient {
+            captured_system: captured.clone(),
+            response: "ok".into(),
+        };
+
+        // Skill that only allows email_fetch
+        let email_skill = Skill {
+            manifest: SkillManifest {
+                name: "email-only".into(),
+                description: "email focused skill".into(),
+                trust: SkillTrust::Bundled,
+                activation: SkillActivation {
+                    keywords: vec!["email".into()],
+                },
+                allowed_tools: Some(vec!["email_fetch".into()]),
+            },
+            prompt: "You handle email.".into(),
+        };
+        let mgr = SkillManager::new(vec![email_skill]);
+        let mut agent = AgentLoop::new(client, registry, ctx, mgr);
+
+        // "email" keyword triggers the skill
+        agent.chat("please email me", "").await.unwrap();
+
+        let system = captured.lock().unwrap().clone();
+        assert!(system.contains("email_fetch"),  "allowed tool must be in prompt");
+        assert!(!system.contains("file_read"),   "non-allowed tool must NOT be in prompt");
+        assert!(!system.contains("memory_store"),"non-allowed tool must NOT be in prompt");
+    }
+}

@@ -68,18 +68,31 @@ impl LlmClient for OllamaClient {
             "stream": true,
         });
 
+        let url = format!("{}api/chat", self.base_url);
+        tracing::debug!(
+            url = %url,
+            model = %self.model,
+            messages = msg_array.len(),
+            "OllamaClient: sending request"
+        );
+
         let resp = self.http
-            .post(format!("{}api/chat", self.base_url))
+            .post(&url)
             .json(&body)
             .send()
             .await
-            .map_err(|e| ClawError::Llm(format!("Ollama request: {e}")))?;
+            .map_err(|e| {
+                tracing::error!(url = %url, error = %e, "OllamaClient: HTTP send failed");
+                ClawError::Llm(format!("Ollama request: {e}"))
+            })?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
+        let status = resp.status();
+        if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
+            tracing::error!(url = %url, status = %status, body = %body, "OllamaClient: API error response");
             return Err(ClawError::Llm(format!("Ollama {status}: {body}")));
         }
+        tracing::debug!(url = %url, status = %status, "OllamaClient: streaming response started");
 
         let mut bytes_stream = resp.bytes_stream();
         let stream = try_stream! {

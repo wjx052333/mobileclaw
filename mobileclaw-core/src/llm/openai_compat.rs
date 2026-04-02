@@ -79,20 +79,34 @@ impl LlmClient for OpenAiCompatClient {
             "stream": true,
         });
 
+        let url = format!("{}/chat/completions", self.base_url);
+        tracing::debug!(
+            url = %url,
+            model = %self.model,
+            messages = msg_array.len(),
+            max_tokens,
+            "OpenAiCompatClient: sending request"
+        );
+
         let resp = self.http
-            .post(format!("{}/chat/completions", self.base_url))
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("content-type", "application/json")
             .json(&body)
             .send()
             .await
-            .map_err(|e| ClawError::Llm(format!("OpenAI-compat request: {e}")))?;
+            .map_err(|e| {
+                tracing::error!(url = %url, error = %e, "OpenAiCompatClient: HTTP send failed");
+                ClawError::Llm(format!("OpenAI-compat request: {e}"))
+            })?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
+        let status = resp.status();
+        if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
+            tracing::error!(url = %url, status = %status, body = %body, "OpenAiCompatClient: API error response");
             return Err(ClawError::Llm(format!("OpenAI-compat {status}: {body}")));
         }
+        tracing::debug!(url = %url, status = %status, "OpenAiCompatClient: streaming response started");
 
         // Synthetic MessageStart, then map SSE chunks
         let initial = futures::stream::once(async { Ok(StreamEvent::MessageStart) });

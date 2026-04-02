@@ -1551,6 +1551,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-test",
  "tracing",
+ "tracing-subscriber",
  "url",
  "uuid",
  "webpki-roots 0.26.11",

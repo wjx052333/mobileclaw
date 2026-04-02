@@ -52,9 +52,15 @@ impl Tool for FileReadTool {
     async fn execute(&self, args: Value, ctx: &ToolContext) -> ClawResult<ToolResult> {
         let path_str = args["path"].as_str()
             .ok_or_else(|| ClawError::Tool { tool: self.name().into(), message: "missing 'path'".into() })?;
-        let resolved = resolve_sandbox_path(&ctx.sandbox_dir, path_str)?;
+        let resolved = resolve_sandbox_path(&ctx.sandbox_dir, path_str)
+            .inspect_err(|e| tracing::warn!(path = %path_str, error = %e, "file_read: path rejected"))?;
+        tracing::debug!(path = %path_str, resolved = %resolved.display(), "file_read: reading");
         let content = tokio::fs::read_to_string(&resolved).await
-            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+            .map_err(|e| {
+                tracing::error!(path = %path_str, error = %e, "file_read: read failed");
+                ClawError::Tool { tool: self.name().into(), message: e.to_string() }
+            })?;
+        tracing::info!(path = %path_str, bytes = content.len(), "file_read: OK");
         Ok(ToolResult::ok(json!({"content": content, "path": path_str})))
     }
 }
@@ -82,13 +88,22 @@ impl Tool for FileWriteTool {
             .ok_or_else(|| ClawError::Tool { tool: self.name().into(), message: "missing 'path'".into() })?;
         let content = args["content"].as_str()
             .ok_or_else(|| ClawError::Tool { tool: self.name().into(), message: "missing 'content'".into() })?;
-        let resolved = resolve_sandbox_path(&ctx.sandbox_dir, path_str)?;
+        let resolved = resolve_sandbox_path(&ctx.sandbox_dir, path_str)
+            .inspect_err(|e| tracing::warn!(path = %path_str, error = %e, "file_write: path rejected"))?;
+        tracing::debug!(path = %path_str, resolved = %resolved.display(), bytes = content.len(), "file_write: writing");
         if let Some(parent) = resolved.parent() {
             tokio::fs::create_dir_all(parent).await
-                .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+                .map_err(|e| {
+                    tracing::error!(path = %path_str, error = %e, "file_write: create_dir_all failed");
+                    ClawError::Tool { tool: self.name().into(), message: e.to_string() }
+                })?;
         }
         tokio::fs::write(&resolved, content).await
-            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+            .map_err(|e| {
+                tracing::error!(path = %path_str, error = %e, "file_write: write failed");
+                ClawError::Tool { tool: self.name().into(), message: e.to_string() }
+            })?;
+        tracing::info!(path = %path_str, bytes = content.len(), "file_write: OK");
         Ok(ToolResult::ok(json!({"written": content.len(), "path": path_str})))
     }
 }

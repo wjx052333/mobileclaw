@@ -17,7 +17,8 @@ quick-xml   = { workspace = true }
 url         = { workspace = true }
 reqwest     = { workspace = true }
 rusqlite    = { workspace = true }
-tracing     = { workspace = true }
+tracing             = { workspace = true }
+tracing-subscriber  = { workspace = true }
 anyhow      = { workspace = true }
 thiserror   = { workspace = true }
 futures     = { workspace = true }

@@ -69,10 +69,13 @@ impl Tool for HttpTool {
             .ok_or_else(|| ClawError::Tool { tool: self.name().into(), message: "missing 'url'".into() })?;
 
         if !is_url_allowed(url, &ctx.http_allowlist) {
+            tracing::warn!(url = %url, "http_request: URL not in allowlist — blocked");
             return Err(ClawError::UrlNotAllowed(url.to_string()));
         }
 
         let method = args["method"].as_str().unwrap_or("GET");
+        tracing::info!(url = %url, method = %method, "http_request: sending");
+
         let client = reqwest::Client::builder().use_rustls_tls().build()
             .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
 
@@ -81,7 +84,10 @@ impl Tool for HttpTool {
             "POST"   => client.post(url),
             "PUT"    => client.put(url),
             "DELETE" => client.delete(url),
-            m => return Ok(ToolResult::err(format!("unsupported method: {}", m))),
+            m => {
+                tracing::warn!(method = %m, "http_request: unsupported method");
+                return Ok(ToolResult::err(format!("unsupported method: {}", m)));
+            }
         };
 
         if let Some(body) = args["body"].as_str() {
@@ -89,12 +95,16 @@ impl Tool for HttpTool {
         }
 
         let resp = req.send().await
-            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+            .map_err(|e| {
+                tracing::error!(url = %url, error = %e, "http_request: send failed");
+                ClawError::Tool { tool: self.name().into(), message: e.to_string() }
+            })?;
 
         let status = resp.status().as_u16();
         let body = resp.text().await
             .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
 
+        tracing::info!(url = %url, status, body_len = body.len(), "http_request: response received");
         Ok(ToolResult::ok(json!({"status": status, "body": body})))
     }
 }

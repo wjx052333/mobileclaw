@@ -64,6 +64,14 @@ impl Tool for EmailSendTool {
         let body = args["body"].as_str()
             .ok_or_else(|| ClawError::Tool { tool: self.name().into(), message: "missing 'body'".into() })?;
 
+        tracing::info!(
+            account_id,
+            recipients = to_arr.len(),
+            subject,
+            body_len = body.len(),
+            "email_send: loading account config"
+        );
+
         // Load account config and password from SecretStore
         let config_key = format!("email:{}:config", account_id);
         let pw_key = format!("email:{}:password", account_id);
@@ -120,16 +128,29 @@ impl Tool for EmailSendTool {
         // Connect and send
         // to_string() allocates a heap copy; lettre's Credentials does not zeroize on drop.
         // This is unavoidable with the lettre API — the copy is short-lived (dropped with `mailer`).
+        tracing::info!(
+            smtp_host = %acc.smtp_host,
+            smtp_port = acc.smtp_port,
+            username = %acc.username,
+            "email_send: connecting to SMTP"
+        );
         let creds = Credentials::new(acc.username, password.expose().to_string());
         let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&acc.smtp_host)
-            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?
+            .map_err(|e| {
+                tracing::error!(error = %e, "email_send: SMTP relay build failed");
+                ClawError::Tool { tool: self.name().into(), message: e.to_string() }
+            })?
             .port(acc.smtp_port)
             .credentials(creds)
             .build();
 
         mailer.send(email).await
-            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+            .map_err(|e| {
+                tracing::error!(error = %e, "email_send: SMTP send failed");
+                ClawError::Tool { tool: self.name().into(), message: e.to_string() }
+            })?;
 
+        tracing::info!(account_id, "email_send: sent successfully");
         Ok(ToolResult::ok(json!({"sent": true, "to": to_arr})))
     }
 }
@@ -183,6 +204,8 @@ impl Tool for EmailFetchTool {
         let folder = args["folder"].as_str().unwrap_or("INBOX");
         let limit = args["limit"].as_u64().unwrap_or(10).clamp(1, 50) as u32;
 
+        tracing::info!(account_id, folder, limit, "email_fetch: loading account config");
+
         // Load credentials
         let config_key = format!("email:{}:config", account_id);
         let pw_key = format!("email:{}:password", account_id);
@@ -202,6 +225,12 @@ impl Tool for EmailFetchTool {
             })?;
 
         // TLS connection
+        tracing::info!(
+            imap_host = %acc.imap_host,
+            imap_port = acc.imap_port,
+            username = %acc.username,
+            "email_fetch: connecting to IMAP"
+        );
         let mut root_store = rustls::RootCertStore::empty();
         root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         let tls_config = rustls::ClientConfig::builder()
@@ -210,35 +239,56 @@ impl Tool for EmailFetchTool {
         let connector = TlsConnector::from(StdArc::new(tls_config));
         let addr = format!("{}:{}", acc.imap_host, acc.imap_port);
         let tcp = TcpStream::connect(&addr).await
-            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: format!("connect: {}", e) })?;
+            .map_err(|e| {
+                tracing::error!(addr = %addr, error = %e, "email_fetch: TCP connect failed");
+                ClawError::Tool { tool: self.name().into(), message: format!("connect: {}", e) }
+            })?;
+        tracing::debug!(addr = %addr, "email_fetch: TCP connected");
         let server_name: rustls::pki_types::ServerName<'static> =
             rustls::pki_types::ServerName::try_from(acc.imap_host.as_str())
                 .map_err(|e: rustls::pki_types::InvalidDnsNameError|
                     ClawError::Tool { tool: self.name().into(), message: e.to_string() })?
                 .to_owned();
         let tls: TlsStream<TcpStream> = connector.connect(server_name, tcp).await
-            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: format!("tls: {}", e) })?;
+            .map_err(|e| {
+                tracing::error!(imap_host = %acc.imap_host, error = %e, "email_fetch: TLS handshake failed");
+                ClawError::Tool { tool: self.name().into(), message: format!("tls: {}", e) }
+            })?;
+        tracing::debug!("email_fetch: TLS handshake OK");
 
         let client = ImapClient::new(tls);
         let mut imap_session = client
             .login(&acc.username, password.expose())
             .await
-            .map_err(|(e, _)| ClawError::Tool { tool: self.name().into(), message: format!("login: {}", e) })?;
+            .map_err(|(e, _)| {
+                tracing::error!(username = %acc.username, error = %e, "email_fetch: IMAP login failed");
+                ClawError::Tool { tool: self.name().into(), message: format!("login: {}", e) }
+            })?;
+        tracing::debug!(username = %acc.username, "email_fetch: IMAP login OK");
 
         // Select folder
         let mailbox = imap_session.select(folder).await
-            .map_err(|e| ClawError::Tool { tool: self.name().into(), message: format!("select: {}", e) })?;
+            .map_err(|e| {
+                tracing::error!(folder, error = %e, "email_fetch: folder SELECT failed");
+                ClawError::Tool { tool: self.name().into(), message: format!("select: {}", e) }
+            })?;
 
         let total = mailbox.exists;
+        tracing::info!(folder, total_messages = total, limit, "email_fetch: folder selected");
         let emails = if total == 0 {
+            tracing::debug!(folder, "email_fetch: folder is empty");
             vec![]
         } else {
             let start = total.saturating_sub(limit.saturating_sub(1)).max(1);
             let seq = format!("{}:{}", start, total);
+            tracing::debug!(seq = %seq, "email_fetch: fetching message sequence");
             let fetch_stream = imap_session
                 .fetch(&seq, "(ENVELOPE BODY[TEXT]<0.500>)")
                 .await
-                .map_err(|e| ClawError::Tool { tool: self.name().into(), message: e.to_string() })?;
+                .map_err(|e| {
+                    tracing::error!(seq = %seq, error = %e, "email_fetch: IMAP FETCH failed");
+                    ClawError::Tool { tool: self.name().into(), message: e.to_string() }
+                })?;
 
             let messages: Vec<_> = fetch_stream
                 .filter_map(|r| async move {
@@ -290,6 +340,13 @@ impl Tool for EmailFetchTool {
 
         imap_session.logout().await.ok(); // best-effort
 
+        tracing::info!(
+            account_id,
+            folder,
+            total_messages = total,
+            fetched = emails.len(),
+            "email_fetch: completed successfully"
+        );
         Ok(ToolResult::ok(json!({
             "folder": folder,
             "total": total,

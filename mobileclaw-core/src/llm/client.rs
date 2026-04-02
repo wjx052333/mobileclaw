@@ -53,6 +53,13 @@ impl LlmClient for ClaudeClient {
             "stream": true,
         });
 
+        tracing::debug!(
+            model = %self.model,
+            messages = messages.len(),
+            max_tokens,
+            "ClaudeClient: sending request"
+        );
+
         let resp = self.http
             .post("https://api.anthropic.com/v1/messages")
             .header("x-api-key", &self.api_key)
@@ -61,13 +68,18 @@ impl LlmClient for ClaudeClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| ClawError::Llm(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!(error = %e, "ClaudeClient: HTTP send failed");
+                ClawError::Llm(e.to_string())
+            })?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
+        let status = resp.status();
+        if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
+            tracing::error!(status = %status, body = %text, "ClaudeClient: API error response");
             return Err(ClawError::Llm(format!("Claude API error {}: {}", status, text)));
         }
+        tracing::debug!(status = %status, "ClaudeClient: streaming response started");
 
         let stream = resp.bytes_stream().eventsource().map(|event| {
             match event {

@@ -13,6 +13,7 @@ url         = "2"
 reqwest     = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 rusqlite    = { version = "0.31", features = ["bundled", "backup"] }
 tracing     = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 anyhow      = "1"
 clap        = { version = "4", features = ["derive", "env"] }
 rustyline   = "14"

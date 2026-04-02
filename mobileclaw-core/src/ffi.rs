@@ -28,6 +28,49 @@ pub struct AgentConfig {
     pub http_allowlist: Vec<String>,
     pub model: Option<String>,     // None = use model from active provider
     pub skills_dir: Option<String>,
+    /// Directory for log files. When `Some`, `mobileclaw.log` is written there.
+    /// Platform guidance:
+    ///   Android — pass `context.getFilesDir().absolutePath` (or Flutter's
+    ///             `getApplicationSupportDirectory()`)
+    ///   iOS     — pass `FileManager.default.urls(.applicationSupportDirectory)[0].path`
+    ///             (or Flutter's `getApplicationSupportDirectory()`)
+    ///   CLI     — leave as `None`; the CLI calls its own `init_logging()` instead.
+    /// When `None`, tracing output goes wherever the caller already registered a
+    /// subscriber (no-op if none was registered).
+    pub log_dir: Option<String>,
+}
+
+/// Initialize file-based tracing to `{dir}/mobileclaw.log`.
+///
+/// Safe to call multiple times — subsequent calls are silently ignored by
+/// `try_init()`.  Creates `dir` if it does not exist.
+pub fn init_file_logging(dir: &str) {
+    use std::fs::{self, OpenOptions};
+    use tracing_subscriber::{fmt, EnvFilter};
+
+    if let Err(e) = fs::create_dir_all(dir) {
+        // Can't log yet — just print to stderr so the developer sees it.
+        eprintln!("[mobileclaw] failed to create log dir '{}': {}", dir, e);
+        return;
+    }
+
+    let log_path = std::path::Path::new(dir).join("mobileclaw.log");
+    let log_file = match OpenOptions::new().create(true).append(true).open(&log_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("[mobileclaw] failed to open log file '{}': {}", log_path.display(), e);
+            return;
+        }
+    };
+
+    let _ = fmt()
+        .with_env_filter(
+            EnvFilter::try_from_env("MCLAW_LOG")
+                .unwrap_or_else(|_| EnvFilter::new("debug")),
+        )
+        .with_writer(std::sync::Mutex::new(log_file))
+        .with_ansi(false)
+        .try_init();
 }
 
 /// An `AgentEvent` that can cross the FFI boundary.
@@ -192,7 +235,23 @@ impl AgentSession {
     ///
     /// If `skills_dir` is set, the directory must exist and be readable or `create()` will return an error.
     pub async fn create(config: AgentConfig) -> anyhow::Result<AgentSession> {
-        let memory = Arc::new(SqliteMemory::open(Path::new(&config.db_path)).await?);
+        // Initialize file logging before the first tracing call.
+        if let Some(ref dir) = config.log_dir {
+            init_file_logging(dir);
+        }
+
+        tracing::info!(
+            db_path = %config.db_path,
+            secrets_db = %config.secrets_db_path,
+            sandbox_dir = %config.sandbox_dir,
+            skills_dir = ?config.skills_dir,
+            has_log_dir = config.log_dir.is_some(),
+            "AgentSession::create starting"
+        );
+
+        let memory = Arc::new(SqliteMemory::open(Path::new(&config.db_path)).await
+            .inspect_err(|e| tracing::error!(error = %e, path = %config.db_path, "failed to open memory db"))?);
+        tracing::debug!(path = %config.db_path, "memory db opened");
 
         // Open secrets store with the AES-256 key derived from the platform keystore by Dart.
         let key: &[u8; 32] = config.encryption_key.as_slice().try_into()
@@ -202,8 +261,10 @@ impl AgentSession {
                 std::path::Path::new(&config.secrets_db_path).to_path_buf(),
                 key,
             )
-            .await?,
+            .await
+            .inspect_err(|e| tracing::error!(error = %e, path = %config.secrets_db_path, "failed to open secrets db"))?,
         );
+        tracing::debug!(path = %config.secrets_db_path, "secrets db opened");
 
         // Resolve LLM client: active provider from SecretStore, or legacy explicit config
         let llm: std::sync::Arc<dyn crate::llm::client::LlmClient> = {
@@ -212,7 +273,15 @@ impl AgentSession {
                 Some(id) => {
                     let provider_cfg = secrets.provider_load(&id).await?;
                     let api_key = secrets.provider_api_key(&id).await?;
-                    create_llm_client(&provider_cfg, api_key.as_deref())?
+                    tracing::info!(
+                        provider_id = %id,
+                        protocol = %format!("{:?}", provider_cfg.protocol),
+                        model = %provider_cfg.model,
+                        base_url = %provider_cfg.base_url,
+                        "using active provider from secrets db"
+                    );
+                    create_llm_client(&provider_cfg, api_key.as_deref())
+                        .inspect_err(|e| tracing::error!(provider_id = %id, error = %e, "failed to build LLM client"))?
                 }
                 None => {
                     // Backwards-compat: explicit api_key + model in AgentConfig
@@ -220,6 +289,7 @@ impl AgentSession {
                         .ok_or_else(|| anyhow::anyhow!("no active provider and no api_key in config"))?;
                     let model = config.model.as_deref()
                         .ok_or_else(|| anyhow::anyhow!("no active provider and no model in config"))?;
+                    tracing::info!(model = %model, "no active provider — using legacy api_key from AgentConfig");
                     let cfg = ProviderConfig::new(
                         "legacy".into(),
                         ProviderProtocol::Anthropic,
@@ -233,6 +303,7 @@ impl AgentSession {
 
         let mut registry = ToolRegistry::new();
         register_all_builtins(&mut registry);
+        tracing::debug!(tool_count = registry.list().len(), "builtins registered");
 
         let ctx = ToolContext {
             memory: memory.clone() as Arc<dyn Memory>, // Arc clone: both AgentSession.memory and AgentLoop's ToolContext must co-own the same memory instance
@@ -243,13 +314,18 @@ impl AgentSession {
         };
 
         let skills = if let Some(dir) = &config.skills_dir {
-            load_skills_from_dir(Path::new(dir)).await?
+            let loaded = load_skills_from_dir(Path::new(dir)).await
+                .inspect_err(|e| tracing::error!(dir = %dir, error = %e, "failed to load skills"))?;
+            tracing::info!(dir = %dir, count = loaded.len(), "skills loaded from dir");
+            loaded
         } else {
+            tracing::debug!("no skills_dir configured");
             vec![]
         };
         let skill_mgr = SkillManager::new(skills);
 
         let inner = AgentLoop::new(llm, registry, ctx, skill_mgr);
+        tracing::info!("AgentSession created successfully");
         Ok(AgentSession { inner, memory, secrets })
     }
 
@@ -257,7 +333,26 @@ impl AgentSession {
     pub async fn chat(&mut self, input: String, system: String) -> anyhow::Result<Vec<AgentEventDto>> {
         use crate::agent::loop_impl::AgentEvent;
 
-        let events = self.inner.chat(&input, &system).await?;
+        tracing::info!(
+            input_len = input.len(),
+            input_preview = %input.chars().take(120).collect::<String>(),
+            "AgentSession::chat called"
+        );
+
+        let events = self.inner.chat(&input, &system).await
+            .inspect_err(|e| tracing::error!(error = %e, "AgentSession::chat failed"))?;
+
+        let text_chars: usize = events.iter().map(|e| {
+            if let AgentEvent::TextDelta { text } = e { text.len() } else { 0 }
+        }).sum();
+        let tool_calls: usize = events.iter().filter(|e| matches!(e, AgentEvent::ToolCall { .. })).count();
+        tracing::info!(
+            event_count = events.len(),
+            text_chars,
+            tool_calls,
+            "AgentSession::chat completed"
+        );
+
         let dtos = events
             .into_iter()
             .map(|e| match e {
