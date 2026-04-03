@@ -1561,6 +1561,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mobileclaw-integration"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "mobileclaw-core",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "mockall"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["mobileclaw-core", "mobileclaw-cli"]
+members = ["mobileclaw-core", "mobileclaw-cli", "tests/integration"]
 
 [workspace.dependencies]
 tokio       = { version = "1", features = ["full"] }
