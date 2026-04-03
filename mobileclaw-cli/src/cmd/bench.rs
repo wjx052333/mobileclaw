@@ -43,6 +43,7 @@ struct InteractionRecord {
     context_stats: Option<ContextStatsRecord>,
     turn_summary: Option<String>,
     events_seen: Vec<String>,
+    tool_calls_made: Vec<String>,
     elapsed_ms: u128,
 }
 
@@ -323,6 +324,7 @@ pub async fn cmd_bench(
                 }),
                 turn_summary: turn_summary.clone(),
                 events_seen,
+                tool_calls_made: tool_call_names.clone(),
                 elapsed_ms: elapsed.as_millis(),
             };
             let line = serde_json::to_string(&record).context("serializing interaction record")?;

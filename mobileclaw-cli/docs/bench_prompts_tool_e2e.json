@@ -1,0 +1,190 @@
+{
+  "meta": {
+    "description": "30-turn end-to-end tool-call accuracy test for mobileclaw-cli",
+    "purpose": "Each turn has a fixed prompt designed to induce a specific tool call. The expected_tools field lists which tools MUST appear in the response. Analysis script checks actual vs expected and reports success rate.",
+    "tool_focus": "memory_search, memory_write, memory_get, memory_delete, file_read, file_write, http_get, time",
+    "note": "Prompts are deliberately unambiguous: they name the tool or describe a task that has exactly one correct tool response."
+  },
+  "turns": [
+    {
+      "id": 1,
+      "label": "time: what time is it",
+      "prompt": "What is the current Unix timestamp? Use the time tool to get it.",
+      "expected_tools": ["time"]
+    },
+    {
+      "id": 2,
+      "label": "memory_write: store a fact",
+      "prompt": "Please store the following note in memory at path 'e2e/test/fact1' with category 'user': 'The answer to life, the universe, and everything is 42.'",
+      "expected_tools": ["memory_write"]
+    },
+    {
+      "id": 3,
+      "label": "memory_get: retrieve stored fact",
+      "prompt": "Please retrieve the memory entry at path 'e2e/test/fact1' and tell me what it says.",
+      "expected_tools": ["memory_get"]
+    },
+    {
+      "id": 4,
+      "label": "memory_search: search for stored fact",
+      "prompt": "Search memory for entries related to 'life universe everything 42'. Use memory_search.",
+      "expected_tools": ["memory_search"]
+    },
+    {
+      "id": 5,
+      "label": "memory_write: store a second fact",
+      "prompt": "Store in memory at path 'e2e/test/fact2' with category 'user': 'Rust ownership rules prevent data races at compile time.'",
+      "expected_tools": ["memory_write"]
+    },
+    {
+      "id": 6,
+      "label": "memory_search: search for rust fact",
+      "prompt": "Use memory_search to find anything we stored about Rust ownership or compile time safety.",
+      "expected_tools": ["memory_search"]
+    },
+    {
+      "id": 7,
+      "label": "memory_write: store a third fact",
+      "prompt": "Store at path 'e2e/test/fact3', category 'user': 'SQLite WAL mode allows concurrent readers with one writer.'",
+      "expected_tools": ["memory_write"]
+    },
+    {
+      "id": 8,
+      "label": "memory_search: search for sqlite",
+      "prompt": "Search memory for 'SQLite WAL concurrent' using memory_search and summarize what you find.",
+      "expected_tools": ["memory_search"]
+    },
+    {
+      "id": 9,
+      "label": "memory_delete: delete first fact",
+      "prompt": "Please delete the memory entry at path 'e2e/test/fact1'.",
+      "expected_tools": ["memory_delete"]
+    },
+    {
+      "id": 10,
+      "label": "memory_get: confirm deletion",
+      "prompt": "Try to retrieve the memory entry at path 'e2e/test/fact1'. It should no longer exist — tell me what you get.",
+      "expected_tools": ["memory_get"]
+    },
+    {
+      "id": 11,
+      "label": "file_write: create a test file",
+      "prompt": "Write a file named 'e2e_test_output.txt' in the sandbox with content: 'Hello from e2e test turn 11.'",
+      "expected_tools": ["file_write"]
+    },
+    {
+      "id": 12,
+      "label": "file_read: read the test file",
+      "prompt": "Read the file 'e2e_test_output.txt' and tell me its contents.",
+      "expected_tools": ["file_read"]
+    },
+    {
+      "id": 13,
+      "label": "file_write: append to test file",
+      "prompt": "Write a new file named 'e2e_test_output2.txt' in the sandbox with content: 'Second file for e2e test turn 13.'",
+      "expected_tools": ["file_write"]
+    },
+    {
+      "id": 14,
+      "label": "file_read: read second test file",
+      "prompt": "Read the file 'e2e_test_output2.txt' from the sandbox.",
+      "expected_tools": ["file_read"]
+    },
+    {
+      "id": 15,
+      "label": "time: current time for timestamp",
+      "prompt": "I need to log an event. First get the current Unix timestamp using the time tool, then tell me what it is.",
+      "expected_tools": ["time"]
+    },
+    {
+      "id": 16,
+      "label": "memory_write: store timestamp",
+      "prompt": "Store in memory at path 'e2e/test/timestamp', category 'user': 'Event logged at turn 16 of e2e tool test.'",
+      "expected_tools": ["memory_write"]
+    },
+    {
+      "id": 17,
+      "label": "memory_search: keyword search",
+      "prompt": "Use memory_search to find entries about 'e2e tool test'. Limit to 5 results.",
+      "expected_tools": ["memory_search"]
+    },
+    {
+      "id": 18,
+      "label": "memory_write: store structured data",
+      "prompt": "Store in memory at path 'e2e/test/config', category 'user': 'max_retries=3, timeout_ms=5000, log_level=debug'",
+      "expected_tools": ["memory_write"]
+    },
+    {
+      "id": 19,
+      "label": "memory_get: retrieve config",
+      "prompt": "Get the memory entry at path 'e2e/test/config' and parse out the values.",
+      "expected_tools": ["memory_get"]
+    },
+    {
+      "id": 20,
+      "label": "memory_search: full-text search",
+      "prompt": "Search memory for 'max_retries timeout log_level' using memory_search.",
+      "expected_tools": ["memory_search"]
+    },
+    {
+      "id": 21,
+      "label": "file_write: write json file",
+      "prompt": "Write a file called 'e2e_data.json' in the sandbox with this exact content: {\"status\": \"ok\", \"turn\": 21}",
+      "expected_tools": ["file_write"]
+    },
+    {
+      "id": 22,
+      "label": "file_read: read json file",
+      "prompt": "Read 'e2e_data.json' from the sandbox and tell me the value of the 'status' field.",
+      "expected_tools": ["file_read"]
+    },
+    {
+      "id": 23,
+      "label": "memory_write + memory_search: store then search",
+      "prompt": "First, store in memory at path 'e2e/test/lang', category 'user': 'Preferred programming language: Rust for systems, Python for scripting.' Then, search memory for 'preferred programming language'.",
+      "expected_tools": ["memory_write", "memory_search"]
+    },
+    {
+      "id": 24,
+      "label": "time + memory_write: timestamp then store",
+      "prompt": "Get the current Unix timestamp, then store it in memory at path 'e2e/test/run_time', category 'user', with the content 'E2E run timestamp: <the unix timestamp you got>'.",
+      "expected_tools": ["time", "memory_write"]
+    },
+    {
+      "id": 25,
+      "label": "memory_search: search for e2e entries",
+      "prompt": "Search memory for 'e2e' to see all the test entries we've stored. Use memory_search with limit 20.",
+      "expected_tools": ["memory_search"]
+    },
+    {
+      "id": 26,
+      "label": "file_write + file_read: write then read",
+      "prompt": "Write a file 'e2e_verify.txt' with content 'round-trip verified at turn 26', then immediately read it back to confirm.",
+      "expected_tools": ["file_write", "file_read"]
+    },
+    {
+      "id": 27,
+      "label": "memory_delete: cleanup test entries",
+      "prompt": "Delete the memory entry at path 'e2e/test/fact2'.",
+      "expected_tools": ["memory_delete"]
+    },
+    {
+      "id": 28,
+      "label": "memory_search: verify deletion",
+      "prompt": "Search memory for 'Rust ownership compile time' to check if fact2 was deleted. Use memory_search.",
+      "expected_tools": ["memory_search"]
+    },
+    {
+      "id": 29,
+      "label": "time: final timestamp",
+      "prompt": "Get the current Unix timestamp one more time using the time tool. We're near the end of the test.",
+      "expected_tools": ["time"]
+    },
+    {
+      "id": 30,
+      "label": "memory_search: recall all e2e facts",
+      "prompt": "Do a final memory_search for 'e2e test' to list everything we've stored during this session.",
+      "expected_tools": ["memory_search"]
+    }
+  ]
+}

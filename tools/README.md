@@ -29,47 +29,72 @@ dump_memory.py [DB_PATH] [-n LIMIT] [-c CATEGORY] [-p PREFIX] [--json]
 ### 示例
 
 ```bash
-# 查看全部（human-readable）
 python3 tools/dump_memory.py build/memory.db
-
-# 最新 20 条
 python3 tools/dump_memory.py build/memory.db -n 20
-
-# 只看 conversation 类别（per-turn summaries）
 python3 tools/dump_memory.py build/memory.db -c conversation
-
-# 只看某个 session 的历史（按 session_id 前缀）
 python3 tools/dump_memory.py build/memory.db -p history/b115a1d3-
-
-# 最新 5 条 conversation
-python3 tools/dump_memory.py build/memory.db -c conversation -n 5
-
-# JSON 输出，再用 jq 过滤
-python3 tools/dump_memory.py build/memory.db --json | jq '.[].path'
 python3 tools/dump_memory.py build/memory.db -c conversation --json | jq '.[] | {path, content}'
-
-# 使用环境变量指定 data dir（与 mclaw 一致）
-python3 tools/dump_memory.py "$MCLAW_DATA_DIR/memory.db" -n 10
 ```
 
-### 输出格式（human-readable）
+---
+
+## e2e_tool_accuracy.sh + analyze_tool_e2e.py
+
+**端到端工具调用准确率测试**：跑 30 轮固定 prompt，检验 LLM 是否能准确调用指定工具，输出成功率。
+
+### 前置条件
+
+- `MCLAW_DATA_DIR` 环境变量已设置
+- Release 二进制已构建：`cargo build --release -p mobileclaw-cli`
+- Python 3.6+
+
+### 一键运行
+
+```bash
+export MCLAW_DATA_DIR=/home/wjx/agent_eyes/bot/mobileclaw/.claude/worktrees/feat+memory-optimization/build
+./tools/e2e_tool_accuracy.sh
+```
+
+如果未设置 `MCLAW_DATA_DIR`，脚本会打印提示并退出（exit 2）。
+
+### 单独分析已有日志
+
+```bash
+python3 tools/analyze_tool_e2e.py \
+    build/bench_tool_e2e.jsonl \
+    mobileclaw-cli/docs/bench_prompts_tool_e2e.json
+```
+
+### 输出示例
 
 ```
-memory.db: build/memory.db
-showing 5/94 rows (category=conversation)
-────────────────────────────────────────────────────────────────────────────────
-path     : history/b115a1d3-.../0000000069cf4e1f
-category : conversation
-created  : 2026-04-03 05:20:53 UTC
-content  : User: ... ↵ Summary: ...
-────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────
+  Tool-Call E2E Accuracy Report
+──────────────────────────────────────────────────────────────────────────────
+   ID  Label                               Expected                Actual                  Result
+──────────────────────────────────────────────────────────────────────────────
+    1  time: what time is it               time                    time                    PASS
+    2  memory_write: store a fact          memory_write            memory_write            PASS
+    3  memory_get: retrieve stored fact    memory_get              memory_get              PASS
+   ...
+──────────────────────────────────────────────────────────────────────────────
+
+  Total turns evaluated : 30
+  Passed                : 29
+  Failed                : 1
+  Success rate          : 96.7%
 ```
 
-### 路径规律
+### Prompts 文件
 
-| 类别 | 路径格式 | 写入时机 |
-|------|---------|---------|
-| `conversation` | `history/{session_id}/{timestamp_hex}` | 每轮 `chat()` 结束后自动写入 |
-| 其他 | 由调用方决定 | 通过 `memory_store` API 手动写入 |
+`mobileclaw-cli/docs/bench_prompts_tool_e2e.json` — 30 条固定 prompt，每条带 `expected_tools` 字段。
 
-`timestamp_hex` 为 Unix 秒的 16 位小写十六进制（`{:016x}`），可直接排序。
+工具覆盖：`time` / `memory_write` / `memory_get` / `memory_search` / `memory_delete` / `file_write` / `file_read`
+
+### 退出码
+
+| 退出码 | 含义 |
+|--------|------|
+| 0 | 所有期望工具全部被调用（100%） |
+| 1 | 有至少一轮缺失期望工具 |
+| 2 | `MCLAW_DATA_DIR` 未设置 |
