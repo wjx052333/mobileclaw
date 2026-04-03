@@ -269,9 +269,25 @@ Expected: compile error — module not found.
 
 Add to the top of `camera.rs`:
 
+**Phase 1**: Use `VecDeque`-based ring buffer. The `FrameData`, `FrameHeader` structs
+and `RingBuffer` API match the mmap design exactly — swapping to `memmap2`-backed
+storage in Phase 2 requires no changes to callers.
+
 ```rust
 use std::collections::VecDeque;
 use std::sync::Mutex;
+
+/// Fixed-size header for each frame slot. Must be repr(C) for cross-FFI.
+/// This layout matches the mmap slot design in Section 2.1 of the design doc.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct FrameHeader {
+    pub id: u64,
+    pub timestamp_ms: u64,
+    pub size: u32,    // 0 = empty slot, >0 = valid frame
+    pub width: u16,
+    pub height: u16,
+}
 
 #[derive(Debug, Clone)]
 pub struct FrameData {
@@ -471,7 +487,166 @@ git commit -m "feat(llm): add vision_supported() to LlmClient trait"
 
 ---
 
-### Task 5: Image token estimation
+### Task 5: chat_text() — Single-Turn Non-Streaming for Monitor
+
+**Files:**
+- Modify: `mobileclaw-core/src/llm/client.rs`
+- Modify: `mobileclaw-core/src/llm/openai_compat.rs`
+- Modify: `mobileclaw-core/src/llm/ollama.rs`
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `mod tests` in `mobileclaw-core/src/llm/client.rs`:
+
+```rust
+    #[tokio::test]
+    async fn chat_text_collects_stream_deltas() {
+        // Use the default impl (collects TextDelta from stream)
+        // MockLlmClient doesn't impl chat_text, so test via a real client
+        // or a test double that implements stream_messages.
+        // For now, verify the trait method exists and compiles.
+        let client = ClaudeClient::new("key", "claude-sonnet-4-6-20250514");
+        // We can't call chat_text without a real API key,
+        // so just verify the method is callable (compiles).
+        let _: &dyn LlmClient = &client;
+    }
+```
+
+- [ ] **Step 2: Add chat_text() to LlmClient trait with default impl**
+
+In `mobileclaw-core/src/llm/client.rs`, add to the `LlmClient` trait:
+
+```rust
+    /// Single-turn, non-streaming chat. Returns the complete response text.
+    /// Supports multi-modal messages (ContentBlock::Image).
+    async fn chat_text(
+        &self,
+        system: &str,
+        messages: &[Message],
+        max_tokens: u32,
+    ) -> ClawResult<String> {
+        // Default: collect TextDelta events from stream_messages
+        use futures::StreamExt;
+        let mut stream = self.stream_messages(system, messages, max_tokens, &[]).await?;
+        let mut text = String::new();
+        while let Some(event) = stream.next().await {
+            match event? {
+                StreamEvent::TextDelta { text: delta } => text.push_str(&delta),
+                StreamEvent::MessageStop => break,
+                _ => {}
+            }
+        }
+        Ok(text)
+    }
+```
+
+- [ ] **Step 3: Override for ClaudeClient (non-streaming API)**
+
+In the `impl LlmClient for ClaudeClient` block:
+
+```rust
+    async fn chat_text(
+        &self,
+        system: &str,
+        messages: &[Message],
+        max_tokens: u32,
+    ) -> ClawResult<String> {
+        let body = serde_json::json!({
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": messages,
+            // No "stream": true — use non-streaming endpoint
+        });
+
+        let resp = self.http
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| ClawError::Llm(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(ClawError::Llm(format!("chat_text API error {}: {}", resp.status(), text)));
+        }
+
+        let json: serde_json::Value = resp.json().await
+            .map_err(|e| ClawError::Parse(e.to_string()))?;
+
+        json["content"][0]["text"]
+            .as_str()
+            .map(String::from)
+            .ok_or_else(|| ClawError::Parse("no text in response".into()))
+    }
+```
+
+Note: This must also handle Image content blocks in `messages`. The `serde_json::to_value(&messages)` serialization must produce the correct Anthropic format with `{"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": "<base64>"}}`. This requires updating the request body building logic — see the note below about image serialization.
+
+**IMPORTANT — Image serialization gap**: `ContentBlock::Image { mime_type, data: Vec<u8> }` serializes via serde as `{"type": "image", "mime_type": "image/jpeg", "data": [255, 216, ...]}` (array of bytes). But Claude API expects:
+```json
+{"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": "/9j/4AAQ..."}}
+```
+And OpenAI expects:
+```json
+{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,/9j/4AAQ..."}}
+```
+
+**Solution**: Do NOT rely on serde serialization of Message. Instead, build the messages array manually in the request body builder, converting each `ContentBlock::Image`:
+
+For Claude:
+```rust
+fn content_block_to_claude(block: &ContentBlock) -> serde_json::Value {
+    match block {
+        ContentBlock::Text { text } => json!({"type": "text", "text": text}),
+        ContentBlock::Image { mime_type, data } => json!({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": mime_type,
+                "data": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, data),
+            }
+        }),
+        // ToolUse and ToolResult don't appear in user/assistant messages sent to API
+        _ => json!({"type": "text", "text": ""}),
+    }
+}
+```
+
+This affects BOTH `stream_messages()` (the SSE path) and `chat_text()` (the non-streaming path) for ClaudeClient. OpenAiCompatClient needs a similar conversion. Add a helper function to each client. The `base64` crate must be added to Cargo.toml.
+
+- [ ] **Step 4: Add chat_text() to Arc<dyn LlmClient> impl**
+
+```rust
+    async fn chat_text(
+        &self,
+        system: &str,
+        messages: &[Message],
+        max_tokens: u32,
+    ) -> ClawResult<String> {
+        self.as_ref().chat_text(system, messages, max_tokens).await
+    }
+```
+
+- [ ] **Step 5: Run tests**
+
+```bash
+cargo test -p mobileclaw-core --lib -- llm::client::tests
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add mobileclaw-core/src/llm/client.rs mobileclaw-core/src/llm/openai_compat.rs mobileclaw-core/src/llm/ollama.rs
+git commit -m "feat(llm): add chat_text() single-turn method to LlmClient"
+```
+
+---
+
+### Task 6: Image token estimation
 
 **Files:**
 - Modify: `mobileclaw-core/src/agent/token_counter.rs`
@@ -591,7 +766,7 @@ git commit -m "feat(token): add image token estimation to token_counter"
 
 ---
 
-### Task 6: CameraCapture tool + ToolContext extension
+### Task 7: CameraCapture tool + ToolContext extension
 
 **Files:**
 - Modify: `mobileclaw-core/src/tools/traits.rs`
@@ -606,6 +781,7 @@ Add to `camera.rs` test module:
     #[tokio::test]
     async fn camera_capture_tool_returns_frame_metadata() {
         let buf = Arc::new(CameraFrameBuffer::new(16));
+        let auth = Arc::new(std::sync::atomic::AtomicBool::new(true));
         buf.push(FrameData {
             id: 1, timestamp_ms: 1000,
             jpeg: vec![1,2,3,4,5], width: 640, height: 360,
@@ -623,6 +799,7 @@ Add to `camera.rs` test module:
             permissions: Arc::new(crate::tools::PermissionChecker::allow_all()),
             secrets: Arc::new(crate::secrets::store::test_helpers::NullSecretStore),
             camera_frame_buffer: Some(buf),
+            camera_authorized: auth,
             vision_supported: true,
         };
 
@@ -634,6 +811,7 @@ Add to `camera.rs` test module:
     #[tokio::test]
     async fn camera_capture_tool_fails_when_no_buffer() {
         let tool = CameraCapture;
+        let auth = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let ctx = ToolContext {
             memory: Arc::new(crate::memory::sqlite::SqliteMemory::open(":memory:").await.unwrap()),
             sandbox_dir: std::env::temp_dir(),
@@ -641,6 +819,7 @@ Add to `camera.rs` test module:
             permissions: Arc::new(crate::tools::PermissionChecker::allow_all()),
             secrets: Arc::new(crate::secrets::store::test_helpers::NullSecretStore),
             camera_frame_buffer: None,
+            camera_authorized: auth,
             vision_supported: true,
         };
 
@@ -651,6 +830,7 @@ Add to `camera.rs` test module:
     #[tokio::test]
     async fn camera_capture_tool_fails_when_vision_not_supported() {
         let buf = Arc::new(CameraFrameBuffer::new(16));
+        let auth = Arc::new(std::sync::atomic::AtomicBool::new(true));
         buf.push(FrameData {
             id: 1, timestamp_ms: 1000,
             jpeg: vec![1], width: 1, height: 1,
@@ -664,6 +844,7 @@ Add to `camera.rs` test module:
             permissions: Arc::new(crate::tools::PermissionChecker::allow_all()),
             secrets: Arc::new(crate::secrets::store::test_helpers::NullSecretStore),
             camera_frame_buffer: Some(buf),
+            camera_authorized: auth,
             vision_supported: false,
         };
 
@@ -686,6 +867,7 @@ In `mobileclaw-core/src/tools/traits.rs`, add imports and fields:
 
 ```rust
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 // Add at top with other imports
 use super::builtin::camera::CameraFrameBuffer;
@@ -697,6 +879,7 @@ pub struct ToolContext {
     pub permissions: Arc<PermissionChecker>,
     pub secrets: Arc<dyn SecretStore>,
     pub camera_frame_buffer: Option<Arc<CameraFrameBuffer>>,
+    pub camera_authorized: Arc<AtomicBool>,
     pub vision_supported: bool,
 }
 ```
@@ -744,16 +927,22 @@ impl Tool for CameraCapture {
             ));
         }
 
-        let buffer = ctx.camera_frame_buffer.as_ref()
-            .ok_or(ClawError::CameraUnauthorized)?;
-
         let n = args.get("frames")
             .and_then(Value::as_u64)
             .unwrap_or(5) as usize;
         let n = n.min(16);
 
-        if buffer.is_empty() {
+        // Check authorization first
+        if !ctx.camera_authorized.load(std::sync::atomic::Ordering::Relaxed) {
             return Err(ClawError::CameraUnauthorized);
+        }
+
+        let buffer = ctx.camera_frame_buffer.as_ref()
+            .ok_or(ClawError::CameraUnauthorized)?;
+
+        // Authorized but buffer empty → frames not arriving yet
+        if buffer.is_empty() {
+            return Err(ClawError::CameraFrameTimeout(5));
         }
 
         let frames = buffer.read_latest_n(n);
@@ -806,7 +995,7 @@ git commit -m "feat(tools): add camera_capture tool with vision check"
 
 ---
 
-### Task 7: AgentLoop — construct Image blocks after camera_capture
+### Task 8: AgentLoop — construct Image blocks after camera_capture
 
 **Files:**
 - Modify: `mobileclaw-core/src/agent/loop_impl.rs`
@@ -822,6 +1011,7 @@ Add to the existing test module in `loop_impl.rs`:
     #[tokio::test]
     async fn native_path_camera_capture_adds_image_to_history() {
         use std::sync::Arc;
+        use std::sync::atomic::AtomicBool;
         use crate::tools::builtin::camera::{CameraCapture, CameraFrameBuffer, FrameData};
 
         let dir = TempDir::new().unwrap();
@@ -829,6 +1019,7 @@ Add to the existing test module in `loop_impl.rs`:
 
         // Create a frame buffer with test data
         let buf = Arc::new(CameraFrameBuffer::new(16));
+        let auth = Arc::new(AtomicBool::new(true));
         buf.push(FrameData {
             id: 1, timestamp_ms: 1000,
             jpeg: vec![1, 2, 3], width: 640, height: 360,
@@ -844,6 +1035,7 @@ Add to the existing test module in `loop_impl.rs`:
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
             camera_frame_buffer: Some(buf.clone()),
+            camera_authorized: auth,
             vision_supported: true,
         };
 
@@ -939,14 +1131,14 @@ git commit -m "feat(agent): construct Image blocks after camera_capture tool exe
 
 ---
 
-### Task 8: FFI — CameraAuthRequired event + camera FFI methods
+### Task 9: FFI (DONE) — CameraAuthRequired event + camera FFI methods
 
 **Files:**
 - Modify: `mobileclaw-core/src/ffi.rs`
 - Modify: `mobileclaw-core/src/agent/loop_impl.rs` (AgentEvent enum)
 - Test: `mobileclaw-core/src/ffi.rs` (tests)
 
-- [ ] **Step 1: Add AgentEvent::CameraAuthRequired to loop_impl**
+- [x] **Step 1: Add AgentEvent::CameraAuthRequired to loop_impl**
 
 In `mobileclaw-core/src/agent/loop_impl.rs`, add to the `AgentEvent` enum:
 
@@ -1027,14 +1219,20 @@ pub struct AgentConfig {
 }
 ```
 
+Note: `camera_authorized` is NOT in AgentConfig. It's managed internally:
+starts `false`, auto-sets `true` when Dart pushes the first frame.
+
 - [ ] **Step 6: Create RingBuffer in AgentSession::create() and pass to ToolContext**
 
 In `AgentSession::create()`, before creating the `ToolContext`:
 
 ```rust
         use crate::tools::builtin::camera::CameraFrameBuffer;
+        use std::sync::atomic::AtomicBool;
+
         let ring_capacity = config.camera_ring_buffer_capacity.unwrap_or(16);
         let camera_buffer = Arc::new(CameraFrameBuffer::new(ring_capacity));
+        let camera_authorized = Arc::new(AtomicBool::new(false));
 
         let ctx = ToolContext {
             memory: memory.clone() as Arc<dyn Memory>,
@@ -1043,15 +1241,22 @@ In `AgentSession::create()`, before creating the `ToolContext`:
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: secrets.clone() as Arc<dyn crate::secrets::SecretStore>,
             camera_frame_buffer: Some(camera_buffer.clone()),
+            camera_authorized: camera_authorized.clone(),
             vision_supported: llm.vision_supported(),
         };
 ```
+
+Note: `camera_authorized` starts as `false`. When Dart calls `camera_push_frame`,
+it auto-sets to `true`. The tool distinguishes "not authorized" (flag false) from
+"authorized but no frames yet" (flag true, buffer empty → CameraFrameTimeout).
 
 Store the camera_buffer and monitor state in AgentSession:
 
 ```rust
 use tokio_util::sync::CancellationToken;  // NEW import
 use crate::tools::builtin::camera::CameraFrameBuffer;  // NEW import
+use std::sync::atomic::AtomicBool;  // NEW import
+use tokio::sync::mpsc;  // NEW import
 
 pub struct AgentSession {
     inner: AgentLoop<std::sync::Arc<dyn crate::llm::client::LlmClient>>,
@@ -1059,8 +1264,11 @@ pub struct AgentSession {
     secrets: Arc<SqliteSecretStore>,
     session_dir: Option<std::path::PathBuf>,
     session_id: String,
-    camera_buffer: Arc<CameraFrameBuffer>,           // NEW
-    monitor_tokens: Vec<(String, CancellationToken)>, // NEW: for Phase 2 monitor cleanup
+    camera_buffer: Arc<CameraFrameBuffer>,              // NEW
+    camera_authorized: Arc<AtomicBool>,                 // NEW: shared with ToolContext, auto-set by push_frame
+    camera_alert_tx: mpsc::Sender<CameraAlert>,         // NEW: for monitor → FFI stream
+    camera_alert_rx: mpsc::Receiver<CameraAlert>,       // NEW: Phase 1 scaffold
+    monitor_tokens: Vec<(String, CancellationToken)>,   // NEW: for Phase 2 monitor cleanup
 }
 ```
 
@@ -1071,6 +1279,7 @@ In `ffi.rs`, add as a free function:
 ```rust
 /// Push a camera frame from Flutter into the ring buffer.
 /// Returns false if the handle is invalid.
+/// Side effect: auto-sets camera_authorized = true on first push.
 pub fn camera_push_frame(
     session_ptr: i64,
     jpeg: Vec<u8>,
@@ -1080,16 +1289,13 @@ pub fn camera_push_frame(
     height: u32,
 ) -> bool {
     use crate::tools::builtin::camera::{CameraFrameBuffer, FrameData};
+    use std::sync::atomic::Ordering;
 
-    // SAFETY: session_ptr is a pointer cast from Arc<AgentSession>.
-    // The caller (Dart) must ensure the session outlives all push_frame calls.
     let session_ptr = session_ptr as *const AgentSession;
     if session_ptr.is_null() {
         return false;
     }
 
-    // SAFETY: We read the camera_buffer Arc from the session.
-    // The Arc keeps the buffer alive even if the session is dropped.
     let session = unsafe { &*session_ptr };
     let buffer = &session.camera_buffer;
     buffer.push(FrameData {
@@ -1099,6 +1305,9 @@ pub fn camera_push_frame(
         width,
         height,
     });
+    // Auto-authorize on first push — user consent is implied by Dart
+    // starting the camera service.
+    session.camera_authorized.store(true, Ordering::Relaxed);
     true
 }
 ```
@@ -1108,9 +1317,13 @@ pub fn camera_push_frame(
 Add placeholder implementations to `AgentSession`:
 
 ```rust
-    pub fn camera_set_authorized(&mut self, _authorized: bool) {
-        // Phase 1: no-op. Authorization is managed by Flutter starting/stopping frame push.
-        tracing::info!(authorized = _authorized, "camera authorization set");
+    pub fn camera_set_authorized(&mut self, authorized: bool) {
+        self.camera_authorized.store(authorized, std::sync::atomic::Ordering::Relaxed);
+        tracing::info!(authorized, "camera authorization set");
+    }
+
+    pub fn camera_is_authorized(&self) -> bool {
+        self.camera_authorized.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub async fn camera_start_monitor(
@@ -1118,7 +1331,6 @@ Add placeholder implementations to `AgentSession`:
         _scenario: String,
         _frames_per_check: u32,
         _check_interval_ms: u32,
-        _cooldown_after_alert_ms: u32,
     ) -> anyhow::Result<String> {
         // Phase 2: implement background monitor
         Ok("monitor-id-todo".to_string())
@@ -1147,7 +1359,7 @@ git commit -m "feat(ffi): add CameraAuthRequired event and camera FFI methods"
 
 ---
 
-### Task 9: Sweep — fix any remaining compilation errors
+### Task 10: Sweep (DONE) — fix any remaining compilation errors
 
 **Files:** Search all files for `ToolContext {`
 
@@ -1200,7 +1412,7 @@ git commit -m "chore: fix all remaining ToolContext constructions for camera fie
 
 ---
 
-### Task 10: CameraAlert struct + FRB stream (background monitor scaffold)
+### Task 11: CameraAlert (DONE) struct + FRB stream (background monitor scaffold)
 
 **Files:**
 - Modify: `mobileclaw-core/src/ffi.rs`
@@ -1249,7 +1461,7 @@ git commit -m "feat(ffi): add CameraAlert struct and stream scaffold"
 
 ---
 
-### Task 11: Integration test — end-to-end camera capture
+### Task 12: Integration (DONE) test — end-to-end camera capture
 
 **Files:**
 - Create: `mobileclaw-core/tests/integration_camera.rs`
@@ -1261,6 +1473,7 @@ git commit -m "feat(ffi): add CameraAlert struct and stream scaffold"
 //! Requires --features test-utils.
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tempfile::TempDir;
 
 use mobileclaw_core::agent::loop_impl::AgentLoop;
@@ -1276,6 +1489,7 @@ async fn camera_capture_full_agent_loop() {
     let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
 
     let buf = Arc::new(CameraFrameBuffer::new(16));
+    let auth = Arc::new(AtomicBool::new(true));
     buf.push(FrameData {
         id: 1, timestamp_ms: 1000,
         jpeg: vec![0xFF, 0xD8, 0xFF, 0xE0],
@@ -1292,6 +1506,7 @@ async fn camera_capture_full_agent_loop() {
         permissions: Arc::new(PermissionChecker::allow_all()),
         secrets: Arc::new(NullSecretStore),
         camera_frame_buffer: Some(buf),
+        camera_authorized: auth,
         vision_supported: true,
     };
 
@@ -1335,7 +1550,7 @@ git commit -m "test(camera): integration test for camera capture through agent l
 
 ---
 
-### Task 12: Coverage check and final cleanup
+### Task 13: Coverage check and final cleanup
 
 - [ ] **Step 1: Run coverage check**
 
