@@ -41,6 +41,7 @@ struct InteractionRecord {
     response_text: String,
     history_after: Vec<HistoryEntry>,
     context_stats: Option<ContextStatsRecord>,
+    turn_summary: Option<String>,
     events_seen: Vec<String>,
     elapsed_ms: u128,
 }
@@ -78,6 +79,7 @@ struct TurnMetrics {
     response_chars: usize,
     pruning_fired: bool,
     tool_calls: usize,
+    summary_stored: bool,
 }
 
 // ─── RSS helper ──────────────────────────────────────────────────────────────
@@ -98,6 +100,7 @@ fn rss_kib() -> u64 {
 
 // ─── Main command ─────────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)] // CLI boundary function: each arg maps to one --flag
 pub async fn cmd_bench(
     data_dir: &Path,
     prompts_file: &Path,
@@ -106,6 +109,7 @@ pub async fn cmd_bench(
     dry_run: bool,
     interaction_log: Option<&Path>,
     turn_delay_ms: u64,
+    max_session_messages: u32,
 ) -> Result<()> {
     init_logging();
 
@@ -125,8 +129,8 @@ pub async fn cmd_bench(
     println!("║            mobileclaw context-window stress bench            ║");
     println!("╠══════════════════════════════════════════════════════════════╣");
     println!("║ {:<62}║", bench.meta.description.chars().take(62).collect::<String>());
-    println!("║ turns: {:>3}   prune threshold ≈ {:>8} tokens{:>13}║",
-        turns.len(), bench.meta.pruning_threshold_approx, "");
+    println!("║ turns: {:>3}   token threshold ≈ {:>8}   msg limit: {:>3}{:>5}║",
+        turns.len(), bench.meta.pruning_threshold_approx, max_session_messages, "");
     if dry_run {
         println!("║ *** DRY RUN — prompts printed, no LLM calls made ***{:>11}║", "");
     }
@@ -144,8 +148,8 @@ pub async fn cmd_bench(
     }
 
     // ── Open session ──────────────────────────────────────────────────────────
-    println!("Opening agent session...");
-    let mut session = open_session(data_dir).await?;
+    println!("Opening agent session (max_session_messages={})...", max_session_messages);
+    let mut session = open_session(data_dir, Some(max_session_messages)).await?;
     let system = system.unwrap_or_else(|| {
         "You are a senior Rust systems engineer. Answer questions thoroughly with code examples. \
          Be detailed — this is a technical deep-dive session."
@@ -234,6 +238,7 @@ pub async fn cmd_bench(
                     response_chars: 0,
                     pruning_fired: false,
                     tool_calls: 0,
+                    summary_stored: false,
                 });
                 continue;
             }
@@ -241,12 +246,13 @@ pub async fn cmd_bench(
 
         let elapsed = t_start.elapsed();
 
-        // Extract ContextStats, response text, and event type names
+        // Extract ContextStats, response text, TurnSummary, and event type names
         let mut ctx_stats: Option<(usize, usize, usize, usize, usize)> = None;
         let mut response_chars: usize = 0;
         let mut response_text = String::new();
         let mut events_seen: Vec<String> = Vec::new();
         let mut tool_call_names: Vec<String> = Vec::new();
+        let mut turn_summary: Option<String> = None;
         for event in &events {
             match event {
                 AgentEventDto::TextDelta { text } => {
@@ -278,6 +284,10 @@ pub async fn cmd_bench(
                     events_seen.push("ToolCall".to_string());
                 }
                 AgentEventDto::ToolResult { .. } => events_seen.push("ToolResult".to_string()),
+                AgentEventDto::TurnSummary { summary } => {
+                    turn_summary = Some(summary.clone());
+                    events_seen.push("TurnSummary".to_string());
+                }
                 AgentEventDto::Done => events_seen.push("Done".to_string()),
             }
         }
@@ -311,6 +321,7 @@ pub async fn cmd_bench(
                     history_len: hl,
                     pruning_threshold: pt,
                 }),
+                turn_summary: turn_summary.clone(),
                 events_seen,
                 elapsed_ms: elapsed.as_millis(),
             };
@@ -347,6 +358,12 @@ pub async fn cmd_bench(
             );
         }
 
+        if let Some(ref summary) = turn_summary {
+            let preview: String = summary.chars().take(100).collect();
+            let ellipsis = if summary.len() > 100 { "…" } else { "" };
+            println!("       ✍ [summary]: {}{}", preview, ellipsis);
+        }
+
         all_metrics.push(TurnMetrics {
             id: turn.id,
             label: turn.label.clone(),
@@ -359,6 +376,7 @@ pub async fn cmd_bench(
             response_chars,
             pruning_fired,
             tool_calls,
+            summary_stored: turn_summary.is_some(),
         });
     }
 
@@ -378,11 +396,13 @@ pub async fn cmd_bench(
     println!("{}", "═".repeat(106));
     println!("  BENCH SUMMARY");
     println!("{}", "─".repeat(106));
+    let total_summaries: usize = all_metrics.iter().filter(|m| m.summary_stored).count();
     println!("  Total turns         : {}", all_metrics.len());
     println!("  Total wall time     : {:.1}s", total_elapsed.as_secs_f64());
     println!("  Avg turn latency    : {}ms", avg_elapsed_ms);
     println!("  Peak token estimate : {} tokens", max_tokens);
     println!("  Total tool calls    : {}", total_tool_calls);
+    println!("  Turn summaries      : {}/{}", total_summaries, all_metrics.len());
     println!(
         "  Pruning events      : {} (turns: {})",
         prune_events.len(),

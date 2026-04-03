@@ -25,7 +25,7 @@ pub async fn cmd_email_add_from_env(
     let imap_host = smtp_host.replace("smtp.", "imap.");
     let imap_port: i32 = 993;
 
-    let session = open_session(data_dir).await?;
+    let session = open_session(data_dir, None).await?;
     session.email_account_save(
         EmailAccountDto {
             id: account_id.to_string(),
@@ -57,7 +57,7 @@ pub async fn cmd_email_add(
     username: String,
     password: String,
 ) -> Result<()> {
-    let session = open_session(data_dir).await?;
+    let session = open_session(data_dir, None).await?;
     session.email_account_save(
         EmailAccountDto {
             id: id.clone(),
@@ -82,7 +82,7 @@ pub async fn cmd_email_list(_data_dir: &Path) -> Result<()> {
 }
 
 pub async fn cmd_email_delete(data_dir: &Path, id: String) -> Result<()> {
-    let session = open_session(data_dir).await?;
+    let session = open_session(data_dir, None).await?;
     session.email_account_delete(id.clone()).await?;
     println!("Deleted email account '{id}'.");
     Ok(())

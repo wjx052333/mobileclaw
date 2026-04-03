@@ -50,7 +50,11 @@ pub fn init_logging() {
 /// ANTHROPIC_API_KEY env var → api_key; ANTHROPIC_MODEL env var → model override.
 /// If neither is set (both None), mobileclaw-core will load the active provider
 /// configured via `mclaw provider set-active` from secrets.db.
-pub async fn open_session(data_dir: &Path) -> Result<AgentSession> {
+///
+/// `max_session_messages`: count-based prune trigger. When history reaches this many
+/// messages the oldest unprotected ones are dropped and replaced with a summary prefix.
+/// None → core default (100). Pass Some(40) for bench stress testing.
+pub async fn open_session(data_dir: &Path, max_session_messages: Option<u32>) -> Result<AgentSession> {
     let (memory_db, secrets_db) = prepare_data_dir(data_dir)?;
 
     let config = AgentConfig {
@@ -65,6 +69,7 @@ pub async fn open_session(data_dir: &Path) -> Result<AgentSession> {
         log_dir: None,  // CLI uses init_logging() directly; core need not re-initialize
         session_dir: None,
         context_window: None,
+        max_session_messages,
     };
 
     AgentSession::create(config).await

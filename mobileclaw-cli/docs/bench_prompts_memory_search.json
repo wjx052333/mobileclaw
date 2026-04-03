@@ -1,0 +1,266 @@
+{
+  "meta": {
+    "description": "50-turn memory system stress test for mobileclaw-cli (continuation from bench_prompts_50turns.json)",
+    "purpose": "Focus on memory_search tool usage across long context windows. Simulate real production scenarios where developers need to recall architectural decisions, debug via historical context, and resolve incidents by searching memory. Tests memory persistence, recall accuracy, and coherence after count-based context prune. Also validates that per-turn summaries (Conversation category) are searchable via memory_search.",
+    "context_window": 200000,
+    "buffer_tokens": 13000,
+    "pruning_threshold_approx": 187000,
+    "total_estimated_tokens": 450000,
+    "expected_pruning_cycles": 2,
+    "count_prune_note": "With --max-session-messages=40 (bench default), count prune fires at ~turn 18. Stored turn summaries (category=conversation, path=history/{session_id}/...) are searchable via memory_recall with category='conversation'.",
+    "scenario": "mobileclaw-cli post-launch: incidents, memory recalls, architecture reviews",
+    "tool_focus": "memory_search, memory_write, and cross-referencing historical decisions"
+  },
+  "turns": [
+    {
+      "id": 1,
+      "label": "Post-launch incident: startup time regression (search phase)",
+      "prompt": "We're now 8 months into mobileclaw-cli production. A user reports: \"The binary is taking 4 seconds to start now, was 2 seconds 3 months ago.\"\n\nBefore diving into profiling, let me search our memory for the startup optimization decisions we made.\n\nCould you search our memory for entries about:\n1. Early optimization attempts (turns 9, 15)\n2. The daemon architecture decision (turn 9)\n3. Performance baseline discussions\n\nOnce you find those, tell me what we decided *not* to do, and why we deferred those optimizations. This will help me understand if this regression is expected growth or a real regression."
+    },
+    {
+      "id": 2,
+      "label": "Memory search reveals deferred optimization",
+      "prompt": "Based on what you find in memory, document:\n1. What optimization opportunities were deferred in the original design?\n2. What was our rationale for keeping startup simple?\n3. Did we accept the ~2 second baseline as \"good enough\"?\n\nNow, the new data point: 4 seconds in production (2x regression). Questions:\n- Is this expected given the 3x increase in feature set?\n- Should we revisit the daemon architecture decision?\n- Or should we investigate if there's a specific blocker (e.g., new skill loading, encryption key derivation)?\n\nUse memory_search to find when we added encryption key derivation (turn 18-20 range?) and what security decisions we made there."
+    },
+    {
+      "id": 3,
+      "label": "Session corruption incident investigation",
+      "prompt": "A second production incident: 3 developers report session corruption after a hard system crash. This reminds me of an incident we had during development.\n\nMemory search request:\n1. Find the incident where sessions got corrupted during concurrent access (turn 43 in the original benchmark)\n2. What was our post-mortem decision? Did we implement file locking?\n3. What's the current state of WAL mode and crash recovery?\n\nBased on the memory search results, should we:\nA) Implement daily backups (turn 13 mentioned this)\nB) Add application-level checksums (turn 13)\nC) Enforce WAL mode as non-configurable\nD) Document the risk and accept occasional corruption for a CLI tool\n\nWhat did our earlier decision-making process favor?"
+    },
+    {
+      "id": 4,
+      "label": "Performance regression root cause analysis",
+      "prompt": "I've isolated the 4-second startup regression. It's the skill discovery phase:\n\nBefore: 200 ms (5 built-in skills)\nNow: 900 ms (15 built-in skills + 8 custom skills from users)\n\nMemory search for:\n1. Our skill loading strategy (turn 7, 33)\n2. Did we ever propose lazy-loading skills?\n3. What was the decision to load skills eagerly?\n\nNow I'm proposing:\n- Cache skill metadata (YAML parse results) in SQLite\n- Load only on first CLI invocation of the month\n- Invalidate cache when skill.md changes\n\nBefore implementing, should I search memory for why we deferred this before? Was there a security or correctness reason?"
+    },
+    {
+      "id": 5,
+      "label": "Memory write: recording new optimization decision",
+      "prompt": "I've decided to implement skill metadata caching. Before I code, let me document this decision in memory:\n\nPlease write to memory:\n{\n  \"path\": \"decisions/skill_cache_metadata\",\n  \"type\": \"project\",\n  \"content\": \"# Skill Metadata Caching Decision (2026-04-08)\\n\\n## Problem\\nSkill discovery phase now takes 900ms (was 200ms). Root cause: 23 skill.yaml files being parsed on every CLI invocation.\\n\\n## Solution\\nImplement SQLite-backed skill metadata cache:\\n- Cache keys: skill_name, mtime\\n- TTL: infinite (manual invalidation on changes)\\n- Lazy-load: only parse YAML on cache miss\\n\\n## Metrics\\nExpected: ~50ms skill discovery (1.8x speedup from 900ms to 500ms post-optimization).\\n\\n## Trade-offs\\n- Added complexity: skill cache invalidation\\n- Deferred from: Turn 15 (lazy-loading discussion)\\n- Revisited because: production regression, not theoretical\"\n}\n\nThis way, future developers (or us in 6 months) can search and understand why we made this choice."
+    },
+    {
+      "id": 6,
+      "label": "Incident: memory_search timeout on 100k turn history",
+      "prompt": "A user reports: \"I've been using mobileclaw-cli for 3 months. When I run `memory_search`, it hangs for 30 seconds.\"\n\nThis is concerning because memory_search should be O(N) where N = number of memory entries, not O(messages_in_history).\n\nMemory search request:\n1. Find the original memory system design (turn 11, 26)\n2. What FTS5 configuration did we choose?\n3. Did we implement any indexing or tokenizer options?\n\nI suspect the issue is:\n- FTS5 trigram tokenizer (good for CJK, expensive for English)\n- Or: no PRAGMA index_info optimization\n- Or: full-text search is hitting ALL memory entries instead of just recent ones\n\nBased on the memory, what was our original design choice and why might it be slow now?"
+    },
+    {
+      "id": 7,
+      "label": "Performance: memory_search optimization decision",
+      "prompt": "I've profiled memory_search:\n\n```\nCurrent: SELECT * FROM memory_fts WHERE content MATCH '\"query\"' -- 30 seconds\nProposed: Create compound index on (type, updated_at) + FTS5 query -- should be <100ms\n```\n\nBefore optimizing, let me search memory for:\n1. Original FTS5 configuration decisions\n2. Any discussions about search performance\n3. What trade-offs we accepted (e.g., trigram for CJK support)\n\nQuestion: Should the FTS5 optimization risk breaking CJK search (trigram → full text)? Or should we keep the slow trigram approach to maintain CJK support?\n\nSearch memory for any mention of CJK, tokenizer, or international text support in the original design."
+    },
+    {
+      "id": 8,
+      "label": "Security audit finding: session encryption key derivation",
+      "prompt": "SOC-2 auditor found: \"Your session encryption uses a hardcoded placeholder key.\" (From turn 18, we put a compile_error! guard.)\n\nMemory search request:\n1. What was our Phase 1 vs Phase 3 plan for key management?\n2. Did we document why we deferred platform keystore integration?\n3. What security risks did we accept in Phase 1?\n\nLooking at the audit comment, they expect:\n- Per-user key derivation (not shared across users on the machine)\n- System keystore integration (Keychain/Windows DPAPI/libsecret)\n- Zero hardcoded keys in release builds\n\nBased on the memory, was this deferred as intentional MVP, or was it an oversight? Should we prioritize this for Phase 3?"
+    },
+    {
+      "id": 9,
+      "label": "Architecture review: stateless vs persistent sessions revisited",
+      "prompt": "A user is asking: \"Why did you change from sessions-first to stateless-first? Can I go back to the old behavior?\"\n\nThis is a great chance to search memory and remind myself of the journey:\n1. Find the user research that led us to pivot (turn 30, 32)\n2. What did the survey reveal about actual usage patterns?\n3. What metrics improved after we made sessions optional?\n\nMemory search for: \"stateless\", \"user research\", \"session usage\"\n\nAfter finding that context, I can explain:\n- Why we pivoted\n- Why the pivot was right (with metrics)\n- How to achieve stateless-like behavior if they really want it\n\nDo the memory results confirm that stateless was the right call?"
+    },
+    {
+      "id": 10,
+      "label": "Team growth: new developers don't know project history",
+      "prompt": "We've hired 2 new Rust developers. They're asking:\n1. \"Why is the CLI a separate crate from mobileclaw-core?\"\n2. \"Why do we use SQLite instead of RocksDB?\"\n3. \"Why did we not use a daemon from the start?\"\n\nThese are great questions, but answering them requires project history. Memory search request:\n1. Find the \"Project structure\" decision (turns 1-3)\n2. Find the \"SQLite selection\" decision (turn 3)\n3. Find the \"Daemon architecture\" discussion (turn 9, 15)\n\nFor each, extract:\n- The original requirement\n- Trade-offs considered\n- Why we made that choice\n- What constraints made other options invalid\n\nMemory should be the authoritative source for onboarding new team members."
+    },
+    {
+      "id": 11,
+      "label": "Memory pollution: too many entries, hard to find signal",
+      "prompt": "After 8 months, our memory table has grown to 247 entries:\n\n```sql\nSELECT type, COUNT(*) FROM memory GROUP BY type;\n-- user:        32\n-- project:     84\n-- feedback:    95\n-- reference:   36\n```\n\nA developer searched for \"error handling\" and got 43 hits, most irrelevant.\n\nMemory search request:\n1. Find all entries tagged as \"decision/\" (if we used that pattern)\n2. Find entries about \"error handling\" specifically\n3. Find the highest-value entries (probably feedback type?\n\nQuestions:\n- Should we implement a retention policy (e.g., delete entries older than 6 months)?\n- Should we split memory into multiple databases (one per project phase)?\n- Should we add tags/categories to improve search precision?\n\nMemory search: look for \"memory_organization\", \"retention_policy\" — did we discuss this?"
+    },
+    {
+      "id": 12,
+      "label": "Context corruption: does pruning preserve memory coherence?",
+      "prompt": "I'm worried about something. When context gets pruned (oldest messages removed), does the agent still understand the memory entries that reference those messages?\n\nExample:\nMemory entry (saved in turn 20):\n```\n## Why we chose SQLite\nDiscussed in turn 3: trade-off between [1] RocksDB (fast), [2] SQLite (simpler), [3] Postgres (overkill)\n```\n\nNow it's turn 50+, the context window pruned away turn 3. When the agent searches memory and finds this entry, it has no context for the reference.\n\nMemory search request:\n1. Find entries that reference specific turn numbers or architectural discussions\n2. Are they self-contained (explain the decision fully)?\n3. Or do they rely on context that might have been pruned?\n\nShould I add a validation rule: \"Memory entries must be self-contained, no forward/backward references to conversation history\"?"
+    },
+    {
+      "id": 13,
+      "label": "Feature request: memory branching for alternate architectures",
+      "prompt": "A user asks: \"I want to explore a different architecture (e.g., daemon-first instead of CLI-first) for my fork. Can I branch my memory?\"\n\nThis is interesting. Right now memory is append-only. We could support:\n1. Branch points: save current memory state, then diverge\n2. Merge: combine learnings from two branches\n3. Revert: go back to a past memory checkpoint\n\nBefore designing this, search memory for:\n1. Any discussions about memory mutability or history\n2. Decisions about \"append-only\" design\n3. User requests for memory branching (probably turn 45+)\n\nIs this a real need, or over-engineering?"
+    },
+    {
+      "id": 14,
+      "label": "Metrics: which memory entries are actually used?",
+      "prompt": "I want to understand which memory entries provide the most value. Let me add instrumentation:\n\n```rust\npub async fn memory_search(query: &str) -> (Vec<Entry>, Stats) {\n    let start = Instant::now();\n    let results = search_internal(query).await?;\n    Stats {\n        query_time_ms: start.elapsed().as_millis(),\n        hit_count: results.len(),\n        entry_types: results.iter().map(|e| e.type).collect(),\n        ...\n    }\n}\n```\n\nMemory search request:\n1. Find entries that discuss \"observability\" or \"metrics\"\n2. Did we ever decide to add search metrics?\n3. What would measuring \"memory hit rate\" tell us?\n\nThe idea: track which memory entries are searched most often. Delete low-hit entries, expand high-hit ones.\n\nDid we discuss this in turn 49 or so?"
+    },
+    {
+      "id": 15,
+      "label": "Integration with Git: bring context from issues into memory",
+      "prompt": "We're adding Git integration (turn 45-46). Now there's a question: when someone runs:\n\n```bash\nmclaw chat --from-pr 123 \"review my changes\"\n```\n\nShould we automatically save the PR description to memory? That way, future queries can find it.\n\nMemory search:\n1. Find the Git integration discussion (turns 45-46)\n2. Did we discuss memory integration with external sources?\n3. What's our stance on \"external data → memory\"?\n\nTrade-offs:\n- Pro: PR context is preserved across sessions\n- Con: Memory becomes polluted with temp data (every PR gets saved)\n- Alternative: Use memory hints system (low-priority memory, auto-evicted)\n\nWhat's our philosophy on memory lifecycle?"
+    },
+    {
+      "id": 16,
+      "label": "User study: memory helps or hurts?",
+      "prompt": "We did a 4-week user study: 10 developers use mobileclaw-cli with memory enabled vs. memory disabled.\n\nResults:\n- Memory enabled: 15% faster task completion (p=0.08, not significant)\n- Memory search is used: 2.3 times per session on average\n- Users forget to call memory_search: 60% of the time it could have helped\n\nMemory search request:\n1. Find the original memory system design goals (turn 11)\n2. Find the memory_write decisions (turn 5)\n3. Find any metrics we defined for success\n\nQuestioning whether memory is worth the complexity. Should we:\nA) Make memory less explicit (auto-save insights, less user action)\nB) Add guidance: \"Did you want to search memory?\" prompts\nC) Deprecate memory for CLI, keep it for Flutter app only\nD) Keep as-is (niche feature for power users)\n\nWhat did the original design assume about memory usage?"
+    },
+    {
+      "id": 17,
+      "label": "Scaling concern: memory FTS5 on 10k entries",
+      "prompt": "We're scaling to 50 developers. Extrapolating:\n- 247 entries per developer × 50 devs = 12.3k entries\n- Worst case: 1 global memory database (all entries)\n\nMemory search:\n1. Did we decide on per-session or global memory? (turn 26, 41)\n2. What was the schema design (session_id FK vs global)?\n3. Did we anticipate scaling to 10k+ entries?\n\nCurrent FTS5 approach might not scale. Options:\n1. Per-user SQLite databases (partition by user)\n2. Migrate to a search service (Elasticsearch, Meilisearch)\n3. Implement memory archival (move old entries out of hot DB)\n4. Split memory by type (separate FTS5 tables)\n\nMemory search for: \"scaling\", \"partition\", \"per-user\" — did we discuss this?"
+    },
+    {
+      "id": 18,
+      "label": "Post-mortem: why did the stateless pivot work?",
+      "prompt": "Looking back, the stateless-first pivot was the biggest design win. But I want to understand why more deeply.\n\nMemory search request:\n1. Find the original session-centric architecture (turns 1-5)\n2. Find the user research that showed real usage (turn 30)\n3. Find the metrics after the pivot (turn 32)\n\nFor a post-mortem writeup, I need to document:\n- What assumption was wrong? (Sessions would be heavily used)\n- What did we learn from users? (They want quick single-turn chats)\n- How did metrics change? (15 invocations/week up from 3)\n\nThe lesson for future projects: test assumptions early with users, don't design for imagined use cases.\n\nMemory should have the evidence trail."
+    },
+    {
+      "id": 19,
+      "label": "Vendor decision: stay with Anthropic or diversify?",
+      "prompt": "OpenAI released GPT-4.5 with 512k context window. Mistral released 700k Mixtral. Users are asking: \"Why are we still recommending Anthropic?\"\n\nMemory search request:\n1. Find the provider selection decisions (turns 2, 4, 17)\n2. What trade-offs did we document?\n3. Did we lock in to Anthropic, or keep the abstraction open?\n\nLooking at the trait-based provider system, we kept it flexible. But the docs and defaults favor Anthropic (Claude API is easiest to set up).\n\nShould we:\nA) Add GPT-4.5 as recommended option\nB) Add cost comparison logic to memory\nC) Let users choose based on their needs\nD) Stick with Anthropic (lowest operational overhead)\n\nWhat was our original reasoning?"
+    },
+    {
+      "id": 20,
+      "label": "Reflecting on 8 months: what did memory actually capture?",
+      "prompt": "8 months of development, 247 memory entries. Let me do a high-level review.\n\nMemory search request:\n1. List all entries by type: user/project/feedback/reference\n2. For feedback entries: are they *actionable*?\n3. For project entries: are they still *relevant*?\n4. For reference entries: are they still *valid* (links not dead)?\n\nI want to do a memory audit:\n- Remove stale entries (outdated decisions)\n- Consolidate duplicates (multiple entries about same topic)\n- Add missing context (decisions we forgot to document)\n\nBased on the audit, document:\n1. Health of memory system (% stale, % useful)\n2. Coverage gaps (what should we have documented but didn't)\n3. Process improvements (should memory be auto-saved more?)\n\nWhat does the memory reveal about our documentation discipline?"
+    },
+    {
+      "id": 21,
+      "label": "Incident: memory_write causes database lock under load",
+      "prompt": "Production alert: CLI hangs for 5-10 seconds on memory_write. This happens when multiple developers run `mclaw chat` simultaneously (after team standup).\n\nRoot cause hypothesis:\n- SQLite in WAL mode can have 1 writer at a time\n- Multiple CLI processes all writing memory simultaneously\n- Some block, causing perception of slowness\n\nMemory search:\n1. Find concurrency discussions (turn 19)\n2. Did we address multi-process memory writes?\n3. What did we decide about locking strategy?\n\nLooking at the logs, it seems we chose \"let SQLite handle it\" and accepted sequential writes. But under load, this causes 5-10s latency spikes.\n\nOptions:\n1. Add explicit locks (in-memory or file-based) to serialize memory writes\n2. Switch memory to async queue (batch writes, reduce contention)\n3. Accept the latency as cost of shared memory\n4. Move memory out of process (daemon service, shared instance)\n\nWhat was our original decision for concurrent writes?"
+    },
+    {
+      "id": 22,
+      "label": "Architecture proposal: memory daemon for shared team",
+      "prompt": "Given the memory write contention issue, I'm proposing a separate memory daemon:\n\n```\nmobileclaw-cli → memory-daemon (REST API)\n                      ↓\n                  SQLite (shared)\n```\n\nBefore designing this, search memory for:\n1. Daemon architecture discussion (turn 9, 15)\n2. Why we rejected daemon in original design\n3. Any prior proposals for shared team infrastructure\n\nKey questions:\n- Is this repeating the same mistake (over-engineering)?\n- Or is this an inevitable scaling pattern?\n- Should we implement this for v2.0, or sooner?\n\nMemory should have the rationale for the original CLI-only design. Does that still apply?"
+    },
+    {
+      "id": 23,
+      "label": "Skill library sharing: memory as source of truth",
+      "prompt": "A user contributed a custom skill (rate_limiter). They want to share it with their team. But we haven't documented:\n1. How to package a skill\n2. How to validate a skill\n3. How to distribute skills\n\nMemory search:\n1. Find skill extension decisions (turns 7, 33)\n2. Did we design for community skill sharing?\n3. What did we defer about versioning (turn 29)?\n\nIdea: use memory to document skill specs:\n```\npath: skills/rate_limiter/spec.md\ntype: reference\ncontent: \"# Rate Limiter Skill v1.0\n- Input: [code, context]\n- Output: [rate_limit_implementation]\n- Tools used: [code_search, memory_write]\"\n```\n\nThen, developers can search memory for skill specs, validate contributions against them.\n\nDid we design memory to support this, or is this a new use case?"
+    },
+    {
+      "id": 24,
+      "label": "Cost analysis: memory_search ROI",
+      "prompt": "Let me calculate the ROI of the memory system:\n\nCosts:\n- SQLite disk usage: ~50 MB / 1k entries\n- FTS5 index: ~2x storage\n- Memory_search latency: 30-200 ms (affects user experience)\n- Developer time to write entries: ~5 min per entry\n\nBenefits:\n- User study showed 15% task speedup (not significant)\n- Developers report \"helps understand decisions\"\n- Reduced duplicate work (\"oh, we already tried that\")\n\nMemory search:\n1. Find cost/benefit discussions (probably not explicitly documented)\n2. Find user feedback about memory value\n3. Find any A/B test results\n\nAre we maintaining a system with uncertain ROI? Should we:\nA) Invest more (improve UI, auto-save, smart search)\nB) Maintain as-is (low-overhead, useful for some)\nC) Wind down (remove memory, use wikis instead)\nD) Migrate to external system (Obsidian, Notion)\n\nWhat does memory tell us about the decision?"
+    },
+    {
+      "id": 25,
+      "label": "Team retrospective: memory lessons learned",
+      "prompt": "End of 8-month Phase 1. Let me document the memory system's role in our development.\n\nMemory search:\n1. Find all \"feedback\" entries about decisions\n2. Find all \"project\" entries about milestones\n3. Find entries that reference other entries (intra-memory linking)\n\nFor the retrospective:\n- What decisions benefited most from memory?\n- What would we do differently?\n- Should memory be expanded (to Flutter, VS Code extension) or consolidated?\n\nThe goal: write a Phase 2 memory spec based on what we learned.\n\nAfter searching, write a summary entry:\n```\npath: retrospectives/phase_1_memory_review\ntype: project\ncontent: \"# Phase 1 Memory System Review (2026-04-15)\\n\\n## What worked\\n- Preserved decision rationale\\n- Helped new team members understand context\\n\\n## What didn't work\\n- Low adoption (60% of search opportunities missed)\\n- Stale entries accumulate\\n\\n## Phase 2 recommendations\\n- [Based on findings]\\n- [Based on findings]\"\n```\n\nMemory search should reveal patterns in what we valued."
+    },
+    {
+      "id": 26,
+      "label": "New incident: memory_search returns stale data",
+      "prompt": "A developer searched for \"session corruption fix\" and got results from 3 months ago. They implemented a fix based on the old memory entry, but the fix was already applied in production.\n\nThis reveals: **memory entries can become stale and misleading.**\n\nMemory search:\n1. Find all entries about session corruption (turn 3, 13, 43)\n2. When were they last updated?\n3. Do they conflict with each other?\n\nProposed fix: add a \"last_verified\" timestamp to memory entries. When displaying search results, flag stale entries.\n\n```\nMEMORY ENTRY (last verified 8 weeks ago — may be outdated)\n```\n\nBefore implementing, search for any earlier discussions about memory staleness. Did we anticipate this?"
+    },
+    {
+      "id": 27,
+      "label": "Security: memory contains sensitive information",
+      "prompt": "An audit found: our memory entries include API keys, email addresses, database credentials.\n\nExample entry:\n```\npath: setup/email_config.md\ncontent: \"For SMTP, use smtp.gmail.com:587 with user@gmail.com and password Pa$$word123\"\n```\n\nMemory search:\n1. Find all entries that mention credentials, keys, or sensitive data\n2. Are they encrypted?\n3. Should they be in memory at all?\n\nMemory is stored in SQLite, which CAN be encrypted, but we didn't encrypt it.\n\nOptions:\n1. Encrypt memory at rest (add AES layer)\n2. Redact secrets from memory on export\n3. Move secrets to a separate secrets store\n4. Audit and delete all sensitive memory entries\n\nMemory search for: \"encryption\", \"security\", \"secrets\" — what was our original security stance?"
+    },
+    {
+      "id": 28,
+      "label": "Collaboration challenge: merging memory from two branches",
+      "prompt": "Two developers worked on separate feature branches for 4 weeks. Each accumulated memory entries.\n\nBranch A: 50 new entries (about feature_x)\nBranch B: 45 new entries (about feature_y)\n\nWhen they merge, how do we merge memory?\n\nOptions:\n1. Keep all entries (union) — but now memory has 95 new entries in one commit\n2. Rebase one developer's memory (lose history from one branch)\n3. Create a \"merge commit\" in memory that references both branches\n4. Don't merge memory (each developer has their own)\n\nMemory search:\n1. Find branching/merging discussions (turn 13)\n2. Did we design memory to be branch-aware?\n3. What's our philosophy on distributed memory?\n\nThis is getting complex. Maybe memory shouldn't be version-controlled with code?"
+    },
+    {
+      "id": 29,
+      "label": "Proposal: memory as first-class project artifact",
+      "prompt": "Currently, memory is secondary (stored in ~/.mobileclaw/). Should memory be committed to the repo?\n\nPros of repo-based memory:\n- Version controlled\n- Visible to all team members\n- Shareable in code review\n- Backup in git history\n\nCons:\n- More merge conflicts (memory + code both changing)\n- Slower CI (extra files to process)\n- Privacy (some entries shouldn't be in public repo)\n- Coupling: memory and code in same commit\n\nMemory search:\n1. Find decisions about memory location (should have entries by now)\n2. Did we consider repo-based memory in turn 3?\n3. What trade-offs did we document?\n\nShould we move memory from ~/.mobileclaw/memory/ to ./docs/memory/ in the repo?"
+    },
+    {
+      "id": 30,
+      "label": "Looking ahead: memory for cross-project learning",
+      "prompt": "We're planning mobileclaw-flutter next. Should it share memory with mobileclaw-cli?\n\nIdea: a unified memory system across all mobileclaw products:\n```\nmobileclaw-common/memory/\n├── architecture/\n├── security/\n├── performance/\n└── lessons_learned/\n```\n\nEach product (CLI, Flutter, VS Code extension) can query and contribute.\n\nMemory search:\n1. Find architecture decisions that apply to all products (turns 1-10)\n2. Find decisions specific to CLI only\n3. Find decisions that should apply to Flutter too\n\nBefore designing unified memory, should we consolidate Phase 1 memory? Are there 50 entries that are universally relevant vs. 200 that are CLI-specific?"
+    },
+    {
+      "id": 31,
+      "label": "Incident: memory_search timeout during context pruning",
+      "prompt": "Strange timing: memory_search started timing out (60+ seconds) right after we hit the pruning threshold (187k tokens).\n\nHypothesis: when context is pruned, message history shrinks, but memory stays large. The agent then tries to search memory for historical context that was pruned away.\n\nMemory search:\n1. Find the context pruning design (context_manager.rs, turn 23)\n2. What messages are protected from pruning?\n3. Are there any memory references that depend on pruned messages?\n\nThe root issue: memory_search results reference turn numbers or message indices that are now invalid after pruning.\n\nShould we:\nA) Add a memory cleanup pass after pruning?\nB) Store absolute timestamps instead of relative references in memory?\nC) Accept that memory becomes partially stale after pruning?\nD) Prevent pruning of messages that are referenced in memory?\n\nWhat does memory tell us about the interaction between pruning and memory?"
+    },
+    {
+      "id": 32,
+      "label": "Design: context-aware memory_search",
+      "prompt": "Proposal: memory_search should be context-aware. When searching, prioritize entries related to the current task.\n\nExample:\n```bash\nmclaw chat --memory-context bug-fix \"Why are WebSocket connections failing?\"\n```\n\nSystem should search for memory entries tagged with \"bug-fix\" or \"networking\" preferentially.\n\nMemory search:\n1. Find the tagging/categorization discussions (turn 11, 14)\n2. Did we design memory with hierarchies or tags?\n3. Can we retrofit categories without breaking existing entries?\n\nI'd need to:\n- Add a \"category\" field to memory schema\n- Backfill 247 existing entries with categories\n- Modify memory_search to use category in ranking\n\nBefore implementing, search memory for any prior discussions about memory organization or filtering."
+    },
+    {
+      "id": 33,
+      "label": "Team knowledge silos: who knows what?",
+      "prompt": "With 5 developers on the team, knowledge is siloed:\n- Dev A: knows all about memory system\n- Dev B: knows all about security\n- Dev C: knows skill system\n- etc.\n\nMemory search:\n1. Find entries authored by each developer (if we tracked that)\n2. Are there topics with only 1 expert?\n3. Which topics have consensus/multiple perspectives?\n\nIdeal: memory should redistribute knowledge. If Dev A wrote the memory_search optimization, Dev C should be able to search and understand it.\n\nDoes our memory system facilitate knowledge sharing, or does it just capture individual perspectives?\n\nSearch for: entries about onboarding, team knowledge, cross-functional understanding."
+    },
+    {
+      "id": 34,
+      "label": "Metrics: memory system health dashboard",
+      "prompt": "I want to build a dashboard that shows memory system health:\n\n```\nMemory Dashboard (mobileclaw-cli Phase 1)\n├── Total entries: 247\n├── By type:\n│   ├── user: 32\n│   ├── project: 84\n│   ├── feedback: 95\n│   └── reference: 36\n├── Avg age: 12.3 weeks\n├── Stale entries (>8 weeks): 43 (17.4%)\n├── Search hits (past 4 weeks): 128\n├── Most searched: [decision/stateless_pivot, decision/sqlite_vs_rocksdb]\n└── Coverage: [good, gaps in cloud deployment]\n```\n\nMemory search:\n1. Which 5 entries have the most search hits?\n2. Which 5 have zero search hits?\n3. Which type of entries are most valuable (feedback, project, user, reference)?\n\nAfter analyzing, should we double down on high-value entry types?"
+    },
+    {
+      "id": 35,
+      "label": "Compliance: memory audit trail",
+      "prompt": "SOC-2 audit asks: \"Do you have an audit trail for memory modifications?\"\n\nCurrently: no. We just have current state in SQLite.\n\nProposal: add audit logging to memory_write:\n```\nCREATE TABLE memory_audit (\n    entry_id TEXT,\n    action TEXT,  -- 'create', 'update', 'delete'\n    old_content TEXT,\n    new_content TEXT,\n    timestamp TIMESTAMP,\n    user_id TEXT\n);\n```\n\nMemory search:\n1. Find security-related decisions (turn 8, 18, 27)\n2. Did we ever discuss auditability?\n3. What's our current logging story?\n\nBefore adding audit logging, should we search memory for any prior discussions about immutability or change tracking?"
+    },
+    {
+      "id": 36,
+      "label": "Scaling: memory database replication",
+      "prompt": "If we expand to 50 developers, the shared memory database becomes a bottleneck (and single point of failure).\n\nOptions:\n1. SQLite with git-based sync (each dev has a copy, sync via git)\n2. Central database with replication (Postgres + streaming replication)\n3. Distributed consensus (CRDTs in Rust, like Automerge)\n4. Accept single point of failure (keep simple, add backup strategy)\n\nMemory search:\n1. Find the decision about per-user vs global memory (turn 26, 41)\n2. Did we anticipate scaling challenges?\n3. What was our philosophy: centralized or distributed?\n\nBefore choosing architecture, search memory for any discussions about team scale, multi-site deployment, or offline-first design."
+    },
+    {
+      "id": 37,
+      "label": "UX study: how do users interact with memory_search?",
+      "prompt": "We conducted a UX study: watched 6 developers use mobileclaw-cli for 30 minutes each.\n\nObservations:\n1. Nobody proactively used memory_search (unprompted)\n2. When we suggested memory_search, they found it useful\n3. Search queries were often vague (\"remind me about the decision\")\n4. Results were sometimes overwhelming (50+ hits for \"bug\")\n\nMemory search:\n1. Find the original memory_search design (turn 11, 26)\n2. Did we design for discoverability?\n3. Should memory_search be more prominent in the UI?\n\nProposals:\n1. Add \"Did you know? Search memory for...\" hints\n2. Implement smart ranking (recent + most-hit entries first)\n3. Add filters (by type, by author, by recency)\n\nDoes memory currently have features for these? Or are we asking too much from a simple FTS5 search?"
+    },
+    {
+      "id": 38,
+      "label": "Integration: memory in error messages",
+      "prompt": "When the CLI encounters an error, we could suggest memory searches:\n\n```\nError: Failed to load skill module\n\n💡 Did you hit this before? Try: mclaw memory_search \"skill loading failed\"\n```\n\nMemory search:\n1. Find all past skill-related issues in memory\n2. Are there solution patterns documented?\n3. Can we categorize errors → memory searches?\n\nThis requires:\n- Error classification system\n- Mapping errors to memory search queries\n- Integration in error handler\n\nBefore building this, search memory for any error handling discussions or patterns. Did we design memory to be queryable from error contexts?"
+    },
+    {
+      "id": 39,
+      "label": "Reflection: memory as communication",
+      "prompt": "An interesting realization: memory isn't just documentation. It's a form of asynchronous communication.\n\nWhen Dev A writes:\n```\npath: decisions/memory_search_optimization\ncontent: \"We chose to index by (type, updated_at) because the original trigram tokenizer was too slow. This trades off CJK support for performance. If you need CJK, revert to commit abcd123.\"\n```\n\nDev B (reading 2 months later) understands not just the decision, but the trade-off. This prevents redoing the same decision.\n\nMemory search:\n1. Find entries that explicitly document trade-offs\n2. Which entries explain \"why not\" (rejected alternatives)?\n3. Are these the most valuable entries?\n\nShould we encourage more \"trade-off\" documentation in memory?"
+    },
+    {
+      "id": 40,
+      "label": "Memory as contract: what can future versions break?",
+      "prompt": "We're planning v2.0 with breaking changes (e.g., migrate from SQLite to Postgres for memory).\n\nQuestion: does memory represent a contract we can't break?\n\nIf a user's memory is built on the assumption that memory_search uses SQLite FTS5, what happens when we switch to Postgres full-text search?\n\nMemory search:\n1. Find all entries about memory implementation details\n2. Are there entries that assume specific architecture?\n3. Should memory entries be abstraction-agnostic?\n\nDesign question: should memory entries describe *what* (requirement) or *how* (implementation)?\n\nIf we optimize for \"what\", we can change implementation later without breaking user memory."
+    },
+    {
+      "id": 41,
+      "label": "Post-incident review: memory helped or hindered?",
+      "prompt": "We had 5 production incidents over 8 months:\n1. Startup time regression (turn 1) — **memory helped** (found deferred optimization)\n2. Session corruption (turn 3) — **memory helped** (found prior incident analysis)\n3. memory_search timeout (turn 6) — **unclear** (we knew the issue, memory just confirmed)\n4. Encryption key hardcoding (turn 8) — **memory helped** (found Phase 1 justification)\n5. memory_write contention (turn 21) — **memory didn't help** (no prior analysis)\n\nMemory search:\n1. For each incident, find all related memory entries\n2. Did memory entries provide actionable guidance?\n3. For incident #5, why was there no memory for concurrent writes?\n\nShould we improve incident response by:\nA) Adding a \"post-incident\" memory template?\nB) Linking error messages to memory search?\nC) Including memory search in runbook?\nD) All of the above?"
+    },
+    {
+      "id": 42,
+      "label": "Philosophy: should all decisions live in memory?",
+      "prompt": "We've been capturing major decisions in memory. But should we capture *all* decisions?\n\nCurrently documented in memory: architectural choices (SQLite, stateless-first, trait-based providers)\nCurrently NOT in memory: code review discussions, small bug fixes, build optimization\n\nMemory search:\n1. What's the distribution of entry types and sizes?\n2. Are there clear patterns about what gets documented?\n3. Are there categories that are suspiciously empty?\n\nQuestion: is there a size/scope threshold below which we shouldn't document decisions?\n\nFor example:\n- Big decision: \"Migrate from Clap to Argh CLI framework\" → should be in memory\n- Small decision: \"Change variable name from `temp` to `temp_buf`\" → shouldn't be in memory\n\nWhat's our criteria?"
+    },
+    {
+      "id": 43,
+      "label": "Opportunity: use memory to find synergies across products",
+      "prompt": "We're building 3 products: CLI, Flutter app, VS Code extension.\n\nMemory search:\n1. Find all architecture decisions from Phase 1 (CLI)\n2. Which decisions are reusable for Flutter/VS Code?\n3. Which require product-specific changes?\n\nExample reusable decision: trait-based provider system (works for all 3 products)\nExample product-specific: session persistence (matters for mobile/flutter differently than CLI)\n\nIf memory is unified across all products, developers can discover:\n- \"Oh, we already solved authentication this way in the CLI\"\n- \"But we need to adapt for mobile\"\n\nThis prevents duplicate work and creates consistency."
+    },
+    {
+      "id": 44,
+      "label": "Memory debt: cleanup and consolidation",
+      "prompt": "After 8 months, our 247 memory entries have some problems:\n1. Duplicate entries (same decision documented twice)\n2. Conflicting entries (\"we chose X\" vs \"we rejected X\" with unclear date)\n3. Stale entries (referring to code that no longer exists)\n4. Orphaned entries (relevant to a feature we deprecated)\n\nMemory search:\n1. Find duplicate entries (search for key terms and identify multiples)\n2. Find conflicting entries about the same topic\n3. Find entries with broken references (link rot)\n\nBefore Phase 2, should we spend a week doing memory debt cleanup?\n- Consolidate duplicates\n- Resolve conflicts with timestamps\n- Delete orphaned entries\n- Add cross-references (linking related entries)\n\nWhat would a healthy memory system look like after cleanup?"
+    },
+    {
+      "id": 45,
+      "label": "Future-proofing: memory format and portability",
+      "prompt": "What if we want to export memory to a different system (Notion, Obsidian, wiki)?\n\nCurrently: memory is stored in SQLite BLOB fields (proprietary format).\n\nOptions:\n1. Export memory as Markdown files (standard, portable, versionable)\n2. Export as YAML (structured, but less readable)\n3. Keep SQLite, add export API\n4. Store memory natively as Markdown, use SQLite only for indexing\n\nMemory search:\n1. Find discussions about memory format/storage (turn 3, maybe?)\n2. Did we anticipate portability needs?\n3. What format did we choose and why?\n\nShould we refactor memory storage to be format-agnostic?"
+    },
+    {
+      "id": 46,
+      "label": "Security: memory access control (multi-tenant)",
+      "prompt": "When we expand to 50 developers, should we implement access control on memory entries?\n\nUse cases:\n1. Public memory: shared across all developers\n2. Team memory: shared within a team (web, mobile, infra)\n3. Private memory: individual developer notes\n\nMemory search:\n1. Find any prior discussions about memory visibility\n2. Did we assume all memory is public?\n3. Are there entries that should be private (bug reports, performance issues)?\n\nAdding access control requires:\n- Schema change (add owner, visibility fields)\n- Query filtering (only return entries user can see)\n- Audit logging (track who accessed what)\n\nBefore implementing, should we search memory for why we didn't add this initially?"
+    },
+    {
+      "id": 47,
+      "label": "Adoption: making memory_search easier to discover",
+      "prompt": "User study showed: nobody uses memory_search unprompted (turn 37).\n\nIdeas to increase adoption:\n1. Add `--help` section that mentions memory_search\n2. In status output, suggest \"Run 'mclaw memory_search <topic>' to learn more\"\n3. Interactive mode: after each chat, ask \"Want to save this to memory?\"\n4. Integrate memory into skill matching (skills can suggest memory entries)\n\nMemory search:\n1. Find any prior discussions about UI/UX\n2. Were there design decisions about how to surface memory?\n3. Did we consider memory as part of the CLI experience, or separate?\n\nShould memory be:\nA) Completely optional (power users only)\nB) Integrated throughout CLI (everyone uses it)\nC) Suggested in context (hints at decision points)\nD) Mandatory (every chat archives something)\n\nWhat does memory tell us about our original intent?"
+    },
+    {
+      "id": 48,
+      "label": "Sustainability: can a single developer maintain memory system?",
+      "prompt": "We want to hire a documentation lead who owns the memory system.\n\nQuestions about sustainability:\n1. How much time does memory maintenance actually take?\n2. What happens if the memory lead leaves?\n3. Is memory too specialized/fragile to be a single person's responsibility?\n\nMemory search:\n1. Find all entries authored by different team members\n2. Are entries mostly from one person (bus factor risk)?\n3. What's the distribution of ownership?\n\nFor sustainability:\n- Should memory writing be a required part of every PR?\n- Should memory be reviewed like code?\n- Should we have memory tests (ensuring entries are accurate)?\n\nBefore expanding memory usage, search for discussions about process and automation."
+    },
+    {
+      "id": 49,
+      "label": "Looking back at 50 turns: has memory justified itself?",
+      "prompt": "We've done 50 turns of heavy memory usage (turns 1-50, lots of memory_search calls).\n\nMemory search:\n1. How many times have we searched memory across all 50 turns?\n2. What were the most useful searches?\n3. Were there searches that returned irrelevant results?\n4. Did memory enable faster problem-solving?\n\nFor the project retrospective, I need to answer:\n- **Did memory save time?** (Can we quantify \"without memory, this would have taken 2x longer\"?)\n- **Did memory prevent mistakes?** (Were there incidents avoided because of memory?)\n- **What's the maintenance cost?** (Time to write entries, cleanup, search tuning)\n- **ROI?** (Did we get value commensurate with cost?)\n\nMemory search should reveal whether we made the right call adding memory to mobileclaw."
+    },
+    {
+      "id": 50,
+      "label": "Planning Phase 2: memory system evolution",
+      "prompt": "Now that we've used memory for 8 months, let me design Phase 2 improvements.\n\nMemory search request (comprehensive):\n1. Find all feedback entries about memory system usability\n2. Find all project entries about memory scaling concerns\n3. Find entries about access control, auditability, portability\n4. Find performance issues (timeouts, locks, stale data)\n5. Find unimplemented ideas (tagging, branching, memory daemon)\n\nFor Phase 2 design document, consolidate:\n- **Quick wins** (easy improvements with high ROI): filtering, smarter ranking, better discoverability\n- **Technical debt** (necessary but non-urgent): cleanup, consolidation, format standardization\n- **Scaling solutions** (needed for 50+ developers): access control, replication, distributed architecture\n- **Integration opportunities** (cross-product synergies): Flutter memory, VS Code memory, unified system\n- **Moonshots** (speculative): memory daemon, CRDT-based collaboration, AI-powered summarization\n\nBased on 8 months of using memory, what should Phase 2 prioritize?"
+    }
+  ]
+}

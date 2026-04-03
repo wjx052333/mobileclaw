@@ -1,12 +1,13 @@
 {
   "meta": {
     "description": "50-turn memory stress test for mobileclaw agent context window management",
-    "purpose": "Simulates a realistic 6-month project lifecycle: design → implementation → bug fixes → performance tuning → production incidents → post-mortem. Each turn adds real context (code snippets, logs, architecture decisions) that must be retained across pruning boundaries. Tests whether memory taxonomy (user/project/feedback/reference) prevents repeated context loss.",
+    "purpose": "Simulates a realistic 6-month project lifecycle: design → implementation → bug fixes → performance tuning → production incidents → post-mortem. Each turn adds real context (code snippets, logs, architecture decisions) that must be retained across pruning boundaries. Tests count-based prune (default 40 msgs) with history-prefix continuity, per-turn summary storage, and fallback token prune.",
     "context_window": 200000,
     "buffer_tokens": 13000,
     "pruning_threshold_approx": 187000,
     "total_estimated_tokens": 450000,
     "expected_pruning_cycles": 2,
+    "count_prune_note": "With --max-session-messages=40 (bench default), count prune fires at ~turn 18 (2 msgs/turn: user+assistant). Each prune drops oldest unprotected msgs and injects 'Previously in this session:' prefix from stored turn summaries.",
     "scenario": "mobileclaw-cli long-term development with multi-agent session persistence"
   },
   "turns": [

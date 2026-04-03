@@ -4,13 +4,13 @@ use rustyline::{DefaultEditor, error::ReadlineError};
 use mobileclaw_core::ffi::AgentEventDto;
 use crate::session::{open_session, init_logging};
 
-pub async fn cmd_chat(data_dir: &Path, system: Option<String>) -> Result<()> {
+pub async fn cmd_chat(data_dir: &Path, system: Option<String>, max_session_messages: Option<u32>) -> Result<()> {
     init_logging();
     tracing::info!(data_dir = %data_dir.display(), "mclaw chat starting");
 
     println!("Opening agent session...");
     println!("(Logs → ./mclaw.log)");
-    let mut session = open_session(data_dir).await?;
+    let mut session = open_session(data_dir, max_session_messages).await?;
     let system = system.unwrap_or_else(|| {
         "You are a helpful assistant. You have access to tools for email, files, memory, and web requests. \
          Use tools whenever the user asks you to perform an action.".into()
@@ -52,7 +52,14 @@ pub async fn cmd_chat(data_dir: &Path, system: Option<String>) -> Result<()> {
                     let status = if success { "ok" } else { "error" };
                     println!("  [{name}: {status}]");
                 }
-                AgentEventDto::ContextStats { .. } => {} // bench-only; ignored in interactive chat
+                AgentEventDto::ContextStats { messages_pruned, history_len, .. } => {
+                    if messages_pruned > 0 {
+                        println!("\n  [context pruned: {messages_pruned} msgs removed, history now {history_len}]");
+                    }
+                }
+                AgentEventDto::TurnSummary { summary } => {
+                    println!("\n  [✍ summary stored: {}]", summary.chars().take(80).collect::<String>());
+                }
                 AgentEventDto::Done => {}
             }
         }

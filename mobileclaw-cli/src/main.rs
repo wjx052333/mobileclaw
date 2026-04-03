@@ -34,6 +34,9 @@ enum Command {
         /// Override system prompt
         #[arg(long)]
         system: Option<String>,
+        /// Max messages in history before count-based prune fires (default: core default 100)
+        #[arg(long)]
+        max_session_messages: Option<u32>,
     },
     /// Run context-window stress benchmark from a prompts JSON file
     Bench {
@@ -55,6 +58,9 @@ enum Command {
         /// Sleep between turns in milliseconds (helps avoid rate limits; default 0)
         #[arg(long, default_value = "0")]
         turn_delay_ms: u64,
+        /// Max messages in history before count-based prune fires (default: 40 for bench)
+        #[arg(long, default_value_t = 40)]
+        max_session_messages: u32,
     },
 }
 
@@ -135,11 +141,11 @@ async fn main() -> anyhow::Result<()> {
             EmailCmd::Delete { id } => { cmd::email::cmd_email_delete(&data_dir, id).await?; }
             EmailCmd::List => { cmd::email::cmd_email_list(&data_dir).await?; }
         },
-        Command::Chat { system } => {
-            cmd::chat::cmd_chat(&data_dir, system).await?;
+        Command::Chat { system, max_session_messages } => {
+            cmd::chat::cmd_chat(&data_dir, system, max_session_messages).await?;
         }
-        Command::Bench { prompts, system, max_turns, dry_run, interaction_log, turn_delay_ms } => {
-            cmd::bench::cmd_bench(&data_dir, &prompts, system, max_turns, dry_run, interaction_log.as_deref(), turn_delay_ms).await?;
+        Command::Bench { prompts, system, max_turns, dry_run, interaction_log, turn_delay_ms, max_session_messages } => {
+            cmd::bench::cmd_bench(&data_dir, &prompts, system, max_turns, dry_run, interaction_log.as_deref(), turn_delay_ms, max_session_messages).await?;
         }
     }
 
