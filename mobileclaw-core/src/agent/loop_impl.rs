@@ -200,6 +200,9 @@ pub enum AgentEvent {
     /// Context-window observability snapshot — emitted once per chat() turn,
     /// as the second-to-last event (before Done).
     ContextStats(ContextStats),
+    /// Camera access has not been authorized by the user.
+    /// Dart should show a permission dialog and call camera_set_authorized().
+    CameraAuthRequired,
     Done,
 }
 
@@ -393,6 +396,9 @@ impl<L: LlmClient> AgentLoop<L> {
                     tracing::info!(tool = %name, args = %args, "executing tool (native)");
                     all_events.push(AgentEvent::ToolCall { name: name.clone() });
 
+                    let produces_images = self.registry.get(name).map(|t| t.produces_images()).unwrap_or(false);
+                    let n_frames = args.get("frames").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+
                     let result = match self.registry.get(name) {
                         Some(tool) => tool.execute(args.clone(), &self.ctx).await,
                         None => {
@@ -412,6 +418,32 @@ impl<L: LlmClient> AgentLoop<L> {
                                 tool_use_id: id.clone(),
                                 content: r.output.to_string(),
                                 is_error: !r.success,
+                            });
+
+                            // Append image blocks for tools that produce images.
+                            if produces_images {
+                                if let Some(ref buffer) = self.ctx.camera_frame_buffer {
+                                    let frames = buffer.read_latest_n(n_frames.min(16));
+                                    for frame in frames {
+                                        result_content.push(ContentBlock::Image {
+                                            mime_type: "image/jpeg".to_string(),
+                                            data: frame.jpeg,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        Err(crate::ClawError::CameraUnauthorized) => {
+                            tracing::info!(tool = %name, "camera unauthorized — emitting auth required event");
+                            all_events.push(AgentEvent::CameraAuthRequired);
+                            all_events.push(AgentEvent::ToolResult { name: name.clone(), success: false });
+                            result_content.push(ContentBlock::ToolResult {
+                                tool_use_id: id.clone(),
+                                content: serde_json::json!({
+                                    "error": "camera_unauthorized",
+                                    "message": "Camera access denied. Please authorize camera access in settings."
+                                }).to_string(),
+                                is_error: true,
                             });
                         }
                         Err(e) => {
@@ -473,12 +505,17 @@ impl<L: LlmClient> AgentLoop<L> {
 
                 let mut tool_results_xml = String::new();
                 let mut any_repaired = false;
+                let mut image_blocks: Vec<ContentBlock> = Vec::new();
                 for (call, was_repaired) in &tool_calls {
                     if *was_repaired {
                         any_repaired = true;
                     }
                     tracing::info!(tool = %call.name, args = %call.args, "executing tool");
                     all_events.push(AgentEvent::ToolCall { name: call.name.clone() });
+
+                    let produces_images = self.registry.get(&call.name).map(|t| t.produces_images()).unwrap_or(false);
+                    let n_frames = call.args.get("frames").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+
                     let result = match self.registry.get(&call.name) {
                         Some(tool) => tool.execute(call.args.clone(), &self.ctx).await,
                         None => {
@@ -494,6 +531,25 @@ impl<L: LlmClient> AgentLoop<L> {
                             tracing::info!(tool = %call.name, success = %r.success, output = %r.output, "tool result");
                             all_events.push(AgentEvent::ToolResult { name: call.name.clone(), success: r.success });
                             tool_results_xml.push_str(&format_tool_result(&call.name, r.success, &r.output));
+
+                            if produces_images {
+                                if let Some(ref buffer) = self.ctx.camera_frame_buffer {
+                                    let frames = buffer.read_latest_n(n_frames.min(16));
+                                    for frame in frames {
+                                        image_blocks.push(ContentBlock::Image {
+                                            mime_type: "image/jpeg".to_string(),
+                                            data: frame.jpeg,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        Err(crate::ClawError::CameraUnauthorized) => {
+                            tracing::info!(tool = %call.name, "camera unauthorized (XML path)");
+                            all_events.push(AgentEvent::CameraAuthRequired);
+                            all_events.push(AgentEvent::ToolResult { name: call.name.clone(), success: false });
+                            tool_results_xml.push_str(&format_tool_result(&call.name, false,
+                                &serde_json::json!({"error": "camera_unauthorized"})));
                         }
                         Err(e) => {
                             tracing::error!(tool = %call.name, error = %e, "tool execution error");
@@ -525,7 +581,16 @@ Common mistakes to avoid:\n\
                 let clean_text = extract_text_without_tool_calls(&full_text);
                 let assistant_msg = format!("{}\n{}{}", clean_text, tool_results_xml, format_correction);
                 self.history.push(Message::assistant(&assistant_msg));
-                self.history.push(Message::user("[tool results provided above, please continue]"));
+
+                // Build user message: continuation prompt + image blocks if any.
+                let mut user_content = vec![ContentBlock::Text {
+                    text: "[tool results provided above, please continue]".to_string(),
+                }];
+                user_content.extend(image_blocks);
+                self.history.push(Message {
+                    role: Role::User,
+                    content: user_content,
+                });
             }
         }
 
@@ -632,6 +697,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let agent = AgentLoop::new(
             MockLlmClient::new(response),
@@ -675,6 +743,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let mgr = SkillManager::new(vec![skill]);
         let mut agent = AgentLoop::new(
@@ -714,6 +785,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let mgr = SkillManager::new(vec![skill]);
         let mut agent = AgentLoop::new(
@@ -793,6 +867,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let captured = Arc::new(Mutex::new(String::new()));
         let client = CapturingMockLlmClient {
@@ -1006,6 +1083,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let captured = Arc::new(Mutex::new(String::new()));
         let client = CapturingMockLlmClient {
@@ -1056,6 +1136,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let mut agent = AgentLoop::new(
             MockLlmClient::new("ok"),
@@ -1085,6 +1168,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let mut agent = AgentLoop::new(
             MockLlmClient::new("hello"),
@@ -1129,6 +1215,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         // max_messages = 3, min_user_turns = 1 so we can actually get candidates with a small history
         let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
@@ -1167,6 +1256,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
         let mut agent = AgentLoop::new(
@@ -1203,6 +1295,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
         let mut agent = AgentLoop::new(
@@ -1250,6 +1345,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         };
         let llm = MockLlmClient::new_native(response, tool_uses);
         let agent = AgentLoop::new(llm, registry, ctx, SkillManager::new(vec![]));

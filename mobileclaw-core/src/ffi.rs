@@ -47,6 +47,12 @@ pub struct AgentConfig {
     pub context_window: Option<u32>,
     /// Maximum messages in history before count-based prune fires. Default: 100.
     pub max_session_messages: Option<u32>,
+    /// Number of frames to read per camera_capture call. Default: 5.
+    pub camera_frames_per_capture: Option<u32>,
+    /// Maximum frames allowed per single capture. Default: 16.
+    pub camera_max_frames_per_capture: Option<u32>,
+    /// Ring buffer capacity for camera frames. Default: 16.
+    pub camera_ring_buffer_capacity: Option<u32>,
 }
 
 /// Initialize file-based tracing to `{dir}/mobileclaw.log`.
@@ -97,7 +103,17 @@ pub enum AgentEventDto {
     },
     /// One-sentence summary of the completed interaction, stored permanently.
     TurnSummary { summary: String },
+    /// Camera access has not been authorized. Dart should show a permission dialog.
+    CameraAuthRequired,
     Done,
+}
+
+/// An alert emitted by the background camera monitor when something noteworthy is detected.
+#[derive(Debug, Clone)]
+pub struct CameraAlert {
+    pub summary: String,
+    pub frame_id: u64,
+    pub timestamp_ms: u64,
 }
 
 /// A chat history entry.
@@ -252,6 +268,8 @@ pub struct AgentSession {
     secrets: Arc<SqliteSecretStore>,
     session_dir: Option<std::path::PathBuf>,
     session_id: String,  // stable UUID for this session's history memory paths
+    camera_buffer: Arc<crate::tools::builtin::camera::CameraFrameBuffer>,
+    camera_authorized: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl AgentSession {
@@ -293,6 +311,13 @@ impl AgentSession {
             .inspect_err(|e| tracing::error!(error = %e, path = %config.secrets_db_path, "failed to open secrets db"))?,
         );
         tracing::debug!(path = %config.secrets_db_path, "secrets db opened");
+
+        // Camera ring buffer and authorization flag (shared between AgentSession and ToolContext).
+        use crate::tools::builtin::camera::CameraFrameBuffer;
+        use std::sync::atomic::AtomicBool;
+        let ring_capacity = config.camera_ring_buffer_capacity.unwrap_or(16) as usize;
+        let camera_buffer = Arc::new(CameraFrameBuffer::new(ring_capacity));
+        let camera_authorized = Arc::new(AtomicBool::new(false));
 
         // Resolve LLM client: active provider from SecretStore, or legacy explicit config.
         // If neither is available, create succeeds with `inner = None` — chat() will return
@@ -361,12 +386,18 @@ impl AgentSession {
             }
             tracing::debug!(tool_count = registry.list().len(), "builtins registered");
 
+            // Determine vision support from the actual LLM client.
+            let vision_supported = llm.vision_supported();
+
             let ctx = ToolContext {
                 memory: memory.clone() as Arc<dyn Memory>,
                 sandbox_dir: config.sandbox_dir.into(),
                 http_allowlist: config.http_allowlist,
                 permissions: Arc::new(PermissionChecker::allow_all()),
                 secrets: secrets.clone() as Arc<dyn crate::secrets::SecretStore>,
+                camera_frame_buffer: Some(camera_buffer.clone()),
+                camera_authorized: camera_authorized.clone(),
+                vision_supported,
             };
 
             let skills = if let Some(dir) = &config.skills_dir {
@@ -404,7 +435,7 @@ impl AgentSession {
             has_llm = inner_opt.is_some(),
             "AgentSession created"
         );
-        Ok(AgentSession { inner: inner_opt, memory, secrets, session_dir, session_id })
+        Ok(AgentSession { inner: inner_opt, memory, secrets, session_dir, session_id, camera_buffer, camera_authorized })
     }
 
     /// Send a user message and return all events produced by one agent turn.
@@ -481,6 +512,7 @@ impl AgentSession {
                     pruning_threshold: s.pruning_threshold,
                 },
                 AgentEvent::Done => AgentEventDto::Done,
+                AgentEvent::CameraAuthRequired => AgentEventDto::CameraAuthRequired,
             })
             .collect();
 
@@ -727,6 +759,86 @@ impl AgentSession {
             }
         }
     }
+
+    // ─── Camera API ──────────────────────────────────────────────────────
+
+    /// Manually set camera authorization state.
+    /// Usually Dart does not need to call this — authorization auto-enables
+    /// on the first `camera_push_frame` call.
+    pub fn camera_set_authorized(&mut self, authorized: bool) {
+        self.camera_authorized.store(authorized, std::sync::atomic::Ordering::Relaxed);
+        tracing::info!(authorized, "camera authorization set manually");
+    }
+
+    /// Query whether the camera has been authorized.
+    pub fn camera_is_authorized(&self) -> bool {
+        self.camera_authorized.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Return the ring buffer's current occupancy and latest frame ID.
+    /// Phase 1 (VecDeque-backed): returns (len, capacity, latest_frame_id_or_0).
+    /// Phase 2 (mmap-backed): returns (slot_count, capacity, offset_of_latest).
+    pub fn camera_get_mmap_info(&self) -> (usize, usize, u64) {
+        // Phase 1 (VecDeque-backed): returns (0, capacity, latest_timestamp_ms).
+        // Phase 2 (mmap-backed): returns (slot_count, capacity, offset_of_latest).
+        let latest = self.camera_buffer.latest_timestamp_ms().unwrap_or(0);
+        (0, 16, latest)
+    }
+
+    /// Phase 2 scaffold: start a background camera monitor.
+    /// Returns a monitor ID that can be used to stop it later.
+    pub async fn camera_start_monitor(
+        &mut self,
+        _scenario: String,
+        _frames_per_check: u32,
+        _check_interval_ms: u32,
+    ) -> anyhow::Result<String> {
+        Ok("monitor-id-todo".to_string())
+    }
+
+    /// Phase 2 scaffold: stop a running camera monitor.
+    pub fn camera_stop_monitor(&mut self, _monitor_id: &str) -> bool {
+        false
+    }
+
+    /// Phase 1 scaffold: return pending camera alerts.
+    /// Phase 2: replaces this with a real FRB stream backed by an mpsc channel.
+    #[frb(sync)]
+    pub fn camera_alert_stream(&self) -> Vec<CameraAlert> {
+        vec![]
+    }
+}
+
+/// Push a camera frame from Flutter into the ring buffer.
+///
+/// Returns `false` if the session pointer is null (invalid handle).
+/// Side effect: auto-sets `camera_authorized = true` on the first successful push,
+/// because Dart starting the camera service implies user consent.
+pub fn camera_push_frame(
+    session_ptr: i64,
+    jpeg: Vec<u8>,
+    frame_id: u64,
+    timestamp_ms: u64,
+    width: u32,
+    height: u32,
+) -> bool {
+    use crate::tools::builtin::camera::FrameData;
+    use std::sync::atomic::Ordering;
+
+    let session_ptr = session_ptr as *const AgentSession;
+    if session_ptr.is_null() {
+        return false;
+    }
+    let session = unsafe { &*session_ptr };
+    session.camera_buffer.push(FrameData {
+        id: frame_id,
+        timestamp_ms,
+        jpeg,
+        width,
+        height,
+    });
+    session.camera_authorized.store(true, Ordering::Relaxed);
+    true
 }
 
 /// Compose interaction text from user input + events. Capped at 4000 bytes (respects UTF-8 boundaries).
@@ -841,6 +953,9 @@ mod session_ffi_tests {
             session_dir: None,
             context_window: None,
             max_session_messages: None,
+            camera_frames_per_capture: None,
+            camera_max_frames_per_capture: None,
+            camera_ring_buffer_capacity: None,
         };
         assert!(config_without_session.session_dir.is_none());
         assert!(config_without_session.context_window.is_none());
@@ -858,6 +973,9 @@ mod session_ffi_tests {
             session_dir: Some("/tmp/sessions".into()),
             context_window: Some(100_000),
             max_session_messages: None,
+            camera_frames_per_capture: None,
+            camera_max_frames_per_capture: None,
+            camera_ring_buffer_capacity: None,
         };
         assert_eq!(config_with_session.session_dir.as_deref(), Some("/tmp/sessions"));
         assert_eq!(config_with_session.context_window, Some(100_000));
@@ -883,6 +1001,9 @@ mod helper_tests {
             session_dir: None,
             context_window: None,
             max_session_messages: Some(50),
+            camera_frames_per_capture: None,
+            camera_max_frames_per_capture: None,
+            camera_ring_buffer_capacity: None,
         };
         assert_eq!(config.max_session_messages, Some(50));
     }

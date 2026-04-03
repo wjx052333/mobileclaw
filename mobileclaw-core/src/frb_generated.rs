@@ -1410,6 +1410,9 @@ impl SseDecode for crate::ffi::AgentConfig {
         let mut var_sessionDir = <Option<String>>::sse_decode(deserializer);
         let mut var_contextWindow = <Option<u32>>::sse_decode(deserializer);
         let mut var_maxSessionMessages = <Option<u32>>::sse_decode(deserializer);
+        let mut var_cameraFramesPerCapture = <Option<u32>>::sse_decode(deserializer);
+        let mut var_cameraMaxFramesPerCapture = <Option<u32>>::sse_decode(deserializer);
+        let mut var_cameraRingBufferCapacity = <Option<u32>>::sse_decode(deserializer);
         return crate::ffi::AgentConfig {
             api_key: var_apiKey,
             db_path: var_dbPath,
@@ -1423,6 +1426,9 @@ impl SseDecode for crate::ffi::AgentConfig {
             session_dir: var_sessionDir,
             context_window: var_contextWindow,
             max_session_messages: var_maxSessionMessages,
+            camera_frames_per_capture: var_cameraFramesPerCapture,
+            camera_max_frames_per_capture: var_cameraMaxFramesPerCapture,
+            camera_ring_buffer_capacity: var_cameraRingBufferCapacity,
         };
     }
 }
@@ -1469,8 +1475,12 @@ impl SseDecode for crate::ffi::AgentEventDto {
             5 => {
                 return crate::ffi::AgentEventDto::Done;
             }
+            6 => {
+                return crate::ffi::AgentEventDto::CameraAuthRequired;
+            }
             _ => {
-                unimplemented!("");
+                // Future variants — fail gracefully rather than panic.
+                return crate::ffi::AgentEventDto::Done;
             }
         }
     }
@@ -1777,6 +1787,32 @@ impl SseDecode for Vec<crate::ffi::SessionEntryDto> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::ffi::SessionEntryDto>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for crate::ffi::CameraAlert {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_summary = <String>::sse_decode(deserializer);
+        let mut var_frameId = <u64>::sse_decode(deserializer);
+        let mut var_timestampMs = <u64>::sse_decode(deserializer);
+        return crate::ffi::CameraAlert {
+            summary: var_summary,
+            frame_id: var_frameId,
+            timestamp_ms: var_timestampMs,
+        };
+    }
+}
+
+impl SseDecode for Vec<crate::ffi::CameraAlert> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::ffi::CameraAlert>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -2247,8 +2283,8 @@ impl SseEncode for crate::ffi::AgentEventDto {
             crate::ffi::AgentEventDto::Done => {
                 <i32>::sse_encode(5, serializer);
             }
-            _ => {
-                unimplemented!("");
+            crate::ffi::AgentEventDto::CameraAuthRequired => {
+                <i32>::sse_encode(6, serializer);
             }
         }
     }
@@ -2490,6 +2526,25 @@ impl SseEncode for Vec<crate::ffi::SessionEntryDto> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::ffi::SessionEntryDto>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for crate::ffi::CameraAlert {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.summary, serializer);
+        <u64>::sse_encode(self.frame_id, serializer);
+        <u64>::sse_encode(self.timestamp_ms, serializer);
+    }
+}
+
+impl SseEncode for Vec<crate::ffi::CameraAlert> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::ffi::CameraAlert>::sse_encode(item, serializer);
         }
     }
 }
