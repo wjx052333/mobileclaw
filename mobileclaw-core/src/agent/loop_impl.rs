@@ -65,21 +65,24 @@ pub(crate) fn build_tools_section(registry: &ToolRegistry, matched_skills: &[&Sk
 
 ## Available Tools
 
-When you need to perform an action, output a tool call using **exactly** this XML format (on its own line):
+When you need to perform an action, output a **tool call** using this XML format (the content is pure JSON):
 
 <tool_call>{"name": "tool_name", "args": {"param": "value"}}</tool_call>
 
-The system will execute the tool and return results as:
+After execution the system returns a **tool result** in a different format (XML attributes + JSON body):
 
 <tool_result name="tool_name" status="ok">{"field": "value"}</tool_result>
 
-**CRITICAL JSON formatting rules — violations will silently drop your tool call:**
-- The JSON object must have exactly one comma between `"name"` and `"args"`: `{"name": "...", "args": {...}}`
-- Every key must be double-quoted: `"name"`, `"args"`, not `name` or `args`
-- Do NOT write `{"name": "foo" "args": ...}` (missing comma) — this is invalid JSON
-- Do NOT write `{"name": "foo" args": ...}` (missing comma AND missing opening quote) — also invalid
+**CRITICAL — tool_call uses pure JSON, NOT XML attributes. Common mistakes:**
+- WRONG (missing comma):        `{"name": "foo" "args": {...}}`
+- WRONG (missing quote+comma):  `{"name": "foo" args": {...}}`
+- WRONG (copied result format): `{"name": "foo" status="ok">{...}}`  ← never do this
+- RIGHT:                        `{"name": "foo", "args": {...}}`
 
-Correct multi-parameter example:
+The tool_result format (`name="..." status="ok">`) is only for results returned TO you.
+Never use XML attribute syntax (`key="value"`) inside a `<tool_call>`.
+
+Multi-parameter example:
 <tool_call>{"name": "memory_search", "args": {"query": "rust async", "limit": 10}}</tool_call>
 
 Rules:
@@ -323,15 +326,15 @@ impl<L: LlmClient> AgentLoop<L> {
             let format_correction = if any_repaired {
                 tracing::warn!(round = %round, "injecting tool_call format correction into history");
                 "\n\n[FORMAT ERROR] Your tool_call JSON was malformed and had to be repaired. \
-Please use exactly this format in all future tool calls — every field must be double-quoted \
-and separated by a comma:\n\
+Please use exactly this format — the content inside <tool_call> is pure JSON with no XML attributes:\n\
 <tool_call>{\"name\": \"tool_name\", \"args\": {\"param\": \"value\"}}</tool_call>\n\
 Multi-parameter example:\n\
 <tool_call>{\"name\": \"memory_search\", \"args\": {\"query\": \"rust async\", \"limit\": 10}}</tool_call>\n\
 Common mistakes to avoid:\n\
-- WRONG: {\"name\": \"foo\" \"args\": ...}  ← missing comma between fields\n\
-- WRONG: {\"name\": \"foo\" args\": ...}    ← missing comma AND missing opening quote\n\
-- RIGHT: {\"name\": \"foo\", \"args\": ...}"
+- WRONG (missing comma):        {\"name\": \"foo\" \"args\": ...}\n\
+- WRONG (missing comma+quote):  {\"name\": \"foo\" args\": ...}\n\
+- WRONG (XML attribute style):  {\"name\": \"foo\" status=\"ok\">{...}}  ← never copy tool_result format\n\
+- RIGHT:                        {\"name\": \"foo\", \"args\": {...}}"
             } else {
                 ""
             };

@@ -10,34 +10,53 @@ pub struct ToolCall {
 
 /// Attempt to repair common LLM JSON mistakes before full parse failure.
 ///
-/// Handles two related patterns caused by LLMs omitting the comma between
-/// top-level object fields:
-///   - `"value" "key":` → `"value", "key":` (missing comma, quote present)
-///   - `"value" key":` → `"value", "key":` (missing comma AND missing opening quote)
+/// Tries two repair passes in order, returning on first success:
 ///
-/// The single regex `"(\s+)"?([a-z_])` matches a closing quote, whitespace,
-/// an optional opening quote, and the first lowercase letter/underscore of a
-/// JSON key. This is safe because JSON string values always escape internal
-/// quotes as `\"`, so any unescaped `"<whitespace>[a-z]` sequence must be a
-/// field boundary, not data.
+/// **Pattern A/B** — missing comma (and optionally missing opening quote) between fields:
+///   - `"value" "key":` → `"value", "key":`
+///   - `"value" key":`  → `"value", "key":`
 ///
-/// Returns the repaired string only if it differs from the input AND parses
-/// successfully. Pattern C (XML attribute leakage) is not repairable and
-/// returns None.
+/// **Pattern C** — LLM confuses `<tool_result>` XML-attribute style with `<tool_call>` JSON:
+///   - `{"name": "foo" status="ok">{"k":v}}` → `{"name": "foo", "args": {"k":v}}`
+///
+///   The giveaway is an XML attribute (`word="value">`) followed by `{`, replacing the
+///   `"args"` field the LLM forgot to write.
+///
+/// Returns the repaired `ToolCall` only when repair changes the input AND the result parses.
 fn try_repair_json(s: &str) -> Option<ToolCall> {
     use std::sync::OnceLock;
-    static RE: OnceLock<regex::Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        // Matches: closing quote + whitespace + optional-opening-quote + first key char.
-        // Group 1: the whitespace; Group 2: first char of the key.
-        // Replace: insert missing comma and ensure opening quote is present.
-        regex::Regex::new(r#""(\s+)"?([a-z_])"#).expect("static regex is valid")
-    });
-    let repaired = re.replace_all(s, "\",$1\"$2").into_owned();
-    if repaired == s {
-        return None; // no change — a different kind of error
+
+    // Pass 1 — Pattern A/B: closing quote + whitespace + optional-opening-quote + key start.
+    {
+        static RE_AB: OnceLock<regex::Regex> = OnceLock::new();
+        let re = RE_AB.get_or_init(|| {
+            regex::Regex::new(r#""(\s+)"?([a-z_])"#).expect("static regex is valid")
+        });
+        let repaired = re.replace_all(s, "\",$1\"$2").into_owned();
+        if repaired != s {
+            if let Ok(call) = serde_json::from_str::<ToolCall>(&repaired) {
+                return Some(call);
+            }
+        }
     }
-    serde_json::from_str::<ToolCall>(&repaired).ok()
+
+    // Pass 2 — Pattern C: XML attribute leaked into JSON body.
+    // Matches: closing quote + whitespace + word="value"> + opening brace of args object.
+    // Replaces the whole run with: ", "args": {
+    {
+        static RE_C: OnceLock<regex::Regex> = OnceLock::new();
+        let re = RE_C.get_or_init(|| {
+            regex::Regex::new(r#""\s+\w+="[^"]*">\s*\{"#).expect("static regex is valid")
+        });
+        let repaired = re.replace(s, "\", \"args\": {").into_owned();
+        if repaired != s {
+            if let Ok(call) = serde_json::from_str::<ToolCall>(&repaired) {
+                return Some(call);
+            }
+        }
+    }
+
+    None
 }
 
 /// Extract all `<tool_call>...</tool_call>` blocks from LLM output text.
@@ -190,6 +209,19 @@ mod tests {
         // Genuinely broken JSON that repair can't fix
         let text = r#"<tool_call>{"name": "foo" bad json here}</tool_call>"#;
         assert!(extract_tool_calls(text).is_empty());
+    }
+
+    #[test]
+    fn repaired_pattern_c_xml_attribute_leakage() {
+        // LLM confuses tool_result XML attributes with tool_call JSON:
+        // {"name": "memory_search" status="ok">{"limit": 100, "query": "foo"}}
+        let text = r#"<tool_call>{"name": "memory_search" status="ok">{"limit": 100, "query": "foo"}}</tool_call>"#;
+        let calls = extract_tool_calls(text);
+        assert_eq!(calls.len(), 1, "pattern C should be repaired");
+        assert_eq!(calls[0].0.name, "memory_search");
+        assert_eq!(calls[0].0.args["query"], "foo");
+        assert_eq!(calls[0].0.args["limit"], 100);
+        assert!(calls[0].1, "repaired call must be flagged");
     }
 
     #[test]
