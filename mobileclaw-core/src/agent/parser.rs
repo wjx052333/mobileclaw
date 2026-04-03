@@ -8,6 +8,29 @@ pub struct ToolCall {
     pub args: Value,
 }
 
+/// Attempt to repair common LLM JSON mistakes before full parse failure.
+///
+/// Handles: missing comma between object fields — `"value" "key"` → `"value", "key"`.
+/// This is safe because JSON string values always escape internal quotes as `\"`,
+/// so an unescaped `"<whitespace>"` sequence must be a field boundary.
+///
+/// Returns the repaired string only if it differs from the input AND parses successfully.
+fn try_repair_json(s: &str) -> Option<ToolCall> {
+    use std::sync::OnceLock;
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        // Matches: closing quote of a value, whitespace, opening quote of next key.
+        // The pattern `"(\s+)"` matches both surrounding quotes, capturing the whitespace.
+        // Replacement inserts the missing comma: `",$1"`.
+        regex::Regex::new(r#""(\s+)""#).expect("static regex is valid")
+    });
+    let repaired = re.replace_all(s, "\",$1\"").into_owned();
+    if repaired == s {
+        return None; // no change — a different kind of error
+    }
+    serde_json::from_str::<ToolCall>(&repaired).ok()
+}
+
 /// Extract all `<tool_call>...</tool_call>` blocks from LLM output text
 pub fn extract_tool_calls(text: &str) -> Vec<ToolCall> {
     let mut calls = Vec::new();
@@ -18,6 +41,9 @@ pub fn extract_tool_calls(text: &str) -> Vec<ToolCall> {
             let json_str = rest[..end].trim();
             rest = &rest[end + "</tool_call>".len()..];
             if let Ok(call) = serde_json::from_str::<ToolCall>(json_str) {
+                calls.push(call);
+            } else if let Some(call) = try_repair_json(json_str) {
+                tracing::debug!("repaired malformed tool_call JSON (missing comma): {}", json_str);
                 calls.push(call);
             } else {
                 tracing::warn!("skipping malformed tool_call JSON: {}", json_str);
@@ -109,5 +135,42 @@ mod tests {
         let text = "Before.<tool_call>{\"name\":\"x\",\"args\":{}}</tool_call>After.";
         let clean = extract_text_without_tool_calls(text);
         assert_eq!(clean.trim(), "Before.After.");
+    }
+
+    #[test]
+    fn repaired_missing_comma_between_name_and_args() {
+        // LLM emits: {"name": "memory_search" "args": {"query": "foo"}}
+        let text = r#"<tool_call>{"name": "memory_search" "args": {"query": "foo", "limit": 10}}</tool_call>"#;
+        let calls = extract_tool_calls(text);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "memory_search");
+        assert_eq!(calls[0].args["query"], "foo");
+        assert_eq!(calls[0].args["limit"], 10);
+    }
+
+    #[test]
+    fn repaired_multiline_whitespace_between_fields() {
+        // Newline instead of comma
+        let text = "<tool_call>{\"name\": \"file_read\"\n\"args\": {\"path\": \"x.txt\"}}</tool_call>";
+        let calls = extract_tool_calls(text);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "file_read");
+        assert_eq!(calls[0].args["path"], "x.txt");
+    }
+
+    #[test]
+    fn unrepairable_json_still_skipped() {
+        // Genuinely broken JSON that repair can't fix
+        let text = r#"<tool_call>{"name": "foo" bad json here}</tool_call>"#;
+        assert!(extract_tool_calls(text).is_empty());
+    }
+
+    #[test]
+    fn valid_json_unaffected_by_repair_path() {
+        // Already-valid JSON must not be double-modified
+        let text = r#"<tool_call>{"name": "memory_search", "args": {"query": "test"}}</tool_call>"#;
+        let calls = extract_tool_calls(text);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].args["query"], "test");
     }
 }
