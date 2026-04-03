@@ -18,6 +18,7 @@ struct BenchFile {
 #[derive(Debug, Deserialize)]
 struct BenchMeta {
     description: String,
+    #[serde(default)]
     pruning_threshold_approx: usize,
 }
 
