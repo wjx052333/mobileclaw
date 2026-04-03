@@ -39,11 +39,18 @@ void main() {
             TextDeltaEvent() => 'text',
             ToolCallEvent() => 'call',
             ToolResultEvent() => 'result',
+            ContextStatsEvent() => 'stats',
+            TurnSummaryEvent() => 'summary',
             DoneEvent() => 'done',
           };
       expect(tag(const TextDeltaEvent(text: 'x')), 'text');
       expect(tag(const ToolCallEvent(toolName: 't')), 'call');
       expect(tag(const ToolResultEvent(toolName: 't', success: true)), 'result');
+      expect(tag(const ContextStatsEvent(
+        tokensBeforeTurn: 0, tokensAfterPrune: 0, messagesPruned: 0,
+        historyLen: 0, pruningThreshold: 0,
+      )), 'stats');
+      expect(tag(const TurnSummaryEvent(summary: 'x')), 'summary');
       expect(tag(const DoneEvent()), 'done');
     });
   });
@@ -649,6 +656,20 @@ void main() {
       const h = ToolResultEvent(toolName: 't', success: false);
       expect(f, equals(g));
       expect(f, isNot(equals(h)));
+
+      const stats1 = ContextStatsEvent(
+        tokensBeforeTurn: 100, tokensAfterPrune: 90, messagesPruned: 1,
+        historyLen: 5, pruningThreshold: 200,
+      );
+      const stats2 = ContextStatsEvent(
+        tokensBeforeTurn: 100, tokensAfterPrune: 90, messagesPruned: 1,
+        historyLen: 5, pruningThreshold: 200,
+      );
+      expect(stats1, equals(stats2));
+
+      const sum1 = TurnSummaryEvent(summary: 'user asked about X');
+      const sum2 = TurnSummaryEvent(summary: 'user asked about X');
+      expect(sum1, equals(sum2));
 
       expect(const DoneEvent(), equals(const DoneEvent()));
     });
