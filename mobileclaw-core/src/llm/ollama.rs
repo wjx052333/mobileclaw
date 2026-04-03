@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use async_stream::try_stream;
 use futures::StreamExt;
 
-use crate::{ClawError, ClawResult, llm::{client::{EventStream, LlmClient}, types::{Message, StreamEvent}}};
+use crate::{ClawError, ClawResult, llm::{client::{EventStream, LlmClient}, types::{Message, StreamEvent, ToolSpec}}};
 
 pub struct OllamaClient {
     /// Always ends with "/" (normalised in constructor)
@@ -49,6 +49,7 @@ impl LlmClient for OllamaClient {
         system: &str,
         messages: &[Message],
         _max_tokens: u32,  // Ollama /api/chat does not accept max_tokens
+        _tools: &[ToolSpec],  // Ollama does not use native API tool calling via this client
     ) -> ClawResult<EventStream> {
         let mut msg_array = vec![serde_json::json!({"role":"system","content":system})];
         for m in messages {
@@ -56,6 +57,7 @@ impl LlmClient for OllamaClient {
                 crate::llm::types::Role::User => "user",
                 crate::llm::types::Role::Assistant => "assistant",
                 crate::llm::types::Role::System => "system",
+                crate::llm::types::Role::Tool => "tool",
             };
             msg_array.push(serde_json::json!({
                 "role": role,

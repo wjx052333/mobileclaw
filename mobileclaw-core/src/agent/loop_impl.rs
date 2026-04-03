@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::{
     ClawResult,
     agent::parser::{extract_tool_calls, extract_text_without_tool_calls, format_tool_result},
-    llm::{client::LlmClient, types::{Message, StreamEvent}},
+    llm::{client::LlmClient, types::{ContentBlock, Message, Role, StreamEvent, ToolSpec}},
     skill::{Skill, SkillManager},
     tools::{ToolContext, ToolRegistry},
 };
@@ -122,6 +122,60 @@ Rules:
     s
 }
 
+/// Compute the optional allowed-tools filter from a set of matched skills.
+///
+/// Returns `None` if all tools should be visible (no restriction), or
+/// `Some(names)` if the matched skills collectively restrict the tool set.
+/// This mirrors the logic in `build_tools_section`.
+fn compute_allowed_tools(matched_skills: &[&Skill]) -> Option<Vec<String>> {
+    let any_unrestricted = matched_skills.iter().any(|s| s.manifest.allowed_tools.is_none());
+    if any_unrestricted || matched_skills.is_empty() {
+        return None;
+    }
+    Some(
+        matched_skills
+            .iter()
+            .filter_map(|s| s.manifest.allowed_tools.as_deref())
+            .flat_map(|names| names.iter().cloned())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect(),
+    )
+}
+
+/// Convert a `Tool`'s `parameters_schema()` value into the JSON Schema object
+/// expected by the native API tools array.
+///
+/// The schema returned by `Tool::parameters_schema()` is already a valid JSON
+/// Schema object (`{"type": "object", "properties": {...}, "required": [...]}`),
+/// so we return it as-is. This function exists to keep `build_tools_array`
+/// readable and to allow future schema transformations in one place.
+fn tool_schema_to_json(schema: serde_json::Value) -> serde_json::Value {
+    schema
+}
+
+/// Build the native API tools array from the registry, applying the optional
+/// allowed-tools filter derived from matched skills.
+pub(crate) fn build_tools_array(
+    registry: &ToolRegistry,
+    allowed: &Option<Vec<String>>,
+) -> Vec<ToolSpec> {
+    registry
+        .list()
+        .into_iter()
+        .filter(|t| {
+            allowed
+                .as_ref()
+                .is_none_or(|a| a.contains(&t.name().to_string()))
+        })
+        .map(|t| ToolSpec {
+            name: t.name().to_string(),
+            description: t.description().to_string(),
+            input_schema: tool_schema_to_json(t.parameters_schema()),
+        })
+        .collect()
+}
+
 /// Snapshot of context-window state emitted once per `chat()` call,
 /// just before returning events. Useful for bench/monitoring tooling.
 #[derive(Debug, Clone)]
@@ -207,13 +261,22 @@ impl<L: LlmClient> AgentLoop<L> {
     pub async fn chat(&mut self, user_input: &str, base_system: &str) -> ClawResult<Vec<AgentEvent>> {
         let matched = self.skill_mgr.match_skills(user_input);
         let skill_prompt = self.skill_mgr.build_system_prompt(base_system, &matched);
-        let tools_section = build_tools_section(&self.registry, &matched);
-        let system = format!("{}{}", skill_prompt, tools_section);
+        let native = self.llm.native_tool_support();
+
+        // For native path: system prompt is skill_prompt only (tools go to API structurally).
+        // For XML path: append the tools section to the system prompt.
+        let system = if native {
+            skill_prompt.clone()
+        } else {
+            let tools_section = build_tools_section(&self.registry, &matched);
+            format!("{}{}", skill_prompt, tools_section)
+        };
 
         tracing::info!(
             user_input = %user_input,
             skills_matched = %matched.len(),
             tools_available = %self.registry.list().len(),
+            native_tool_support = %native,
             "chat turn started"
         );
         tracing::debug!(system_prompt = %system, "full system prompt");
@@ -256,76 +319,196 @@ impl<L: LlmClient> AgentLoop<L> {
 
         let mut all_events = Vec::new();
 
-        for round in 0..MAX_TOOL_ROUNDS {
-            tracing::debug!(round = %round, history_len = %self.history.len(), "starting LLM round");
+        if native {
+            // ----------------------------------------------------------------
+            // Native tool-calling path (Claude, OpenAI-compatible providers)
+            // ----------------------------------------------------------------
+            let allowed = compute_allowed_tools(&matched);
+            let tools_array = build_tools_array(&self.registry, &allowed);
 
-            let mut stream = self.llm.stream_messages(&system, &self.history, MAX_TOKENS).await?;
+            for round in 0..MAX_TOOL_ROUNDS {
+                tracing::debug!(round = %round, history_len = %self.history.len(), "starting LLM round (native)");
 
-            let mut full_text = String::new();
-            while let Some(event) = stream.next().await {
-                match event? {
-                    StreamEvent::TextDelta { text } => {
-                        all_events.push(AgentEvent::TextDelta { text: text.clone() });
-                        full_text.push_str(&text);
-                    }
-                    StreamEvent::MessageStop | StreamEvent::MessageStart => {}
-                    StreamEvent::Error { message } => {
-                        tracing::error!(round = %round, error = %message, "LLM stream error");
-                        return Err(crate::ClawError::Llm(message));
-                    }
-                }
-            }
+                let mut stream = self.llm.stream_messages(&system, &self.history, MAX_TOKENS, &tools_array).await?;
 
-            tracing::debug!(round = %round, response_len = %full_text.len(), response = %full_text, "LLM response received");
+                let mut full_text = String::new();
+                let mut tool_use_blocks: Vec<(String, String, serde_json::Value)> = Vec::new();
 
-            let tool_calls = extract_tool_calls(&full_text);
-            tracing::info!(round = %round, tool_calls_found = %tool_calls.len(), "tool call extraction");
-
-            if tool_calls.is_empty() {
-                tracing::info!(round = %round, "no tool calls, turn complete");
-                self.history.push(Message::assistant(&full_text));
-                all_events.push(AgentEvent::Done);
-                break;
-            }
-
-            let mut tool_results_xml = String::new();
-            let mut any_repaired = false;
-            for (call, was_repaired) in &tool_calls {
-                if *was_repaired {
-                    any_repaired = true;
-                }
-                tracing::info!(tool = %call.name, args = %call.args, "executing tool");
-                all_events.push(AgentEvent::ToolCall { name: call.name.clone() });
-                let result = match self.registry.get(&call.name) {
-                    Some(tool) => tool.execute(call.args.clone(), &self.ctx).await,
-                    None => {
-                        tracing::warn!(tool = %call.name, "tool not found in registry");
-                        Err(crate::ClawError::Tool {
-                            tool: call.name.clone(),
-                            message: "tool not found".into(),
-                        })
-                    }
-                };
-                match result {
-                    Ok(r) => {
-                        tracing::info!(tool = %call.name, success = %r.success, output = %r.output, "tool result");
-                        all_events.push(AgentEvent::ToolResult { name: call.name.clone(), success: r.success });
-                        tool_results_xml.push_str(&format_tool_result(&call.name, r.success, &r.output));
-                    }
-                    Err(e) => {
-                        tracing::error!(tool = %call.name, error = %e, "tool execution error");
-                        let err_val = serde_json::json!({"error": e.to_string()});
-                        all_events.push(AgentEvent::ToolResult { name: call.name.clone(), success: false });
-                        tool_results_xml.push_str(&format_tool_result(&call.name, false, &err_val));
+                while let Some(event) = stream.next().await {
+                    match event? {
+                        StreamEvent::TextDelta { text } => {
+                            all_events.push(AgentEvent::TextDelta { text: text.clone() });
+                            full_text.push_str(&text);
+                        }
+                        StreamEvent::ToolUse { id, name, input } => {
+                            tracing::debug!(tool_id = %id, tool_name = %name, "native ToolUse event received");
+                            tool_use_blocks.push((id, name, input));
+                        }
+                        StreamEvent::MessageStop | StreamEvent::MessageStart => {}
+                        StreamEvent::Error { message } => {
+                            tracing::error!(round = %round, error = %message, "LLM stream error");
+                            return Err(crate::ClawError::Llm(message));
+                        }
                     }
                 }
-            }
 
-            // If any tool_call JSON was malformed and had to be repaired, inject a
-            // correction so the LLM learns the correct format for subsequent rounds.
-            let format_correction = if any_repaired {
-                tracing::warn!(round = %round, "injecting tool_call format correction into history");
-                "\n\n[FORMAT ERROR] Your tool_call JSON was malformed and had to be repaired. \
+                tracing::debug!(
+                    round = %round,
+                    response_len = %full_text.len(),
+                    tool_uses = %tool_use_blocks.len(),
+                    "LLM response received (native)"
+                );
+
+                if tool_use_blocks.is_empty() {
+                    // No tool calls: final response, record and break.
+                    tracing::info!(round = %round, "no native tool calls, turn complete");
+                    self.history.push(Message {
+                        role: Role::Assistant,
+                        content: vec![ContentBlock::Text { text: full_text }],
+                    });
+                    all_events.push(AgentEvent::Done);
+                    break;
+                }
+
+                // Build assistant message with both text and tool_use blocks.
+                let mut assistant_content = Vec::new();
+                if !full_text.is_empty() {
+                    assistant_content.push(ContentBlock::Text { text: full_text });
+                }
+                for (id, name, input) in &tool_use_blocks {
+                    assistant_content.push(ContentBlock::ToolUse {
+                        id: id.clone(),
+                        name: name.clone(),
+                        input: input.clone(),
+                    });
+                }
+                self.history.push(Message {
+                    role: Role::Assistant,
+                    content: assistant_content,
+                });
+
+                // Execute each tool and collect results.
+                let mut result_content = Vec::new();
+                for (id, name, args) in &tool_use_blocks {
+                    tracing::info!(tool = %name, args = %args, "executing tool (native)");
+                    all_events.push(AgentEvent::ToolCall { name: name.clone() });
+
+                    let result = match self.registry.get(name) {
+                        Some(tool) => tool.execute(args.clone(), &self.ctx).await,
+                        None => {
+                            tracing::warn!(tool = %name, "tool not found in registry (native)");
+                            Err(crate::ClawError::Tool {
+                                tool: name.clone(),
+                                message: "tool not found".into(),
+                            })
+                        }
+                    };
+
+                    match result {
+                        Ok(r) => {
+                            tracing::info!(tool = %name, success = %r.success, output = %r.output, "tool result (native)");
+                            all_events.push(AgentEvent::ToolResult { name: name.clone(), success: r.success });
+                            result_content.push(ContentBlock::ToolResult {
+                                tool_use_id: id.clone(),
+                                content: r.output.to_string(),
+                                is_error: !r.success,
+                            });
+                        }
+                        Err(e) => {
+                            tracing::error!(tool = %name, error = %e, "tool execution error (native)");
+                            all_events.push(AgentEvent::ToolResult { name: name.clone(), success: false });
+                            result_content.push(ContentBlock::ToolResult {
+                                tool_use_id: id.clone(),
+                                content: serde_json::json!({"error": e.to_string()}).to_string(),
+                                is_error: true,
+                            });
+                        }
+                    }
+                }
+
+                // Push tool results as a user-role message (API convention).
+                self.history.push(Message {
+                    role: Role::User,
+                    content: result_content,
+                });
+            }
+        } else {
+            // ----------------------------------------------------------------
+            // XML tool-calling path (Ollama, or any provider without native support)
+            // ----------------------------------------------------------------
+            for round in 0..MAX_TOOL_ROUNDS {
+                tracing::debug!(round = %round, history_len = %self.history.len(), "starting LLM round");
+
+                let mut stream = self.llm.stream_messages(&system, &self.history, MAX_TOKENS, &[]).await?;
+
+                let mut full_text = String::new();
+                while let Some(event) = stream.next().await {
+                    match event? {
+                        StreamEvent::TextDelta { text } => {
+                            all_events.push(AgentEvent::TextDelta { text: text.clone() });
+                            full_text.push_str(&text);
+                        }
+                        StreamEvent::MessageStop | StreamEvent::MessageStart => {}
+                        StreamEvent::ToolUse { .. } => {
+                            // Native tool_use events are not used on the XML path.
+                        }
+                        StreamEvent::Error { message } => {
+                            tracing::error!(round = %round, error = %message, "LLM stream error");
+                            return Err(crate::ClawError::Llm(message));
+                        }
+                    }
+                }
+
+                tracing::debug!(round = %round, response_len = %full_text.len(), response = %full_text, "LLM response received");
+
+                let tool_calls = extract_tool_calls(&full_text);
+                tracing::info!(round = %round, tool_calls_found = %tool_calls.len(), "tool call extraction");
+
+                if tool_calls.is_empty() {
+                    tracing::info!(round = %round, "no tool calls, turn complete");
+                    self.history.push(Message::assistant(&full_text));
+                    all_events.push(AgentEvent::Done);
+                    break;
+                }
+
+                let mut tool_results_xml = String::new();
+                let mut any_repaired = false;
+                for (call, was_repaired) in &tool_calls {
+                    if *was_repaired {
+                        any_repaired = true;
+                    }
+                    tracing::info!(tool = %call.name, args = %call.args, "executing tool");
+                    all_events.push(AgentEvent::ToolCall { name: call.name.clone() });
+                    let result = match self.registry.get(&call.name) {
+                        Some(tool) => tool.execute(call.args.clone(), &self.ctx).await,
+                        None => {
+                            tracing::warn!(tool = %call.name, "tool not found in registry");
+                            Err(crate::ClawError::Tool {
+                                tool: call.name.clone(),
+                                message: "tool not found".into(),
+                            })
+                        }
+                    };
+                    match result {
+                        Ok(r) => {
+                            tracing::info!(tool = %call.name, success = %r.success, output = %r.output, "tool result");
+                            all_events.push(AgentEvent::ToolResult { name: call.name.clone(), success: r.success });
+                            tool_results_xml.push_str(&format_tool_result(&call.name, r.success, &r.output));
+                        }
+                        Err(e) => {
+                            tracing::error!(tool = %call.name, error = %e, "tool execution error");
+                            let err_val = serde_json::json!({"error": e.to_string()});
+                            all_events.push(AgentEvent::ToolResult { name: call.name.clone(), success: false });
+                            tool_results_xml.push_str(&format_tool_result(&call.name, false, &err_val));
+                        }
+                    }
+                }
+
+                // If any tool_call JSON was malformed and had to be repaired, inject a
+                // correction so the LLM learns the correct format for subsequent rounds.
+                let format_correction = if any_repaired {
+                    tracing::warn!(round = %round, "injecting tool_call format correction into history");
+                    "\n\n[FORMAT ERROR] Your tool_call JSON was malformed and had to be repaired. \
 Please use exactly this format — the content inside <tool_call> is pure JSON with no XML attributes:\n\
 <tool_call>{\"name\": \"tool_name\", \"args\": {\"param\": \"value\"}}</tool_call>\n\
 Multi-parameter example:\n\
@@ -335,14 +518,15 @@ Common mistakes to avoid:\n\
 - WRONG (missing comma+quote):  {\"name\": \"foo\" args\": ...}\n\
 - WRONG (XML attribute style):  {\"name\": \"foo\" status=\"ok\">{...}}  ← never copy tool_result format\n\
 - RIGHT:                        {\"name\": \"foo\", \"args\": {...}}"
-            } else {
-                ""
-            };
+                } else {
+                    ""
+                };
 
-            let clean_text = extract_text_without_tool_calls(&full_text);
-            let assistant_msg = format!("{}\n{}{}", clean_text, tool_results_xml, format_correction);
-            self.history.push(Message::assistant(&assistant_msg));
-            self.history.push(Message::user("[tool results provided above, please continue]"));
+                let clean_text = extract_text_without_tool_calls(&full_text);
+                let assistant_msg = format!("{}\n{}{}", clean_text, tool_results_xml, format_correction);
+                self.history.push(Message::assistant(&assistant_msg));
+                self.history.push(Message::user("[tool results provided above, please continue]"));
+            }
         }
 
         // Ensure Done is always the last event, even when tool rounds are exhausted.
@@ -410,7 +594,7 @@ Common mistakes to avoid:\n\
     /// Returns the trimmed summary string.
     pub async fn summarize_interaction(&self, interaction_text: &str) -> crate::ClawResult<String> {
         let msgs = vec![crate::llm::types::Message::user(interaction_text)];
-        let mut stream = self.llm.stream_messages(SUMMARY_SYSTEM, &msgs, SUMMARY_MAX_TOKENS).await?;
+        let mut stream = self.llm.stream_messages(SUMMARY_SYSTEM, &msgs, SUMMARY_MAX_TOKENS, &[]).await?;
         let mut summary = String::new();
         while let Some(event) = stream.next().await {
             match event? {
@@ -450,7 +634,7 @@ mod tests {
             secrets: Arc::new(NullSecretStore),
         };
         let agent = AgentLoop::new(
-            MockLlmClient { response: response.to_string() },
+            MockLlmClient::new(response),
             registry, ctx,
             SkillManager::new(vec![]),
         );
@@ -494,7 +678,7 @@ mod tests {
         };
         let mgr = SkillManager::new(vec![skill]);
         let mut agent = AgentLoop::new(
-            MockLlmClient { response: "skill activated".into() },
+            MockLlmClient::new("skill activated"),
             registry, ctx, mgr,
         );
         let events = agent.chat("please activate_me", "Base system.").await.unwrap();
@@ -533,7 +717,7 @@ mod tests {
         };
         let mgr = SkillManager::new(vec![skill]);
         let mut agent = AgentLoop::new(
-            MockLlmClient { response: "ok".into() },
+            MockLlmClient::new("ok"),
             registry, ctx, mgr,
         );
 
@@ -583,6 +767,7 @@ mod tests {
             system: &str,
             _messages: &[crate::llm::types::Message],
             _max_tokens: u32,
+            _tools: &[crate::llm::types::ToolSpec],
         ) -> crate::ClawResult<crate::llm::client::EventStream> {
             *self.captured_system.lock().unwrap() = system.to_string();
             let text = self.response.clone();
@@ -873,7 +1058,7 @@ mod tests {
             secrets: Arc::new(NullSecretStore),
         };
         let mut agent = AgentLoop::new(
-            MockLlmClient { response: "ok".to_string() },
+            MockLlmClient::new("ok"),
             registry, ctx, SkillManager::new(vec![]),
         ).with_context_config(config);
 
@@ -902,7 +1087,7 @@ mod tests {
             secrets: Arc::new(NullSecretStore),
         };
         let mut agent = AgentLoop::new(
-            MockLlmClient { response: "hello".to_string() },
+            MockLlmClient::new("hello"),
             registry, ctx, SkillManager::new(vec![]),
         ).with_session_dir(session_dir.clone());
 
@@ -948,7 +1133,7 @@ mod tests {
         // max_messages = 3, min_user_turns = 1 so we can actually get candidates with a small history
         let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
         let mut agent = AgentLoop::new(
-            MockLlmClient { response: "ok".to_string() },
+            MockLlmClient::new("ok"),
             registry, ctx, SkillManager::new(vec![]),
         ).with_context_config(config);
 
@@ -985,7 +1170,7 @@ mod tests {
         };
         let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
         let mut agent = AgentLoop::new(
-            MockLlmClient { response: "ok".to_string() },
+            MockLlmClient::new("ok"),
             registry, ctx, SkillManager::new(vec![]),
         ).with_context_config(config);
 
@@ -1021,7 +1206,7 @@ mod tests {
         };
         let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
         let mut agent = AgentLoop::new(
-            MockLlmClient { response: "ok".to_string() },
+            MockLlmClient::new("ok"),
             registry, ctx, SkillManager::new(vec![]),
         ).with_context_config(config);
 
@@ -1045,5 +1230,185 @@ mod tests {
             "[summary of pruned context]",
             "prefix must be at index 0"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Tests: native tool-calling path
+    // -----------------------------------------------------------------------
+
+    async fn make_native_agent(
+        response: &str,
+        tool_uses: Vec<(String, String, serde_json::Value)>,
+    ) -> (AgentLoop<MockLlmClient>, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+        let mut registry = ToolRegistry::new();
+        register_all_builtins(&mut registry);
+        let ctx = ToolContext {
+            memory: mem,
+            sandbox_dir: dir.path().to_path_buf(),
+            http_allowlist: vec![],
+            permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
+        };
+        let llm = MockLlmClient::new_native(response, tool_uses);
+        let agent = AgentLoop::new(llm, registry, ctx, SkillManager::new(vec![]));
+        (agent, dir)
+    }
+
+    #[tokio::test]
+    async fn native_path_tool_use_event_triggers_tool_execution() {
+        // MockLlmClient with native=true emits a StreamEvent::ToolUse for `time`.
+        // The native path should execute the tool and emit ToolCall + ToolResult events.
+        let tool_uses = vec![
+            ("tu_001".to_string(), "time".to_string(), serde_json::json!({})),
+        ];
+        let (mut agent, _dir) = make_native_agent("Checking time...", tool_uses).await;
+        let events = agent.chat("What time is it?", "").await.unwrap();
+
+        let tool_call_events: Vec<_> = events.iter()
+            .filter(|e| matches!(e, AgentEvent::ToolCall { name } if name == "time"))
+            .collect();
+        assert!(!tool_call_events.is_empty(), "native path must emit ToolCall for `time`");
+
+        let tool_result_events: Vec<_> = events.iter()
+            .filter(|e| matches!(e, AgentEvent::ToolResult { name, .. } if name == "time"))
+            .collect();
+        assert!(!tool_result_events.is_empty(), "native path must emit ToolResult for `time`");
+
+        assert!(
+            matches!(events.last(), Some(AgentEvent::Done)),
+            "last event must be Done"
+        );
+    }
+
+    #[tokio::test]
+    async fn native_path_unknown_tool_emits_failed_tool_result() {
+        // A ToolUse event for an unknown tool should produce a failed ToolResult.
+        let tool_uses = vec![
+            ("tu_002".to_string(), "nonexistent_tool".to_string(), serde_json::json!({})),
+        ];
+        let (mut agent, _dir) = make_native_agent("", tool_uses).await;
+        let events = agent.chat("do something", "").await.unwrap();
+
+        let failed: Vec<_> = events.iter()
+            .filter(|e| matches!(e, AgentEvent::ToolResult { success: false, .. }))
+            .collect();
+        assert!(!failed.is_empty(), "unknown tool on native path must produce a failed ToolResult");
+    }
+
+    #[tokio::test]
+    async fn native_path_history_contains_content_blocks() {
+        // After a native tool call, history should have an assistant message with
+        // ContentBlock::ToolUse and a user message with ContentBlock::ToolResult.
+        let tool_uses = vec![
+            ("tu_003".to_string(), "time".to_string(), serde_json::json!({})),
+        ];
+        let (mut agent, _dir) = make_native_agent("Let me check.", tool_uses).await;
+        // First call triggers tool; second round (MockLlmClient still returns same text with no
+        // tool_uses for the second round) — but MockLlmClient emits tool_uses every call.
+        // To avoid infinite loop (native + tool_uses every round → MAX rounds), we just check
+        // after 1 chat call that history was properly structured.
+        let _ = agent.chat("time?", "").await;
+
+        // History: [user "time?", assistant (text+ToolUse), user (ToolResult), ...]
+        // At minimum the second message (index 1) must be an assistant with ToolUse block.
+        let history = agent.history();
+        assert!(history.len() >= 2, "history must have at least 2 messages after a tool call");
+
+        let assistant_msg = &history[1];
+        assert!(
+            assistant_msg.content.iter().any(|b| matches!(b, crate::llm::types::ContentBlock::ToolUse { .. })),
+            "assistant message must contain a ToolUse content block"
+        );
+
+        let tool_result_msg = &history[2];
+        assert!(
+            tool_result_msg.content.iter().any(|b| matches!(b, crate::llm::types::ContentBlock::ToolResult { .. })),
+            "tool result message must contain a ToolResult content block"
+        );
+    }
+
+    #[tokio::test]
+    async fn xml_path_still_works_when_native_false() {
+        // MockLlmClient with native=false (default) should use the XML path.
+        // A response with an XML tool_call should still trigger tool execution.
+        let (mut agent, _dir) = make_agent(
+            r#"I'll check the time. <tool_call>{"name": "time", "args": {}}</tool_call>"#
+        ).await;
+        let events = agent.chat("time?", "").await.unwrap();
+        let tool_events: Vec<_> = events.iter()
+            .filter(|e| matches!(e, AgentEvent::ToolCall { .. }))
+            .collect();
+        assert!(!tool_events.is_empty(), "XML path must still execute tool calls when native=false");
+    }
+
+    // -----------------------------------------------------------------------
+    // Tests: build_tools_array unit tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn build_tools_array_returns_all_tools_when_allowed_is_none() {
+        let reg = make_tool_registry_with(&[
+            ("tool_x", "Tool X"),
+            ("tool_y", "Tool Y"),
+        ]);
+        let specs = build_tools_array(&reg, &None);
+        let names: Vec<_> = specs.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"tool_x"), "tool_x must be in specs");
+        assert!(names.contains(&"tool_y"), "tool_y must be in specs");
+        assert_eq!(specs.len(), 2);
+    }
+
+    #[test]
+    fn build_tools_array_filters_by_allowed_list() {
+        let reg = make_tool_registry_with(&[
+            ("email_fetch", "Fetch emails"),
+            ("email_send",  "Send emails"),
+            ("file_read",   "Read files"),
+        ]);
+        let allowed = Some(vec!["email_fetch".to_string(), "email_send".to_string()]);
+        let specs = build_tools_array(&reg, &allowed);
+        let names: Vec<_> = specs.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"email_fetch"), "email_fetch must be in specs");
+        assert!(names.contains(&"email_send"),  "email_send must be in specs");
+        assert!(!names.contains(&"file_read"),  "file_read must be filtered out");
+        assert_eq!(specs.len(), 2);
+    }
+
+    #[test]
+    fn build_tools_array_spec_has_input_schema() {
+        let reg = make_tool_registry_with(&[("my_tool", "Does things")]);
+        let specs = build_tools_array(&reg, &None);
+        assert_eq!(specs.len(), 1);
+        let spec = &specs[0];
+        assert!(spec.input_schema.is_object(), "input_schema must be a JSON object");
+        // FakeTool schema has "type": "object" and "properties" with "input" param
+        assert_eq!(spec.input_schema["type"], "object");
+        assert!(spec.input_schema["properties"].is_object(), "properties must be present");
+    }
+
+    #[test]
+    fn compute_allowed_tools_no_skills_returns_none() {
+        let result = compute_allowed_tools(&[]);
+        assert!(result.is_none(), "no matched skills → no restriction");
+    }
+
+    #[test]
+    fn compute_allowed_tools_unrestricted_skill_returns_none() {
+        let skill = make_skill_with_allowed("unrestricted", vec!["x"], None);
+        let result = compute_allowed_tools(&[&skill]);
+        assert!(result.is_none(), "skill with allowed_tools=None → no restriction");
+    }
+
+    #[test]
+    fn compute_allowed_tools_restricted_skill_returns_union() {
+        let skill1 = make_skill_with_allowed("s1", vec!["a"], Some(vec!["tool_a"]));
+        let skill2 = make_skill_with_allowed("s2", vec!["b"], Some(vec!["tool_b"]));
+        let result = compute_allowed_tools(&[&skill1, &skill2]);
+        let allowed = result.expect("restricted skills must produce Some");
+        assert!(allowed.contains(&"tool_a".to_string()));
+        assert!(allowed.contains(&"tool_b".to_string()));
+        assert_eq!(allowed.len(), 2);
     }
 }

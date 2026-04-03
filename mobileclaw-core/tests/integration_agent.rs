@@ -23,7 +23,7 @@ async fn make_loop(llm_response: &str) -> (AgentLoop<MockLlmClient>, TempDir) {
         permissions: Arc::new(PermissionChecker::allow_all()),
         secrets: Arc::new(NullSecretStore),
     };
-    let llm = MockLlmClient { response: llm_response.to_string() };
+    let llm = MockLlmClient::new(llm_response);
     let agent = AgentLoop::new(llm, registry, ctx, SkillManager::new(vec![]));
     (agent, dir)
 }

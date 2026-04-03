@@ -3,7 +3,7 @@ use futures::StreamExt;
 use eventsource_stream::Eventsource;
 use async_stream::stream;
 
-use crate::{ClawError, ClawResult, llm::{client::{EventStream, LlmClient}, types::{Message, StreamEvent}}};
+use crate::{ClawError, ClawResult, llm::{client::{EventStream, LlmClient}, types::{ContentBlock, Message, Role, StreamEvent, ToolSpec}}};
 
 pub struct OpenAiCompatClient {
     /// Always ends with "/v1" (normalised in constructor)
@@ -42,11 +42,11 @@ fn normalise_base_url(url: &str) -> String {
 /// - Subsequent chunks: `.function.arguments` fragments (partial JSON)
 /// - Final: `finish_reason: "tool_calls"` with null delta
 ///
-/// Once `[DONE]` is received, call `to_xml()` to produce the agent-compatible
-/// `<tool_call>{"name":"...","args":{...}}</tool_call>` XML string.
+/// Once `[DONE]` is received, call `drain_as_events()` to produce `StreamEvent::ToolUse`
+/// events for each accumulated call.
 #[derive(Default)]
 pub(crate) struct ToolCallAcc {
-    // BTreeMap preserves insertion order by index for deterministic XML output.
+    // BTreeMap preserves insertion order by index for deterministic output.
     calls: std::collections::BTreeMap<usize, ToolCallEntry>,
 }
 
@@ -88,58 +88,134 @@ impl ToolCallAcc {
         !self.calls.is_empty()
     }
 
-    /// Render accumulated tool calls as agent-compatible XML.
+    /// Drain accumulated tool calls as `StreamEvent::ToolUse` events, then clear.
     ///
-    /// Each call becomes `<tool_call>{"name":"...","args":{...}}</tool_call>`.
-    /// Malformed accumulated JSON (truncated stream) falls back to `{}` for args.
-    pub(crate) fn to_xml(&self) -> String {
-        let mut out = String::new();
+    /// Each call's arguments string is parsed as JSON; malformed JSON falls back to `{}`.
+    pub(crate) fn drain_as_events(&mut self) -> Vec<StreamEvent> {
+        let mut events = Vec::with_capacity(self.calls.len());
         for entry in self.calls.values() {
-            let args: serde_json::Value = serde_json::from_str(&entry.arguments)
+            let input: serde_json::Value = serde_json::from_str(&entry.arguments)
                 .unwrap_or(serde_json::Value::Object(Default::default()));
-            let call_json = serde_json::json!({
-                "name": entry.name,
-                "args": args,
+            events.push(StreamEvent::ToolUse {
+                id: entry.id.clone(),
+                name: entry.name.clone(),
+                input,
             });
-            // to_string() on json! output is always valid; unwrap is safe here.
-            out.push_str(&format!(
-                "<tool_call>{}</tool_call>",
-                serde_json::to_string(&call_json).unwrap_or_default()
-            ));
         }
-        out
+        self.calls.clear();
+        events
     }
+}
+
+// ─── Message serialization helpers ───────────────────────────────────────────
+
+/// Serialize a slice of `Message` into the OpenAI `messages` array format,
+/// handling `ContentBlock::ToolUse` (assistant tool_calls) and
+/// `ContentBlock::ToolResult` (tool-role messages).
+fn serialize_messages(messages: &[Message]) -> Vec<serde_json::Value> {
+    let mut out: Vec<serde_json::Value> = Vec::with_capacity(messages.len());
+    for m in messages {
+        let role_str = match m.role {
+            Role::User => "user",
+            Role::Assistant => "assistant",
+            Role::System => "system",
+            Role::Tool => "tool",
+        };
+
+        // Collect text blocks and tool_use blocks for the assistant message.
+        let mut text_parts: Vec<&str> = Vec::new();
+        let mut tool_calls: Vec<serde_json::Value> = Vec::new();
+        let mut tool_results: Vec<serde_json::Value> = Vec::new();
+
+        for block in &m.content {
+            match block {
+                ContentBlock::Text { text } => {
+                    text_parts.push(text.as_str());
+                }
+                ContentBlock::ToolUse { id, name, input } => {
+                    // arguments must be a JSON-encoded string, not an object.
+                    let arguments = serde_json::to_string(input)
+                        .unwrap_or_else(|_| "{}".to_string());
+                    tool_calls.push(serde_json::json!({
+                        "id": id,
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "arguments": arguments,
+                        }
+                    }));
+                }
+                ContentBlock::ToolResult { tool_use_id, content, .. } => {
+                    tool_results.push(serde_json::json!({
+                        "role": "tool",
+                        "tool_call_id": tool_use_id,
+                        "content": content,
+                    }));
+                }
+            }
+        }
+
+        // Emit the primary message (user / assistant / system / tool).
+        if !tool_results.is_empty() {
+            // Messages that only contain ToolResult blocks are expanded into
+            // separate tool-role messages; no primary message is emitted.
+            out.extend(tool_results);
+        } else {
+            let text_content = text_parts.join("");
+            let mut msg = serde_json::json!({
+                "role": role_str,
+                "content": text_content,
+            });
+            if !tool_calls.is_empty() {
+                msg["tool_calls"] = serde_json::Value::Array(tool_calls);
+            }
+            out.push(msg);
+        }
+    }
+    out
 }
 
 // ─── LlmClient implementation ─────────────────────────────────────────────────
 
 #[async_trait]
 impl LlmClient for OpenAiCompatClient {
+    /// OpenAI-compat providers support native function calling.
+    fn native_tool_support(&self) -> bool {
+        true
+    }
+
     async fn stream_messages(
         &self,
         system: &str,
         messages: &[Message],
         max_tokens: u32,
+        tools: &[ToolSpec],
     ) -> ClawResult<EventStream> {
         let mut msg_array = vec![serde_json::json!({"role":"system","content":system})];
-        for m in messages {
-            use crate::llm::types::Role;
-            let role_str = match m.role {
-                Role::User => "user",
-                Role::Assistant => "assistant",
-                Role::System => "system",
-            };
-            msg_array.push(serde_json::json!({
-                "role": role_str,
-                "content": m.text_content()
-            }));
-        }
-        let body = serde_json::json!({
+        msg_array.extend(serialize_messages(messages));
+
+        let mut body = serde_json::json!({
             "model": self.model,
             "max_tokens": max_tokens,
             "messages": msg_array,
             "stream": true,
         });
+
+        // Inject tools into the request when the caller provides them.
+        if !tools.is_empty() {
+            let tools_json: Vec<serde_json::Value> = tools.iter().map(|t| {
+                serde_json::json!({
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.input_schema,
+                    }
+                })
+            }).collect();
+            body["tools"] = serde_json::Value::Array(tools_json);
+            body["tool_choice"] = serde_json::json!("auto");
+        }
 
         let url = format!("{}/chat/completions", self.base_url);
         tracing::debug!(
@@ -147,6 +223,7 @@ impl LlmClient for OpenAiCompatClient {
             model = %self.model,
             messages = msg_array.len(),
             max_tokens,
+            tools = tools.len(),
             "OpenAiCompatClient: sending request"
         );
 
@@ -177,9 +254,9 @@ impl LlmClient for OpenAiCompatClient {
         // silently dropped, resulting in empty assistant messages.
         //
         // Fix: use async_stream to iterate SSE events with a local ToolCallAcc.
-        // Accumulated calls are emitted as XML on [DONE] **or** when the byte
-        // stream ends without a [DONE] sentinel (some gateway implementations
-        // close the connection without sending [DONE]).
+        // Accumulated calls are emitted as StreamEvent::ToolUse on [DONE] **or**
+        // when the byte stream ends without a [DONE] sentinel (some gateway
+        // implementations close the connection without sending [DONE]).
         let url_for_log = url.clone();
         let s = stream! {
             yield Ok(StreamEvent::MessageStart);
@@ -201,9 +278,10 @@ impl LlmClient for OpenAiCompatClient {
                                 "[DONE] received"
                             );
                             if acc.has_calls() {
-                                let xml = acc.to_xml();
-                                tracing::debug!(xml_len = xml.len(), "emitting native tool calls as XML");
-                                yield Ok(StreamEvent::TextDelta { text: xml });
+                                tracing::debug!(count = acc.calls.len(), "emitting native tool calls as ToolUse events");
+                                for event in acc.drain_as_events() {
+                                    yield Ok(event);
+                                }
                             }
                             yield Ok(StreamEvent::MessageStop);
                             return;
@@ -236,9 +314,10 @@ impl LlmClient for OpenAiCompatClient {
                 "OpenAiCompatClient: stream ended without [DONE], flushing accumulator"
             );
             if acc.has_calls() {
-                let xml = acc.to_xml();
-                tracing::debug!(xml_len = xml.len(), "emitting native tool calls as XML (no-DONE flush)");
-                yield Ok(StreamEvent::TextDelta { text: xml });
+                tracing::debug!(count = acc.calls.len(), "emitting native tool calls as ToolUse events (no-DONE flush)");
+                for event in acc.drain_as_events() {
+                    yield Ok(event);
+                }
             }
             yield Ok(StreamEvent::MessageStop);
         };
@@ -323,7 +402,6 @@ mod tests {
     fn test_acc_empty_initially() {
         let acc = ToolCallAcc::default();
         assert!(!acc.has_calls());
-        assert_eq!(acc.to_xml(), "");
     }
 
     #[test]
@@ -347,11 +425,16 @@ mod tests {
         });
         acc.feed(&v);
         assert!(acc.has_calls());
-        let xml = acc.to_xml();
-        assert!(xml.contains("<tool_call>"));
-        assert!(xml.contains("</tool_call>"));
-        assert!(xml.contains("\"name\":\"memory_recall\""));
-        assert!(xml.contains("\"recent events\""));
+        let events = acc.drain_as_events();
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            StreamEvent::ToolUse { id, name, input } => {
+                assert_eq!(id, "call_abc");
+                assert_eq!(name, "memory_recall");
+                assert_eq!(input["query"], "recent events");
+            }
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
     }
 
     #[test]
@@ -379,12 +462,15 @@ mod tests {
             }]}}]
         }));
 
-        let xml = acc.to_xml();
-        assert!(xml.contains("file_read"));
-        assert!(xml.contains("/tmp/test.txt"));
-        // Arguments should be valid JSON inside the XML
-        assert!(xml.contains("<tool_call>"));
-        assert!(xml.contains("</tool_call>"));
+        let events = acc.drain_as_events();
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            StreamEvent::ToolUse { name, input, .. } => {
+                assert_eq!(name, "file_read");
+                assert_eq!(input["path"], "/tmp/test.txt");
+            }
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
     }
 
     #[test]
@@ -404,35 +490,34 @@ mod tests {
             ]}}]
         }));
 
-        let xml = acc.to_xml();
-        // Both tool calls must appear in order
-        let pos_store = xml.find("memory_store").unwrap();
-        let pos_recall = xml.find("memory_recall").unwrap();
-        assert!(pos_store < pos_recall, "tool calls should be ordered by index");
-        // Each must be wrapped in its own <tool_call> block
-        assert_eq!(xml.matches("<tool_call>").count(), 2);
-        assert_eq!(xml.matches("</tool_call>").count(), 2);
+        let events = acc.drain_as_events();
+        assert_eq!(events.len(), 2, "both tool calls must be emitted");
+        // Verify order: index 0 first
+        match &events[0] {
+            StreamEvent::ToolUse { name, .. } => assert_eq!(name, "memory_store"),
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
+        match &events[1] {
+            StreamEvent::ToolUse { name, .. } => assert_eq!(name, "memory_recall"),
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
     }
 
     #[test]
-    fn test_acc_xml_is_parseable_by_agent() {
-        // Verify that to_xml() output is accepted by the agent's extract_tool_calls parser.
-        use crate::agent::parser::extract_tool_calls;
+    fn test_acc_drain_clears_calls() {
         let mut acc = ToolCallAcc::default();
         acc.feed(&serde_json::json!({
             "choices": [{"delta": {"tool_calls": [{
                 "index": 0, "id": "call_1", "type": "function",
-                "function": {
-                    "name": "memory_recall",
-                    "arguments": "{\"query\":\"Rust async patterns\"}"
-                }
+                "function": {"name": "memory_recall", "arguments": "{\"query\":\"q\"}"}
             }]}}]
         }));
-        let xml = acc.to_xml();
-        let calls = extract_tool_calls(&xml);
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].0.name, "memory_recall");
-        assert_eq!(calls[0].0.args["query"], "Rust async patterns");
+        assert!(acc.has_calls());
+        let events = acc.drain_as_events();
+        assert_eq!(events.len(), 1);
+        // After drain, accumulator must be clear.
+        assert!(!acc.has_calls());
+        assert!(acc.drain_as_events().is_empty());
     }
 
     #[test]
@@ -445,14 +530,16 @@ mod tests {
                 "function": {"name": "some_tool", "arguments": "{truncated"}
             }]}}]
         }));
-        let xml = acc.to_xml();
-        assert!(xml.contains("some_tool"));
-        // Args fallback: {} → the XML should still be valid
-        use crate::agent::parser::extract_tool_calls;
-        let calls = extract_tool_calls(&xml);
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].0.name, "some_tool");
-        assert!(calls[0].0.args.is_object());
+        let events = acc.drain_as_events();
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            StreamEvent::ToolUse { name, input, .. } => {
+                assert_eq!(name, "some_tool");
+                assert!(input.is_object());
+                assert_eq!(input.as_object().unwrap().len(), 0);
+            }
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
     }
 
     #[test]
@@ -463,7 +550,7 @@ mod tests {
             "choices": [{"delta": {"content": "Hello"}}]
         }));
         assert!(!acc.has_calls());
-        assert_eq!(acc.to_xml(), "");
+        assert!(acc.drain_as_events().is_empty());
     }
 
     #[test]
@@ -484,6 +571,107 @@ mod tests {
                 acc.feed(&v);
             }
         }
+    }
+
+    // ── native_tool_support ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_native_tool_support_is_true() {
+        let client = OpenAiCompatClient {
+            base_url: "https://example.com/v1".into(),
+            api_key: "key".into(),
+            model: "gpt-4".into(),
+            http: reqwest::Client::new(),
+        };
+        assert!(client.native_tool_support());
+    }
+
+    // ── serialize_messages ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_serialize_messages_text_only() {
+        use crate::llm::types::{ContentBlock, Message, Role};
+        let msgs = vec![
+            Message { role: Role::User, content: vec![ContentBlock::Text { text: "hello".into() }] },
+            Message { role: Role::Assistant, content: vec![ContentBlock::Text { text: "world".into() }] },
+        ];
+        let out = serialize_messages(&msgs);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0]["role"], "user");
+        assert_eq!(out[0]["content"], "hello");
+        assert_eq!(out[1]["role"], "assistant");
+        assert_eq!(out[1]["content"], "world");
+    }
+
+    #[test]
+    fn test_serialize_messages_tool_use_in_assistant() {
+        use crate::llm::types::{ContentBlock, Message, Role};
+        let msgs = vec![Message {
+            role: Role::Assistant,
+            content: vec![
+                ContentBlock::Text { text: "calling tool".into() },
+                ContentBlock::ToolUse {
+                    id: "call_1".into(),
+                    name: "memory_recall".into(),
+                    input: serde_json::json!({"query": "test"}),
+                },
+            ],
+        }];
+        let out = serialize_messages(&msgs);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0]["role"], "assistant");
+        assert_eq!(out[0]["content"], "calling tool");
+        let tool_calls = out[0]["tool_calls"].as_array().unwrap();
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0]["id"], "call_1");
+        assert_eq!(tool_calls[0]["type"], "function");
+        assert_eq!(tool_calls[0]["function"]["name"], "memory_recall");
+        // arguments must be a JSON-encoded string
+        let args_str = tool_calls[0]["function"]["arguments"].as_str().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(args_str).unwrap();
+        assert_eq!(parsed["query"], "test");
+    }
+
+    #[test]
+    fn test_serialize_messages_tool_result_expands_to_tool_role() {
+        use crate::llm::types::{ContentBlock, Message, Role};
+        let msgs = vec![Message {
+            role: Role::User,
+            content: vec![ContentBlock::ToolResult {
+                tool_use_id: "call_1".into(),
+                content: "42".into(),
+                is_error: false,
+            }],
+        }];
+        let out = serialize_messages(&msgs);
+        assert_eq!(out.len(), 1, "ToolResult expands to a single tool-role message");
+        assert_eq!(out[0]["role"], "tool");
+        assert_eq!(out[0]["tool_call_id"], "call_1");
+        assert_eq!(out[0]["content"], "42");
+    }
+
+    #[test]
+    fn test_serialize_messages_multiple_tool_results() {
+        use crate::llm::types::{ContentBlock, Message, Role};
+        let msgs = vec![Message {
+            role: Role::User,
+            content: vec![
+                ContentBlock::ToolResult {
+                    tool_use_id: "call_1".into(),
+                    content: "result_a".into(),
+                    is_error: false,
+                },
+                ContentBlock::ToolResult {
+                    tool_use_id: "call_2".into(),
+                    content: "result_b".into(),
+                    is_error: false,
+                },
+            ],
+        }];
+        let out = serialize_messages(&msgs);
+        assert_eq!(out.len(), 2, "two ToolResults expand to two tool-role messages");
+        assert_eq!(out[0]["tool_call_id"], "call_1");
+        assert_eq!(out[1]["tool_call_id"], "call_2");
     }
 
     // ── normalise_base_url ────────────────────────────────────────────────────

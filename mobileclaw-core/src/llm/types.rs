@@ -1,13 +1,28 @@
 use serde::{Deserialize, Serialize};
 
+/// Describes a tool available to the LLM (request-side tools array).
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolSpec {
+    pub name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum Role { User, Assistant, System }
+pub enum Role {
+    User,
+    Assistant,
+    System,
+    Tool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
     Text { text: String },
+    ToolUse { id: String, name: String, input: serde_json::Value },
+    ToolResult { tool_use_id: String, content: String, is_error: bool },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -30,6 +45,8 @@ impl Message {
     pub fn text_content(&self) -> String {
         self.content.iter().map(|b| match b {
             ContentBlock::Text { text } => text.as_str(),
+            ContentBlock::ToolUse { .. } => "",
+            ContentBlock::ToolResult { .. } => "",
         }).collect::<Vec<_>>().join("")
     }
 }
@@ -38,6 +55,8 @@ impl Message {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum StreamEvent {
     TextDelta { text: String },
+    /// Emitted once per complete tool_use block.
+    ToolUse { id: String, name: String, input: serde_json::Value },
     MessageStart,
     MessageStop,
     Error { message: String },
@@ -90,5 +109,39 @@ mod tests {
     fn text_content_empty_for_no_content() {
         let m = Message { role: Role::User, content: vec![] };
         assert_eq!(m.text_content(), "");
+    }
+
+    #[test]
+    fn tool_use_block_serializes_with_type_tag() {
+        let block = ContentBlock::ToolUse {
+            id: "tu_1".into(),
+            name: "time".into(),
+            input: serde_json::json!({}),
+        };
+        let json = serde_json::to_value(&block).unwrap();
+        assert_eq!(json["type"], "tool_use");
+        assert_eq!(json["id"], "tu_1");
+        assert_eq!(json["name"], "time");
+        assert_eq!(json["input"], serde_json::json!({}));
+    }
+
+    #[test]
+    fn tool_result_block_serializes_with_type_tag() {
+        let block = ContentBlock::ToolResult {
+            tool_use_id: "tu_1".into(),
+            content: "ok".into(),
+            is_error: false,
+        };
+        let json = serde_json::to_value(&block).unwrap();
+        assert_eq!(json["type"], "tool_result");
+        assert_eq!(json["tool_use_id"], "tu_1");
+        assert_eq!(json["content"], "ok");
+        assert_eq!(json["is_error"], false);
+    }
+
+    #[test]
+    fn role_tool_serializes_as_tool() {
+        let json = serde_json::to_value(Role::Tool).unwrap();
+        assert_eq!(json, "tool");
     }
 }

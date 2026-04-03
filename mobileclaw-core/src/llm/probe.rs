@@ -54,7 +54,7 @@ async fn probe_with_request(config: &ProviderConfig, api_key: Option<&str>) -> C
 async fn probe_with_request_inner(config: &ProviderConfig, api_key: Option<&str>) -> ClawResult<()> {
     let client = create_llm_client(config, api_key)?;
     let mut stream = client
-        .stream_messages(".", &[Message::user("Hi")], 16)
+        .stream_messages(".", &[Message::user("Hi")], 16, &[])
         .await?;
     // Consume first event to verify the stream is working
     match stream.next().await {

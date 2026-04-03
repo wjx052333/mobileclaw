@@ -18,6 +18,8 @@ use crate::llm::types::{ContentBlock, Message};
 pub fn estimate_message_tokens(msg: &Message) -> usize {
     let text_bytes: usize = msg.content.iter().map(|b| match b {
         ContentBlock::Text { text } => text.len(),
+        ContentBlock::ToolUse { .. } => 0,
+        ContentBlock::ToolResult { content, .. } => content.len(),
     }).sum();
 
     let overhead = 3 /* role tag */ + msg.content.len() /* per-block overhead */;

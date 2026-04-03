@@ -478,6 +478,7 @@ impl AgentSession {
                     Role::User => "user".into(),
                     Role::Assistant => "assistant".into(),
                     Role::System => "system".into(),
+                    Role::Tool => "tool".into(),
                 },
                 content: m.text_content(),
             })
