@@ -26,6 +26,29 @@ plugins {
     id("kotlin-android")
 }
 
+// ---- Cargo NDK integration ----
+// Automatically builds libmobileclaw_core.so before Android compilation.
+// Requires: rustup target add aarch64-linux-android x86_64-linux-android
+//           cargo install cargo-ndk
+val cargoNdkDir = File(rootProject.projectDir, "../../").absolutePath
+val mobileclawCorePath = File(cargoNdkDir, "mobileclaw-core").absolutePath
+val jniLibsDir = File(projectDir, "src/main/jniLibs").absolutePath
+
+val cargoNdkBuild = tasks.register<Exec>("cargoNdkBuild") {
+    workingDir = File(cargoNdkDir)
+    commandLine(
+        "cargo", "ndk",
+        "-t", "arm64-v8a", "-t", "x86_64",
+        "-o", jniLibsDir,
+        "build", "--release", "-p", "mobileclaw-core"
+    )
+}
+
+// Wire into every build variant (debug, release, profile)
+android.libraryVariants.all {
+    preBuildProvider.configure { dependsOn(cargoNdkBuild) }
+}
+
 android {
     namespace = "com.mobileclaw.mobileclaw_sdk"
 

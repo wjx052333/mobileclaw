@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobileclaw_sdk/mobileclaw_sdk.dart';
 
+import '../../core/engine_provider.dart';
 import '../chat/chat_page.dart';
 import 'provider_form_screen.dart';
 import 'provider_notifier.dart';
@@ -43,6 +44,9 @@ class OnboardingScreen extends ConsumerWidget {
                 onProviderSaved: (id) async {
                   final agent = ref.read(agentInstanceProvider);
                   await agent.providerSetActive(id: id);
+                  // Recreate the agent session so it reads the active provider
+                  // from secrets.db instead of falling back to legacy Anthropic.
+                  await reinitializeAgent(ref);
                   if (context.mounted) {
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(builder: (_) => const ChatPage()),

@@ -247,7 +247,7 @@ fn doc_to_dto(doc: MemoryDoc) -> MemoryDocDto {
 /// Opaque session handle held by Dart. Dart cannot inspect the internals.
 #[frb(opaque)]
 pub struct AgentSession {
-    inner: AgentLoop<std::sync::Arc<dyn crate::llm::client::LlmClient>>,
+    inner: Option<AgentLoop<std::sync::Arc<dyn crate::llm::client::LlmClient>>>,
     memory: Arc<SqliteMemory>,
     secrets: Arc<SqliteSecretStore>,
     session_dir: Option<std::path::PathBuf>,
@@ -294,12 +294,20 @@ impl AgentSession {
         );
         tracing::debug!(path = %config.secrets_db_path, "secrets db opened");
 
-        // Resolve LLM client: active provider from SecretStore, or legacy explicit config
-        let llm: std::sync::Arc<dyn crate::llm::client::LlmClient> = {
+        // Resolve LLM client: active provider from SecretStore, or legacy explicit config.
+        // If neither is available, create succeeds with `inner = None` — chat() will return
+        // a helpful error message prompting the user to configure a provider.
+        let inner_opt = 'llm: {
             use crate::llm::provider::{ProviderConfig, ProviderProtocol, create_llm_client};
-            match secrets.active_provider_id().await? {
+            let llm = match secrets.active_provider_id().await? {
                 Some(id) => {
-                    let provider_cfg = secrets.provider_load(&id).await?;
+                    let provider_cfg = match secrets.provider_load(&id).await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            tracing::warn!(provider_id = %id, error = %e, "active provider not found, ignoring");
+                            break 'llm None;
+                        }
+                    };
                     let api_key = secrets.provider_api_key(&id).await?;
                     tracing::info!(
                         provider_id = %id,
@@ -308,15 +316,24 @@ impl AgentSession {
                         base_url = %provider_cfg.base_url,
                         "using active provider from secrets db"
                     );
-                    create_llm_client(&provider_cfg, api_key.as_deref())
-                        .inspect_err(|e| tracing::error!(provider_id = %id, error = %e, "failed to build LLM client"))?
+                    match create_llm_client(&provider_cfg, api_key.as_deref()) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            tracing::warn!(provider_id = %id, error = %e, "failed to build LLM client, creating session without chat capability");
+                            break 'llm None;
+                        }
+                    }
                 }
                 None => {
                     // Backwards-compat: explicit api_key + model in AgentConfig
-                    let key = config.api_key.as_deref()
-                        .ok_or_else(|| anyhow::anyhow!("no active provider and no api_key in config"))?;
-                    let model = config.model.as_deref()
-                        .ok_or_else(|| anyhow::anyhow!("no active provider and no model in config"))?;
+                    let key = match config.api_key.as_deref() {
+                        Some(k) => k,
+                        None => break 'llm None,
+                    };
+                    let model = match config.model.as_deref() {
+                        Some(m) => m,
+                        None => break 'llm None,
+                    };
                     tracing::info!(model = %model, "no active provider — using legacy api_key from AgentConfig");
                     let cfg = ProviderConfig::new(
                         "legacy".into(),
@@ -324,68 +341,81 @@ impl AgentSession {
                         "https://api.anthropic.com".into(),
                         model.to_string(),
                     );
-                    create_llm_client(&cfg, Some(key))?
+                    match create_llm_client(&cfg, Some(key)) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            tracing::warn!(error = %e, "failed to create legacy LLM client");
+                            break 'llm None;
+                        }
+                    }
                 }
+            };
+
+            let mut registry = ToolRegistry::new();
+            register_core_builtins(&mut registry);
+            if secrets.has_email_accounts().await.unwrap_or(false) {
+                register_email_builtins(&mut registry);
+                tracing::debug!("email tools registered");
+            } else {
+                tracing::debug!("email tools skipped: no accounts configured");
             }
-        };
+            tracing::debug!(tool_count = registry.list().len(), "builtins registered");
 
-        let mut registry = ToolRegistry::new();
-        register_core_builtins(&mut registry);
-        if secrets.has_email_accounts().await.unwrap_or(false) {
-            register_email_builtins(&mut registry);
-            tracing::debug!("email tools registered");
-        } else {
-            tracing::debug!("email tools skipped: no accounts configured");
-        }
-        tracing::debug!(tool_count = registry.list().len(), "builtins registered");
+            let ctx = ToolContext {
+                memory: memory.clone() as Arc<dyn Memory>,
+                sandbox_dir: config.sandbox_dir.into(),
+                http_allowlist: config.http_allowlist,
+                permissions: Arc::new(PermissionChecker::allow_all()),
+                secrets: secrets.clone() as Arc<dyn crate::secrets::SecretStore>,
+            };
 
-        let ctx = ToolContext {
-            memory: memory.clone() as Arc<dyn Memory>, // Arc clone: both AgentSession.memory and AgentLoop's ToolContext must co-own the same memory instance
-            sandbox_dir: config.sandbox_dir.into(),
-            http_allowlist: config.http_allowlist,
-            permissions: Arc::new(PermissionChecker::allow_all()),
-            secrets: secrets.clone() as Arc<dyn crate::secrets::SecretStore>,
-        };
+            let skills = if let Some(dir) = &config.skills_dir {
+                let loaded = load_skills_from_dir(Path::new(dir)).await
+                    .inspect_err(|e| tracing::error!(dir = %dir, error = %e, "failed to load skills"))?;
+                tracing::info!(dir = %dir, count = loaded.len(), "skills loaded from dir");
+                loaded
+            } else {
+                tracing::debug!("no skills_dir configured");
+                vec![]
+            };
+            let skill_mgr = SkillManager::new(skills);
 
-        let skills = if let Some(dir) = &config.skills_dir {
-            let loaded = load_skills_from_dir(Path::new(dir)).await
-                .inspect_err(|e| tracing::error!(dir = %dir, error = %e, "failed to load skills"))?;
-            tracing::info!(dir = %dir, count = loaded.len(), "skills loaded from dir");
-            loaded
-        } else {
-            tracing::debug!("no skills_dir configured");
-            vec![]
-        };
-        let skill_mgr = SkillManager::new(skills);
+            let inner = AgentLoop::new(llm, registry, ctx, skill_mgr);
 
-        let inner = AgentLoop::new(llm, registry, ctx, skill_mgr);
+            let ctx_config = crate::agent::context_manager::ContextConfig {
+                max_tokens: config.context_window.unwrap_or(200_000) as usize,
+                buffer_tokens: 13_000,
+                min_user_turns: 3,
+                max_messages: Some(config.max_session_messages.unwrap_or(100) as usize),
+            };
+            let inner = inner.with_context_config(ctx_config);
 
-        // Apply context configuration
-        let ctx_config = crate::agent::context_manager::ContextConfig {
-            max_tokens: config.context_window.unwrap_or(200_000) as usize,
-            buffer_tokens: 13_000,
-            min_user_turns: 3,
-            max_messages: Some(config.max_session_messages.unwrap_or(100) as usize),
-        };
-        let inner = inner.with_context_config(ctx_config);
-
-        // Apply session directory
-        let inner = if let Some(ref dir_str) = config.session_dir {
-            inner.with_session_dir(std::path::PathBuf::from(dir_str))
-        } else {
-            inner
+            if let Some(ref dir_str) = config.session_dir {
+                Some(inner.with_session_dir(std::path::PathBuf::from(dir_str)))
+            } else {
+                Some(inner)
+            }
         };
 
         let session_dir = config.session_dir.map(std::path::PathBuf::from);
         let session_id = uuid::Uuid::new_v4().to_string();
-        tracing::info!(session_id = %session_id, "AgentSession created successfully");
-        Ok(AgentSession { inner, memory, secrets, session_dir, session_id })
+        tracing::info!(
+            session_id = %session_id,
+            has_llm = inner_opt.is_some(),
+            "AgentSession created"
+        );
+        Ok(AgentSession { inner: inner_opt, memory, secrets, session_dir, session_id })
     }
 
     /// Send a user message and return all events produced by one agent turn.
     pub async fn chat(&mut self, input: String, system: String) -> anyhow::Result<Vec<AgentEventDto>> {
         use crate::agent::loop_impl::AgentEvent;
         use crate::llm::types::Message;
+
+        let inner = self.inner.as_mut()
+            .ok_or_else(|| anyhow::anyhow!(
+                "No LLM provider configured. Add a provider in Settings before chatting."
+            ))?;
 
         tracing::info!(
             input_len = input.len(),
@@ -394,16 +424,16 @@ impl AgentSession {
         );
 
         // Phase A — Count prune (BEFORE inner.chat)
-        let candidates = self.inner.count_prune_candidates();
+        let candidates = inner.count_prune_candidates();
         if !candidates.is_empty() {
             let prefix_content = build_history_prefix(&self.memory, &self.session_id, candidates.len()).await;
             let prefix_msg = prefix_content.map(|p| Message::system(format!("Previously in this session:\n{}", p)));
-            self.inner.apply_count_prune(&candidates, prefix_msg);
+            inner.apply_count_prune(&candidates, prefix_msg);
             tracing::info!(pruned = candidates.len(), "count-based history prune applied");
         }
 
         // Phase B — Main chat
-        let events = self.inner.chat(&input, &system).await
+        let events = inner.chat(&input, &system).await
             .inspect_err(|e| tracing::error!(error = %e, "AgentSession::chat failed"))?;
 
         let text_chars: usize = events.iter().map(|e| {
@@ -422,7 +452,7 @@ impl AgentSession {
         let timestamp_hex = current_timestamp_hex();
         let path = format!("history/{}/{}", self.session_id, timestamp_hex);
         let base_content = format!("User: {}", input);
-        let summary_opt: Option<String> = match self.inner.summarize_interaction(&interaction_text).await {
+        let summary_opt: Option<String> = match inner.summarize_interaction(&interaction_text).await {
             Ok(s) if !s.is_empty() => Some(s),
             Ok(_) => None,  // empty summary treated as failure
             Err(e) => { tracing::warn!(error = %e, "summary LLM call failed"); None }
@@ -469,11 +499,8 @@ impl AgentSession {
     /// Return a snapshot of the conversation history.
     pub fn history(&self) -> Vec<MessageDto> {
         use crate::llm::types::Role;
-
-        self.inner
-            .history()
-            .iter()
-            .map(|m| MessageDto {
+        match &self.inner {
+            Some(inner) => inner.history().iter().map(|m| MessageDto {
                 role: match m.role {
                     Role::User => "user".into(),
                     Role::Assistant => "assistant".into(),
@@ -481,32 +508,34 @@ impl AgentSession {
                     Role::Tool => "tool".into(),
                 },
                 content: m.text_content(),
-            })
-            .collect()
+            }).collect(),
+            None => vec![],
+        }
     }
 
     /// Return the loaded skills as DTOs.
     pub fn skills(&self) -> Vec<SkillManifestDto> {
-        self.inner
-            .skills()
-            .iter()
-            .map(|s| SkillManifestDto {
-                name: s.manifest.name.clone(), // String/Vec clone: DTOs must own their data to cross the FFI boundary
-                description: s.manifest.description.clone(), // String/Vec clone: DTOs must own their data to cross the FFI boundary
+        match &self.inner {
+            Some(inner) => inner.skills().iter().map(|s| SkillManifestDto {
+                name: s.manifest.name.clone(),
+                description: s.manifest.description.clone(),
                 trust: match s.manifest.trust {
                     SkillTrust::Bundled => "bundled".into(),
                     SkillTrust::Installed => "installed".into(),
                 },
-                keywords: s.manifest.activation.keywords.clone(), // String/Vec clone: DTOs must own their data to cross the FFI boundary
-                allowed_tools: s.manifest.allowed_tools.clone().unwrap_or_default(), // String/Vec clone: DTOs must own their data to cross the FFI boundary
-            })
-            .collect()
+                keywords: s.manifest.activation.keywords.clone(),
+                allowed_tools: s.manifest.allowed_tools.clone().unwrap_or_default(),
+            }).collect(),
+            None => vec![],
+        }
     }
 
     /// Load skills from a directory and replace the current skill manager.
     pub async fn load_skills_from_dir(&mut self, dir: String) -> anyhow::Result<()> {
+        let inner = self.inner.as_mut()
+            .ok_or_else(|| anyhow::anyhow!("AgentSession has no LLM client — configure a provider first"))?;
         let skills = load_skills_from_dir(Path::new(&dir)).await?;
-        self.inner.replace_skills(SkillManager::new(skills));
+        inner.replace_skills(SkillManager::new(skills));
         Ok(())
     }
 
@@ -614,17 +643,21 @@ impl AgentSession {
     pub async fn session_save(&self) -> anyhow::Result<String> {
         let dir = self.session_dir.as_ref()
             .ok_or_else(|| anyhow::anyhow!("session_dir not configured in AgentConfig"))?;
-        let path = crate::agent::session::save_session(dir, self.inner.history()).await?;
+        let inner = self.inner.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("AgentSession has no LLM client"))?;
+        let path = crate::agent::session::save_session(dir, inner.history()).await?;
         Ok(path.to_string_lossy().into_owned())
     }
 
     /// Load a session from a JSONL file. Replaces current history.
     /// Returns the number of messages loaded.
     pub async fn session_load(&mut self, file_path: String) -> anyhow::Result<usize> {
+        let inner = self.inner.as_mut()
+            .ok_or_else(|| anyhow::anyhow!("AgentSession has no LLM client"))?;
         let path = std::path::Path::new(&file_path);
         let messages = crate::agent::session::load_session(path).await?;
         let count = messages.len();
-        self.inner.set_history(messages);
+        inner.set_history(messages);
         Ok(count)
     }
 

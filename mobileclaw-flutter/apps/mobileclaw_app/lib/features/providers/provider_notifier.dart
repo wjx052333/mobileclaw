@@ -18,16 +18,21 @@ final agentInstanceProvider = Provider<MobileclawAgent>((ref) {
 ///   - AsyncError: fetch failed
 final providerListProvider =
     StateNotifierProvider<ProviderNotifier, AsyncValue<List<ProviderConfigDto>>>(
-  (ref) => ProviderNotifier(ref.watch(agentInstanceProvider)),
+  (ref) => ProviderNotifier(ref),
 );
 
 class ProviderNotifier
     extends StateNotifier<AsyncValue<List<ProviderConfigDto>>> {
-  ProviderNotifier(this._agent) : super(const AsyncValue.loading()) {
+  ProviderNotifier(this._ref) : super(const AsyncValue.loading()) {
     refresh();
   }
 
-  final MobileclawAgent _agent;
+  final Ref _ref;
+
+  /// Lazily read the current agent instance. This ensures that after
+  /// `reinitializeAgent` is called (e.g. after onboarding), the notifier
+  /// picks up the new agent instead of holding a stale reference.
+  MobileclawAgent get _agent => _ref.read(agentInstanceProvider);
 
   /// Reload the provider list from the Rust store.
   Future<void> refresh() async {

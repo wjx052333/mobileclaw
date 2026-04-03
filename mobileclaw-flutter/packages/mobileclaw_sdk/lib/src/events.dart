@@ -45,6 +45,28 @@ final class ToolResultEvent extends AgentEvent {
   int get hashCode => Object.hash(toolName, success);
 }
 
+/// Context-window observability snapshot emitted once per chat() turn.
+final class ContextStatsEvent extends AgentEvent {
+  const ContextStatsEvent({
+    required this.tokensBeforeTurn,
+    required this.tokensAfterPrune,
+    required this.messagesPruned,
+    required this.historyLen,
+    required this.pruningThreshold,
+  });
+  final int tokensBeforeTurn;
+  final int tokensAfterPrune;
+  final int messagesPruned;
+  final int historyLen;
+  final int pruningThreshold;
+}
+
+/// One-sentence summary of the completed interaction, stored permanently.
+final class TurnSummaryEvent extends AgentEvent {
+  const TurnSummaryEvent({required this.summary});
+  final String summary;
+}
+
 /// The turn is complete. No further events will be emitted on this stream.
 final class DoneEvent extends AgentEvent {
   const DoneEvent();

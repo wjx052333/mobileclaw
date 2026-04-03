@@ -971,8 +971,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   AgentConfig dco_decode_agent_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return AgentConfig(
       apiKey: dco_decode_opt_String(arr[0]),
       dbPath: dco_decode_String(arr[1]),
@@ -982,6 +982,10 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       httpAllowlist: dco_decode_list_String(arr[5]),
       model: dco_decode_opt_String(arr[6]),
       skillsDir: dco_decode_opt_String(arr[7]),
+      logDir: dco_decode_opt_String(arr[8]),
+      sessionDir: dco_decode_opt_String(arr[9]),
+      contextWindow: arr[10] as int?,
+      maxSessionMessages: arr[11] as int?,
     );
   }
 
@@ -999,9 +1003,19 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           success: dco_decode_bool(raw[2]),
         );
       case 3:
+        return AgentEventDto_ContextStats(
+          tokensBeforeTurn: dco_decode_i_64(raw[1]),
+          tokensAfterPrune: dco_decode_i_64(raw[2]),
+          messagesPruned: dco_decode_i_64(raw[3]),
+          historyLen: dco_decode_i_64(raw[4]),
+          pruningThreshold: dco_decode_i_64(raw[5]),
+        );
+      case 4:
+        return AgentEventDto_TurnSummary(summary: dco_decode_String(raw[1]));
+      case 5:
         return AgentEventDto_Done();
       default:
-        throw Exception("unreachable");
+        throw Exception('Unknown AgentEventDto tag: ${raw[0]}');
     }
   }
 
@@ -1331,6 +1345,10 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     var var_httpAllowlist = sse_decode_list_String(deserializer);
     var var_model = sse_decode_opt_String(deserializer);
     var var_skillsDir = sse_decode_opt_String(deserializer);
+    var var_logDir = sse_decode_opt_String(deserializer);
+    var var_sessionDir = sse_decode_opt_String(deserializer);
+    var var_contextWindow = sse_decode_opt_u_32(deserializer);
+    var var_maxSessionMessages = sse_decode_opt_u_32(deserializer);
     return AgentConfig(
       apiKey: var_apiKey,
       dbPath: var_dbPath,
@@ -1340,6 +1358,10 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       httpAllowlist: var_httpAllowlist,
       model: var_model,
       skillsDir: var_skillsDir,
+      logDir: var_logDir,
+      sessionDir: var_sessionDir,
+      contextWindow: var_contextWindow,
+      maxSessionMessages: var_maxSessionMessages,
     );
   }
 
@@ -1360,9 +1382,21 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
         var var_success = sse_decode_bool(deserializer);
         return AgentEventDto_ToolResult(name: var_name, success: var_success);
       case 3:
+        return AgentEventDto_ContextStats(
+          tokensBeforeTurn: sse_decode_i_64(deserializer),
+          tokensAfterPrune: sse_decode_i_64(deserializer),
+          messagesPruned: sse_decode_i_64(deserializer),
+          historyLen: sse_decode_i_64(deserializer),
+          pruningThreshold: sse_decode_i_64(deserializer),
+        );
+      case 4:
+        return AgentEventDto_TurnSummary(
+          summary: sse_decode_String(deserializer),
+        );
+      case 5:
         return AgentEventDto_Done();
       default:
-        throw UnimplementedError('');
+        throw UnimplementedError('Unknown AgentEventDto tag: $tag_');
     }
   }
 
@@ -1570,6 +1604,37 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     } else {
       return null;
     }
+  }
+
+  @protected
+  int? sse_decode_opt_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    if (sse_decode_bool(deserializer)) {
+      return sse_decode_u_32(deserializer);
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  void sse_encode_opt_u_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_u_32(self, serializer);
+    }
+  }
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint32();
+  }
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint32(self);
   }
 
   @protected
@@ -1784,6 +1849,10 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     sse_encode_list_String(self.httpAllowlist, serializer);
     sse_encode_opt_String(self.model, serializer);
     sse_encode_opt_String(self.skillsDir, serializer);
+    sse_encode_opt_String(self.logDir, serializer);
+    sse_encode_opt_String(self.sessionDir, serializer);
+    sse_encode_opt_u_32(self.contextWindow, serializer);
+    sse_encode_opt_u_32(self.maxSessionMessages, serializer);
   }
 
   @protected
@@ -1803,8 +1872,24 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
         sse_encode_i_32(2, serializer);
         sse_encode_String(name, serializer);
         sse_encode_bool(success, serializer);
-      case AgentEventDto_Done():
+      case AgentEventDto_ContextStats(
+          tokensBeforeTurn: final tokensBeforeTurn,
+          tokensAfterPrune: final tokensAfterPrune,
+          messagesPruned: final messagesPruned,
+          historyLen: final historyLen,
+          pruningThreshold: final pruningThreshold,
+        ):
         sse_encode_i_32(3, serializer);
+        sse_encode_i_64(tokensBeforeTurn, serializer);
+        sse_encode_i_64(tokensAfterPrune, serializer);
+        sse_encode_i_64(messagesPruned, serializer);
+        sse_encode_i_64(historyLen, serializer);
+        sse_encode_i_64(pruningThreshold, serializer);
+      case AgentEventDto_TurnSummary(summary: final summary):
+        sse_encode_i_32(4, serializer);
+        sse_encode_String(summary, serializer);
+      case AgentEventDto_Done():
+        sse_encode_i_32(5, serializer);
     }
   }
 
