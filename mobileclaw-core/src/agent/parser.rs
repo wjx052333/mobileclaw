@@ -10,21 +10,30 @@ pub struct ToolCall {
 
 /// Attempt to repair common LLM JSON mistakes before full parse failure.
 ///
-/// Handles: missing comma between object fields — `"value" "key"` → `"value", "key"`.
-/// This is safe because JSON string values always escape internal quotes as `\"`,
-/// so an unescaped `"<whitespace>"` sequence must be a field boundary.
+/// Handles two related patterns caused by LLMs omitting the comma between
+/// top-level object fields:
+///   - `"value" "key":` → `"value", "key":` (missing comma, quote present)
+///   - `"value" key":` → `"value", "key":` (missing comma AND missing opening quote)
 ///
-/// Returns the repaired string only if it differs from the input AND parses successfully.
+/// The single regex `"(\s+)"?([a-z_])` matches a closing quote, whitespace,
+/// an optional opening quote, and the first lowercase letter/underscore of a
+/// JSON key. This is safe because JSON string values always escape internal
+/// quotes as `\"`, so any unescaped `"<whitespace>[a-z]` sequence must be a
+/// field boundary, not data.
+///
+/// Returns the repaired string only if it differs from the input AND parses
+/// successfully. Pattern C (XML attribute leakage) is not repairable and
+/// returns None.
 fn try_repair_json(s: &str) -> Option<ToolCall> {
     use std::sync::OnceLock;
     static RE: OnceLock<regex::Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
-        // Matches: closing quote of a value, whitespace, opening quote of next key.
-        // The pattern `"(\s+)"` matches both surrounding quotes, capturing the whitespace.
-        // Replacement inserts the missing comma: `",$1"`.
-        regex::Regex::new(r#""(\s+)""#).expect("static regex is valid")
+        // Matches: closing quote + whitespace + optional-opening-quote + first key char.
+        // Group 1: the whitespace; Group 2: first char of the key.
+        // Replace: insert missing comma and ensure opening quote is present.
+        regex::Regex::new(r#""(\s+)"?([a-z_])"#).expect("static regex is valid")
     });
-    let repaired = re.replace_all(s, "\",$1\"").into_owned();
+    let repaired = re.replace_all(s, "\",$1\"$2").into_owned();
     if repaired == s {
         return None; // no change — a different kind of error
     }
@@ -139,13 +148,23 @@ mod tests {
 
     #[test]
     fn repaired_missing_comma_between_name_and_args() {
-        // LLM emits: {"name": "memory_search" "args": {"query": "foo"}}
+        // Pattern B: LLM emits {"name": "memory_search" "args": {...}} — missing comma only
         let text = r#"<tool_call>{"name": "memory_search" "args": {"query": "foo", "limit": 10}}</tool_call>"#;
         let calls = extract_tool_calls(text);
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].name, "memory_search");
         assert_eq!(calls[0].args["query"], "foo");
         assert_eq!(calls[0].args["limit"], 10);
+    }
+
+    #[test]
+    fn repaired_missing_comma_and_missing_opening_quote() {
+        // Pattern A: LLM emits {"name": "memory_search" args": {...}} — missing comma + missing opening quote
+        let text = r#"<tool_call>{"name": "memory_search" args": {"query": "bar", "limit": 25}}</tool_call>"#;
+        let calls = extract_tool_calls(text);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "memory_search");
+        assert_eq!(calls[0].args["query"], "bar");
     }
 
     #[test]
