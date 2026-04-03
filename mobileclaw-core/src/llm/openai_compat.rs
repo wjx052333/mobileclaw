@@ -431,8 +431,8 @@ mod tests {
         let xml = acc.to_xml();
         let calls = extract_tool_calls(&xml);
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "memory_recall");
-        assert_eq!(calls[0].args["query"], "Rust async patterns");
+        assert_eq!(calls[0].0.name, "memory_recall");
+        assert_eq!(calls[0].0.args["query"], "Rust async patterns");
     }
 
     #[test]
@@ -451,8 +451,8 @@ mod tests {
         use crate::agent::parser::extract_tool_calls;
         let calls = extract_tool_calls(&xml);
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "some_tool");
-        assert!(calls[0].args.is_object());
+        assert_eq!(calls[0].0.name, "some_tool");
+        assert!(calls[0].0.args.is_object());
     }
 
     #[test]

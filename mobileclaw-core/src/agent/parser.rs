@@ -40,8 +40,12 @@ fn try_repair_json(s: &str) -> Option<ToolCall> {
     serde_json::from_str::<ToolCall>(&repaired).ok()
 }
 
-/// Extract all `<tool_call>...</tool_call>` blocks from LLM output text
-pub fn extract_tool_calls(text: &str) -> Vec<ToolCall> {
+/// Extract all `<tool_call>...</tool_call>` blocks from LLM output text.
+///
+/// Returns `(ToolCall, was_repaired)` pairs. `was_repaired = true` means the
+/// JSON was malformed and had to be fixed; the caller should inject a format
+/// correction back into the conversation so the LLM learns from the mistake.
+pub fn extract_tool_calls(text: &str) -> Vec<(ToolCall, bool)> {
     let mut calls = Vec::new();
     let mut rest = text;
     while let Some(start) = rest.find("<tool_call>") {
@@ -50,10 +54,10 @@ pub fn extract_tool_calls(text: &str) -> Vec<ToolCall> {
             let json_str = rest[..end].trim();
             rest = &rest[end + "</tool_call>".len()..];
             if let Ok(call) = serde_json::from_str::<ToolCall>(json_str) {
-                calls.push(call);
+                calls.push((call, false));
             } else if let Some(call) = try_repair_json(json_str) {
-                tracing::debug!("repaired malformed tool_call JSON (missing comma): {}", json_str);
-                calls.push(call);
+                tracing::debug!("repaired malformed tool_call JSON: {}", json_str);
+                calls.push((call, true));
             } else {
                 tracing::warn!("skipping malformed tool_call JSON: {}", json_str);
             }
@@ -101,8 +105,9 @@ mod tests {
 继续输出。"#;
         let calls = extract_tool_calls(text);
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "file_read");
-        assert_eq!(calls[0].args["path"], "notes.txt");
+        assert_eq!(calls[0].0.name, "file_read");
+        assert_eq!(calls[0].0.args["path"], "notes.txt");
+        assert!(!calls[0].1, "valid JSON should not be marked as repaired");
     }
 
     #[test]
@@ -152,9 +157,10 @@ mod tests {
         let text = r#"<tool_call>{"name": "memory_search" "args": {"query": "foo", "limit": 10}}</tool_call>"#;
         let calls = extract_tool_calls(text);
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "memory_search");
-        assert_eq!(calls[0].args["query"], "foo");
-        assert_eq!(calls[0].args["limit"], 10);
+        assert_eq!(calls[0].0.name, "memory_search");
+        assert_eq!(calls[0].0.args["query"], "foo");
+        assert_eq!(calls[0].0.args["limit"], 10);
+        assert!(calls[0].1, "repaired call must be flagged");
     }
 
     #[test]
@@ -163,8 +169,9 @@ mod tests {
         let text = r#"<tool_call>{"name": "memory_search" args": {"query": "bar", "limit": 25}}</tool_call>"#;
         let calls = extract_tool_calls(text);
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "memory_search");
-        assert_eq!(calls[0].args["query"], "bar");
+        assert_eq!(calls[0].0.name, "memory_search");
+        assert_eq!(calls[0].0.args["query"], "bar");
+        assert!(calls[0].1, "repaired call must be flagged");
     }
 
     #[test]
@@ -173,8 +180,9 @@ mod tests {
         let text = "<tool_call>{\"name\": \"file_read\"\n\"args\": {\"path\": \"x.txt\"}}</tool_call>";
         let calls = extract_tool_calls(text);
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "file_read");
-        assert_eq!(calls[0].args["path"], "x.txt");
+        assert_eq!(calls[0].0.name, "file_read");
+        assert_eq!(calls[0].0.args["path"], "x.txt");
+        assert!(calls[0].1, "repaired call must be flagged");
     }
 
     #[test]
@@ -190,6 +198,7 @@ mod tests {
         let text = r#"<tool_call>{"name": "memory_search", "args": {"query": "test"}}</tool_call>"#;
         let calls = extract_tool_calls(text);
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].args["query"], "test");
+        assert_eq!(calls[0].0.args["query"], "test");
+        assert!(!calls[0].1, "valid JSON should not be marked as repaired");
     }
 }

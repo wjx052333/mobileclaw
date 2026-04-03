@@ -286,7 +286,11 @@ impl<L: LlmClient> AgentLoop<L> {
             }
 
             let mut tool_results_xml = String::new();
-            for call in &tool_calls {
+            let mut any_repaired = false;
+            for (call, was_repaired) in &tool_calls {
+                if *was_repaired {
+                    any_repaired = true;
+                }
                 tracing::info!(tool = %call.name, args = %call.args, "executing tool");
                 all_events.push(AgentEvent::ToolCall { name: call.name.clone() });
                 let result = match self.registry.get(&call.name) {
@@ -314,8 +318,26 @@ impl<L: LlmClient> AgentLoop<L> {
                 }
             }
 
+            // If any tool_call JSON was malformed and had to be repaired, inject a
+            // correction so the LLM learns the correct format for subsequent rounds.
+            let format_correction = if any_repaired {
+                tracing::warn!(round = %round, "injecting tool_call format correction into history");
+                "\n\n[FORMAT ERROR] Your tool_call JSON was malformed and had to be repaired. \
+Please use exactly this format in all future tool calls — every field must be double-quoted \
+and separated by a comma:\n\
+<tool_call>{\"name\": \"tool_name\", \"args\": {\"param\": \"value\"}}</tool_call>\n\
+Multi-parameter example:\n\
+<tool_call>{\"name\": \"memory_search\", \"args\": {\"query\": \"rust async\", \"limit\": 10}}</tool_call>\n\
+Common mistakes to avoid:\n\
+- WRONG: {\"name\": \"foo\" \"args\": ...}  ← missing comma between fields\n\
+- WRONG: {\"name\": \"foo\" args\": ...}    ← missing comma AND missing opening quote\n\
+- RIGHT: {\"name\": \"foo\", \"args\": ...}"
+            } else {
+                ""
+            };
+
             let clean_text = extract_text_without_tool_calls(&full_text);
-            let assistant_msg = format!("{}\n{}", clean_text, tool_results_xml);
+            let assistant_msg = format!("{}\n{}{}", clean_text, tool_results_xml, format_correction);
             self.history.push(Message::assistant(&assistant_msg));
             self.history.push(Message::user("[tool results provided above, please continue]"));
         }
