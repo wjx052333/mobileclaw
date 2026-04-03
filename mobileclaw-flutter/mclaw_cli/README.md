@@ -14,18 +14,54 @@ sudo apt install -y lld
 
 ### Rust native library
 
-Build `libmobileclaw_core.so`:
+The `libmobileclaw_core.so` is built and bundled automatically during the Flutter build process. However, if you need to rebuild it manually:
 
 ```bash
 cd /path/to/mobileclaw
 cargo build --release -p mobileclaw-core
 ```
 
-Output: `mobileclaw-core/target/release/libmobileclaw_core.so`
+Output: `target/release/libmobileclaw_core.so`
 
-### LLM provider
+### LLM provider management
 
-The CLI requires a configured LLM provider (Anthropic API key or compatible provider). Configure one through the main `mobileclaw_app` first, or set it up via the SDK's `providerSave` / `providerSetActive` API.
+The CLI stores LLM provider configurations (Anthropic, OpenAI, Ollama, etc.) in an encrypted database. Before chatting, you must add and activate a provider:
+
+```bash
+./mclaw_cli providers                 # List all providers and active one
+./mclaw_cli providers add             # Add a new provider (interactive)
+./mclaw_cli providers set <name>      # Activate a provider by name
+./mclaw_cli providers delete <name>   # Delete a provider
+```
+
+#### Adding a provider
+
+Run `providers add` for an interactive prompt with presets:
+
+```
+$ ./mclaw_cli providers add
+Choose a preset or enter "custom":
+  1) Anthropic (claude-opus-4-6)
+  2) OpenAI (gpt-4o)
+  3) Ollama (localhost:11434 / llama3)
+  4) Custom
+
+Select: 1
+Display name [Anthropic]: 
+Base URL [https://api.anthropic.com]: 
+Model [claude-opus-4-6]: 
+Now enter the API key (will be stored encrypted):
+API key: sk-ant-...
+Provider "Anthropic" saved.
+Provider "Anthropic" set as active.
+```
+
+**Supported protocols:**
+- `anthropic` — Anthropic Claude API
+- `openai_compat` — OpenAI-compatible endpoints (OpenAI, Ollama, vLLM, etc.)
+- `ollama` — Local Ollama inference server
+
+API keys are stored encrypted with AES-256-GCM in the secrets database.
 
 ## Building
 
@@ -44,55 +80,58 @@ build/linux/x64/release/bundle/mclaw_cli
 
 ## Running
 
-The bundle directory contains everything needed:
-
-```
-build/linux/x64/release/bundle/
-├── mclaw_cli
-├── lib/
-│   ├── libmobileclaw_core.so    ← Rust native library
-│   ├── libflutter_linux_gtk.so
-│   ├── libapp.so
-│   └── libmobileclaw_sdk_plugin.so
-└── data/
-    └── flutter_assets/
-```
+The compiled bundle contains all dependencies (native library, Flutter runtime, assets). Add a provider first, then run the CLI.
 
 ### Interactive mode
 
 ```bash
 cd build/linux/x64/release/bundle
-LD_LIBRARY_PATH=./lib ./mclaw_cli
+./mclaw_cli
 ```
 
-Type messages at the prompt. `quit` or `Ctrl+D` to exit.
+At the prompt, type messages to chat. Ctrl+D to exit.
+
+Example:
+```
+[mclaw] Native library: ./lib/libmobileclaw_core.so
+[mclaw] FFI bridge initialized
+[mclaw] Data dir: ~/.local/share/com.example.mclaw_cli/mobileclaw_cli/
+[mclaw] Provider: Anthropic (anthropic/claude-opus-4-6)
+[mclaw] Ready.
+
+Type a message, or Ctrl+D to exit.
+
+You: Hello
+Assistant: Hi there! How can I help you today?
+Done (35 chars)
+---
+```
 
 ### Single message mode
 
 ```bash
 cd build/linux/x64/release/bundle
-LD_LIBRARY_PATH=./lib ./mclaw_cli "What time is it?"
+./mclaw_cli "What time is it?"
 ```
 
-### Custom `.so` path
+### Custom native library path
 
-If the native library is elsewhere, override with `--so-path`:
+If the `.so` is elsewhere, override with `--so-path`:
 
 ```bash
-cd build/linux/x64/release/bundle
-LD_LIBRARY_PATH=./lib ./mclaw_cli --so-path /path/to/libmobileclaw_core.so "Hello"
+./mclaw_cli --so-path /path/to/libmobileclaw_core.so "Hello"
 ```
 
-### Verbose path
+### Development mode (hot reload)
 
-Run directly from the source directory (requires `.so` at the default relative path):
+Run from source with `flutter run`:
 
 ```bash
 cd mobileclaw-flutter/mclaw_cli
 flutter run -d linux
 ```
 
-Or with a custom `.so` path:
+To override the `.so` path in development:
 
 ```bash
 flutter run -d linux -- --so-path /absolute/path/to/libmobileclaw_core.so

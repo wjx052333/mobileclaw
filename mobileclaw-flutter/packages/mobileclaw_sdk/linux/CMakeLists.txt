@@ -95,5 +95,7 @@ endif()  # include_${PROJECT_NAME}_tests
 
 # Bundle the Rust native library (flutter_rust_bridge)
 set(MOBILECLAW_SO "${CMAKE_CURRENT_SOURCE_DIR}/libmobileclaw_core.so")
-install(FILES ${MOBILECLAW_SO} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
-target_link_libraries(${PLUGIN_NAME} PRIVATE ${MOBILECLAW_SO})
+if(EXISTS ${MOBILECLAW_SO})
+  install(FILES ${MOBILECLAW_SO} DESTINATION lib)
+  target_link_libraries(${PLUGIN_NAME} PRIVATE ${MOBILECLAW_SO})
+endif()
