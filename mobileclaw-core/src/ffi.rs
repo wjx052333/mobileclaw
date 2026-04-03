@@ -886,6 +886,25 @@ mod helper_tests {
     }
 
     #[test]
+    fn build_interaction_text_no_panic_on_multibyte_utf8_boundary() {
+        // Regression test: old code used combined[..4000] which panics when byte 4000
+        // falls inside a multi-byte char (e.g. '─' = U+2500, 3 bytes: 0xe2 0x94 0x80).
+        //
+        // "User: " (6 bytes) + 2000 × "─" (6000 bytes) = combined 6006 bytes.
+        // Byte 4000 = (4000-6)=3994 into the '─' sequence; 3994 = 3×1331+1, so byte
+        // 4000 is the 2nd byte (continuation byte 0x94) of the 1332nd '─' → panic.
+        //
+        // Fix: walk back to last is_char_boundary, landing at byte 3999 (start of 1332nd '─').
+        // Expected result length: "User: " (6) + 1331 × "─" (3993) = 3999 bytes.
+        let user_input = "─".repeat(2000); // U+2500, 3 bytes each
+        let events = vec![AgentEvent::Done];
+        let text = build_interaction_text(&user_input, &events); // must not panic
+        assert!(text.len() <= 4000, "must not exceed 4000 bytes, got {}", text.len());
+        assert!(std::str::from_utf8(text.as_bytes()).is_ok(), "result must be valid UTF-8");
+        assert_eq!(text.len(), 3999, "should cut at last valid boundary before 4000 (byte 3999)");
+    }
+
+    #[test]
     fn build_interaction_text_includes_tool_events() {
         let events = vec![
             AgentEvent::ToolCall { name: "file_read".into() },
