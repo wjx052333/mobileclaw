@@ -11,6 +11,11 @@ use crate::{
 const MAX_TOOL_ROUNDS: usize = 10;
 const MAX_TOKENS: u32 = 4096;
 
+const SUMMARY_SYSTEM: &str =
+    "Summarize the following AI assistant interaction in exactly one sentence. \
+     Output only the summary sentence, nothing else.";
+const SUMMARY_MAX_TOKENS: u32 = 150;
+
 // ---------------------------------------------------------------------------
 // Tool descriptions injected into every system prompt
 // ---------------------------------------------------------------------------
@@ -331,6 +336,56 @@ impl<L: LlmClient> AgentLoop<L> {
         }
 
         Ok(all_events)
+    }
+
+    /// Return the ascending indices of messages in history that would be
+    /// dropped by count-based pruning.  Returns an empty vec if
+    /// `ctx_config.max_messages` is `None` or history is already within limit.
+    pub fn count_prune_candidates(&self) -> Vec<usize> {
+        let Some(max) = self.ctx_config.max_messages else { return vec![] };
+        crate::agent::context_manager::count_prune_candidates(
+            &self.history,
+            max,
+            self.ctx_config.min_user_turns,
+        )
+    }
+
+    /// Remove `candidates` from history and optionally prepend `prefix_msg`
+    /// at index 0 of the surviving history.
+    ///
+    /// `candidates` must be ascending indices produced by `count_prune_candidates`.
+    /// This is a no-op if `candidates` is empty.
+    pub fn apply_count_prune(&mut self, candidates: &[usize], prefix_msg: Option<crate::llm::types::Message>) {
+        if candidates.is_empty() {
+            return;
+        }
+        let removed_set: std::collections::HashSet<usize> = candidates.iter().copied().collect();
+        let old = std::mem::take(&mut self.history);
+        self.history = old
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, m)| if removed_set.contains(&i) { None } else { Some(m) })
+            .collect();
+        if let Some(msg) = prefix_msg {
+            self.history.insert(0, msg);
+        }
+    }
+
+    /// Make a lightweight LLM call to summarize an interaction.
+    /// Does NOT modify `self.history`.
+    /// Returns the trimmed summary string.
+    pub async fn summarize_interaction(&self, interaction_text: &str) -> crate::ClawResult<String> {
+        let msgs = vec![crate::llm::types::Message::user(interaction_text)];
+        let mut stream = self.llm.stream_messages(SUMMARY_SYSTEM, &msgs, SUMMARY_MAX_TOKENS).await?;
+        let mut summary = String::new();
+        while let Some(event) = stream.next().await {
+            match event? {
+                crate::llm::types::StreamEvent::TextDelta { text } => summary.push_str(&text),
+                crate::llm::types::StreamEvent::MessageStop => break,
+                _ => {}
+            }
+        }
+        Ok(summary.trim().to_string())
     }
 }
 
@@ -772,7 +827,7 @@ mod tests {
     async fn context_pruning_fires_when_threshold_exceeded() {
         use crate::agent::context_manager::ContextConfig;
         // Use a very small context window to force pruning
-        let config = ContextConfig { max_tokens: 50, buffer_tokens: 10, min_user_turns: 2 };
+        let config = ContextConfig { max_tokens: 50, buffer_tokens: 10, min_user_turns: 2, max_messages: None };
         let dir = TempDir::new().unwrap();
         let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
         let registry = ToolRegistry::new();
@@ -826,5 +881,135 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().ends_with(".jsonl"))
             .collect();
         assert_eq!(files.len(), 1, "exactly one session file should be saved");
+    }
+
+    // -----------------------------------------------------------------------
+    // Tests: count_prune_candidates and apply_count_prune
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn count_prune_candidates_returns_empty_when_max_messages_none() {
+        let (mut agent, _dir) = make_agent("ok").await;
+        // Pump a few messages into history
+        agent.chat("msg1", "").await.unwrap();
+        agent.chat("msg2", "").await.unwrap();
+        // Default config has max_messages = None → should return empty
+        let candidates = agent.count_prune_candidates();
+        assert!(candidates.is_empty(), "must return empty when max_messages is None");
+    }
+
+    #[tokio::test]
+    async fn count_prune_candidates_returns_candidates_when_over_limit() {
+        use crate::agent::context_manager::ContextConfig;
+        let dir = TempDir::new().unwrap();
+        let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+        let registry = ToolRegistry::new();
+        let ctx = ToolContext {
+            memory: mem,
+            sandbox_dir: dir.path().to_path_buf(),
+            http_allowlist: vec![],
+            permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
+        };
+        // max_messages = 3, min_user_turns = 1 so we can actually get candidates with a small history
+        let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
+        let mut agent = AgentLoop::new(
+            MockLlmClient { response: "ok".to_string() },
+            registry, ctx, SkillManager::new(vec![]),
+        ).with_context_config(config);
+
+        // Push 5 messages manually (2 user + 1 assistant per chat call would be too many rounds)
+        // Use set_history to precisely control message count
+        let msgs = vec![
+            crate::llm::types::Message::user("a"),
+            crate::llm::types::Message::assistant("ra"),
+            crate::llm::types::Message::user("b"),
+            crate::llm::types::Message::assistant("rb"),
+            crate::llm::types::Message::user("c"),
+        ];
+        agent.set_history(msgs);
+
+        let candidates = agent.count_prune_candidates();
+        // 5 messages, limit 3 → 2 candidates
+        assert_eq!(candidates.len(), 2, "must return 2 candidates for 5 msgs with max=3, got {:?}", candidates);
+        // Candidates must be in ascending order
+        assert!(candidates.windows(2).all(|w| w[0] < w[1]), "candidates must be ascending");
+    }
+
+    #[tokio::test]
+    async fn apply_count_prune_removes_candidates() {
+        use crate::agent::context_manager::ContextConfig;
+        let dir = TempDir::new().unwrap();
+        let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+        let registry = ToolRegistry::new();
+        let ctx = ToolContext {
+            memory: mem,
+            sandbox_dir: dir.path().to_path_buf(),
+            http_allowlist: vec![],
+            permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
+        };
+        let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
+        let mut agent = AgentLoop::new(
+            MockLlmClient { response: "ok".to_string() },
+            registry, ctx, SkillManager::new(vec![]),
+        ).with_context_config(config);
+
+        let msgs = vec![
+            crate::llm::types::Message::user("a"),
+            crate::llm::types::Message::assistant("ra"),
+            crate::llm::types::Message::user("b"),
+            crate::llm::types::Message::assistant("rb"),
+            crate::llm::types::Message::user("c"),
+        ];
+        agent.set_history(msgs);
+
+        let candidates = agent.count_prune_candidates();
+        assert_eq!(candidates.len(), 2);
+
+        agent.apply_count_prune(&candidates, None);
+
+        assert_eq!(agent.history().len(), 3, "history must be trimmed to 3 after pruning");
+    }
+
+    #[tokio::test]
+    async fn apply_count_prune_inserts_prefix_at_index_0() {
+        use crate::agent::context_manager::ContextConfig;
+        let dir = TempDir::new().unwrap();
+        let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+        let registry = ToolRegistry::new();
+        let ctx = ToolContext {
+            memory: mem,
+            sandbox_dir: dir.path().to_path_buf(),
+            http_allowlist: vec![],
+            permissions: Arc::new(PermissionChecker::allow_all()),
+            secrets: Arc::new(NullSecretStore),
+        };
+        let config = ContextConfig { max_tokens: 200_000, buffer_tokens: 13_000, min_user_turns: 1, max_messages: Some(3) };
+        let mut agent = AgentLoop::new(
+            MockLlmClient { response: "ok".to_string() },
+            registry, ctx, SkillManager::new(vec![]),
+        ).with_context_config(config);
+
+        let msgs = vec![
+            crate::llm::types::Message::user("a"),
+            crate::llm::types::Message::assistant("ra"),
+            crate::llm::types::Message::user("b"),
+            crate::llm::types::Message::assistant("rb"),
+            crate::llm::types::Message::user("c"),
+        ];
+        agent.set_history(msgs);
+
+        let candidates = agent.count_prune_candidates();
+        let prefix = crate::llm::types::Message::user("[summary of pruned context]");
+        agent.apply_count_prune(&candidates, Some(prefix));
+
+        // History is 3 (after pruning) + 1 prefix = 4
+        assert_eq!(agent.history().len(), 4, "must have 3 survivors + 1 prefix");
+        assert_eq!(
+            agent.history()[0].text_content(),
+            "[summary of pruned context]",
+            "prefix must be at index 0"
+        );
     }
 }

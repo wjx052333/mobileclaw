@@ -24,6 +24,9 @@ pub struct ContextConfig {
     pub buffer_tokens: usize,
     /// Minimum user turns to always preserve (at least last N).
     pub min_user_turns: usize,
+    /// Maximum number of messages before count-based pruning fires.
+    /// `None` disables count-based pruning (token-only mode, backward compat).
+    pub max_messages: Option<usize>,
 }
 
 impl Default for ContextConfig {
@@ -32,6 +35,7 @@ impl Default for ContextConfig {
             max_tokens: 200_000,
             buffer_tokens: 13_000,
             min_user_turns: 3,
+            max_messages: None,
         }
     }
 }
@@ -181,6 +185,34 @@ pub fn prune_oldest_messages(
     })
 }
 
+/// Return the ascending indices of the oldest non-protected messages that
+/// should be dropped to bring `messages.len()` down to `max_messages`.
+///
+/// Returns an empty vec if `messages.len() <= max_messages`.
+///
+/// The caller is responsible for the actual removal so it can perform
+/// any pre-drop work (e.g. querying memory summaries) before the messages
+/// are gone.
+pub fn count_prune_candidates(
+    messages: &[Message],
+    max_messages: usize,
+    min_user_turns: usize,
+) -> Vec<usize> {
+    if messages.len() <= max_messages {
+        return vec![];
+    }
+    let to_drop = messages.len() - max_messages;
+    let prot = protected_indices(messages, min_user_turns);
+    let candidates: Vec<usize> = messages
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !prot.contains(i))
+        .map(|(i, _)| i)
+        .take(to_drop)
+        .collect();
+    candidates
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,13 +255,13 @@ mod tests {
 
     #[test]
     fn threshold_equals_max_minus_buffer() {
-        let config = ContextConfig { max_tokens: 100, buffer_tokens: 20, min_user_turns: 3 };
+        let config = ContextConfig { max_tokens: 100, buffer_tokens: 20, min_user_turns: 3, max_messages: None };
         assert_eq!(pruning_threshold(&config), 80);
     }
 
     #[test]
     fn threshold_zero_on_overflow() {
-        let config = ContextConfig { max_tokens: 10, buffer_tokens: 100, min_user_turns: 3 };
+        let config = ContextConfig { max_tokens: 10, buffer_tokens: 100, min_user_turns: 3, max_messages: None };
         // saturating_sub => 0
         assert_eq!(pruning_threshold(&config), 0);
     }
@@ -307,5 +339,52 @@ mod tests {
         assert!(result.pruned_count > 0, "must prune something with 500+ tokens vs 100 threshold");
         assert!(result.tokens_after < result.tokens_before, "tokens must decrease");
         assert!(result.tokens_after <= threshold, "result must be under threshold: {} vs {}", result.tokens_after, threshold);
+    }
+
+    // ── count_prune_candidates ────────────────────────────────────────────────
+
+    #[test]
+    fn count_prune_empty_when_under_limit() {
+        let msgs = vec![user("a"), user("b"), user("c")];
+        assert!(count_prune_candidates(&msgs, 5, 2).is_empty());
+        assert!(count_prune_candidates(&msgs, 3, 2).is_empty());
+    }
+
+    #[test]
+    fn count_prune_returns_correct_drop_count() {
+        // 6 messages, limit 4 → must drop 2
+        let msgs = vec![sys("s"), user("1"), user("2"), user("3"), user("4"), user("5")];
+        let candidates = count_prune_candidates(&msgs, 4, 1);
+        assert_eq!(candidates.len(), 2, "must identify 2 candidates to drop");
+        // candidates are in ascending order (oldest first)
+        assert!(candidates.windows(2).all(|w| w[0] < w[1]), "must be ascending");
+    }
+
+    #[test]
+    fn count_prune_respects_protection() {
+        // System + 5 user messages, limit 4, min_user_turns 3
+        let msgs = vec![sys("s"), user("1"), user("2"), user("3"), user("4"), user("5")];
+        let candidates = count_prune_candidates(&msgs, 4, 3);
+        // sys(0) protected, last 3 users (3,4,5) protected, last assistant N/A
+        // Eligible: indices 1 and 2
+        for &idx in &candidates {
+            assert_ne!(msgs[idx].role, Role::System, "must not include system");
+        }
+    }
+
+    #[test]
+    fn count_prune_empty_messages_no_panic() {
+        let msgs: Vec<Message> = vec![];
+        let candidates = count_prune_candidates(&msgs, 10, 3);
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn count_prune_all_protected_returns_empty() {
+        // Only system + 1 user (both protected at min_user_turns=1), limit=0
+        let msgs = vec![sys("s"), user("only")];
+        let candidates = count_prune_candidates(&msgs, 0, 1);
+        // Nothing eligible → empty
+        assert!(candidates.is_empty());
     }
 }

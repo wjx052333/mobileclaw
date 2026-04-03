@@ -1409,6 +1409,7 @@ impl SseDecode for crate::ffi::AgentConfig {
         let mut var_logDir = <Option<String>>::sse_decode(deserializer);
         let mut var_sessionDir = <Option<String>>::sse_decode(deserializer);
         let mut var_contextWindow = <Option<u32>>::sse_decode(deserializer);
+        let mut var_maxSessionMessages = <Option<u32>>::sse_decode(deserializer);
         return crate::ffi::AgentConfig {
             api_key: var_apiKey,
             db_path: var_dbPath,
@@ -1421,6 +1422,7 @@ impl SseDecode for crate::ffi::AgentConfig {
             log_dir: var_logDir,
             session_dir: var_sessionDir,
             context_window: var_contextWindow,
+            max_session_messages: var_maxSessionMessages,
         };
     }
 }
@@ -1461,6 +1463,10 @@ impl SseDecode for crate::ffi::AgentEventDto {
                 };
             }
             4 => {
+                let mut var_summary = <String>::sse_decode(deserializer);
+                return crate::ffi::AgentEventDto::TurnSummary { summary: var_summary };
+            }
+            5 => {
                 return crate::ffi::AgentEventDto::Done;
             }
             _ => {
@@ -2199,6 +2205,7 @@ impl SseEncode for crate::ffi::AgentConfig {
         <Option<String>>::sse_encode(self.log_dir, serializer);
         <Option<String>>::sse_encode(self.session_dir, serializer);
         <Option<u32>>::sse_encode(self.context_window, serializer);
+        <Option<u32>>::sse_encode(self.max_session_messages, serializer);
     }
 }
 
@@ -2233,8 +2240,12 @@ impl SseEncode for crate::ffi::AgentEventDto {
                 <usize>::sse_encode(history_len, serializer);
                 <usize>::sse_encode(pruning_threshold, serializer);
             }
-            crate::ffi::AgentEventDto::Done => {
+            crate::ffi::AgentEventDto::TurnSummary { summary } => {
                 <i32>::sse_encode(4, serializer);
+                <String>::sse_encode(summary, serializer);
+            }
+            crate::ffi::AgentEventDto::Done => {
+                <i32>::sse_encode(5, serializer);
             }
             _ => {
                 unimplemented!("");

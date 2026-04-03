@@ -45,6 +45,8 @@ pub struct AgentConfig {
     /// Maximum context window tokens (default: 200_000 for Claude Sonnet 4.6).
     /// Controls when context pruning triggers.
     pub context_window: Option<u32>,
+    /// Maximum messages in history before count-based prune fires. Default: 100.
+    pub max_session_messages: Option<u32>,
 }
 
 /// Initialize file-based tracing to `{dir}/mobileclaw.log`.
@@ -93,6 +95,8 @@ pub enum AgentEventDto {
         history_len: usize,
         pruning_threshold: usize,
     },
+    /// One-sentence summary of the completed interaction, stored permanently.
+    TurnSummary { summary: String },
     Done,
 }
 
@@ -247,6 +251,7 @@ pub struct AgentSession {
     memory: Arc<SqliteMemory>,
     secrets: Arc<SqliteSecretStore>,
     session_dir: Option<std::path::PathBuf>,
+    session_id: String,  // stable UUID for this session's history memory paths
 }
 
 impl AgentSession {
@@ -360,6 +365,7 @@ impl AgentSession {
             max_tokens: config.context_window.unwrap_or(200_000) as usize,
             buffer_tokens: 13_000,
             min_user_turns: 3,
+            max_messages: Some(config.max_session_messages.unwrap_or(100) as usize),
         };
         let inner = inner.with_context_config(ctx_config);
 
@@ -371,13 +377,15 @@ impl AgentSession {
         };
 
         let session_dir = config.session_dir.map(std::path::PathBuf::from);
-        tracing::info!("AgentSession created successfully");
-        Ok(AgentSession { inner, memory, secrets, session_dir })
+        let session_id = uuid::Uuid::new_v4().to_string();
+        tracing::info!(session_id = %session_id, "AgentSession created successfully");
+        Ok(AgentSession { inner, memory, secrets, session_dir, session_id })
     }
 
     /// Send a user message and return all events produced by one agent turn.
     pub async fn chat(&mut self, input: String, system: String) -> anyhow::Result<Vec<AgentEventDto>> {
         use crate::agent::loop_impl::AgentEvent;
+        use crate::llm::types::Message;
 
         tracing::info!(
             input_len = input.len(),
@@ -385,6 +393,16 @@ impl AgentSession {
             "AgentSession::chat called"
         );
 
+        // Phase A — Count prune (BEFORE inner.chat)
+        let candidates = self.inner.count_prune_candidates();
+        if !candidates.is_empty() {
+            let prefix_content = build_history_prefix(&self.memory, &self.session_id, candidates.len()).await;
+            let prefix_msg = prefix_content.map(|p| Message::system(format!("Previously in this session:\n{}", p)));
+            self.inner.apply_count_prune(&candidates, prefix_msg);
+            tracing::info!(pruned = candidates.len(), "count-based history prune applied");
+        }
+
+        // Phase B — Main chat
         let events = self.inner.chat(&input, &system).await
             .inspect_err(|e| tracing::error!(error = %e, "AgentSession::chat failed"))?;
 
@@ -399,7 +417,25 @@ impl AgentSession {
             "AgentSession::chat completed"
         );
 
-        let dtos = events
+        // Phase C — Summary (always attempted, fail-open)
+        let interaction_text = build_interaction_text(&input, &events);
+        let timestamp_hex = current_timestamp_hex();
+        let path = format!("history/{}/{}", self.session_id, timestamp_hex);
+        let base_content = format!("User: {}", input);
+        let summary_opt: Option<String> = match self.inner.summarize_interaction(&interaction_text).await {
+            Ok(s) if !s.is_empty() => Some(s),
+            Ok(_) => None,  // empty summary treated as failure
+            Err(e) => { tracing::warn!(error = %e, "summary LLM call failed"); None }
+        };
+        let content = match &summary_opt {
+            Some(s) => format!("User: {}\nSummary: {}", input, s),
+            None => base_content,
+        };
+        let _ = self.memory.store(&path, &content, MemoryCategory::Conversation).await
+            .inspect_err(|e| tracing::warn!(error = %e, %path, "failed to store turn summary"));
+
+        // Phase D — Convert to DTO, insert TurnSummary before Done if we have a summary
+        let mut dtos: Vec<AgentEventDto> = events
             .into_iter()
             .map(|e| match e {
                 AgentEvent::TextDelta { text } => AgentEventDto::TextDelta { text },
@@ -417,6 +453,16 @@ impl AgentSession {
                 AgentEvent::Done => AgentEventDto::Done,
             })
             .collect();
+
+        if let Some(summary) = summary_opt {
+            // Insert TurnSummary before the last Done
+            if let Some(done_pos) = dtos.iter().rposition(|e| matches!(e, AgentEventDto::Done)) {
+                dtos.insert(done_pos, AgentEventDto::TurnSummary { summary });
+            } else {
+                dtos.push(AgentEventDto::TurnSummary { summary });
+            }
+        }
+
         Ok(dtos)
     }
 
@@ -649,6 +695,59 @@ impl AgentSession {
     }
 }
 
+/// Compose interaction text from user input + events. Capped at 4000 chars.
+fn build_interaction_text(user_input: &str, events: &[crate::agent::loop_impl::AgentEvent]) -> String {
+    use crate::agent::loop_impl::AgentEvent;
+    let mut parts: Vec<String> = vec![format!("User: {}", user_input)];
+    let mut response_text = String::new();
+    for event in events {
+        match event {
+            AgentEvent::ToolCall { name } => parts.push(format!("[Tool: {}]", name)),
+            AgentEvent::ToolResult { name, success } => {
+                parts.push(format!("[{}: {}]", name, if *success { "ok" } else { "error" }))
+            }
+            AgentEvent::TextDelta { text } => response_text.push_str(text),
+            _ => {}
+        }
+    }
+    if !response_text.is_empty() {
+        parts.push(format!("Assistant: {}", response_text));
+    }
+    let combined = parts.join("\n");
+    if combined.len() > 4000 {
+        combined[..4000].to_string()
+    } else {
+        combined
+    }
+}
+
+/// Query SqliteMemory for oldest N turn summaries for this session.
+/// Returns a bullet list "- {summary}\n- ..." or None if none found.
+async fn build_history_prefix(memory: &SqliteMemory, session_id: &str, n: usize) -> Option<String> {
+    let prefix = format!("history/{}/", session_id);
+    let docs = memory.list_by_path_prefix(&prefix).await.ok()?;
+    if docs.is_empty() { return None; }
+    let bullets: Vec<String> = docs.into_iter()
+        .take(n)
+        .map(|doc| {
+            // Extract "Summary: ..." line if present, fallback to full content
+            if let Some(line) = doc.content.lines().find(|l| l.starts_with("Summary: ")) {
+                format!("- {}", line.trim_start_matches("Summary: "))
+            } else {
+                format!("- {}", doc.content.lines().next().unwrap_or("(no content)"))
+            }
+        })
+        .collect();
+    if bullets.is_empty() { None } else { Some(bullets.join("\n")) }
+}
+
+/// Current unix timestamp encoded as lowercase hex string.
+fn current_timestamp_hex() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    format!("{:016x}", secs)
+}
+
 /// Probe an LLM provider for reachability without creating a full session.
 /// Returns a `ProbeResultDto` indicating whether the provider is reachable.
 pub async fn provider_probe(
@@ -702,6 +801,7 @@ mod session_ffi_tests {
             log_dir: None,
             session_dir: None,
             context_window: None,
+            max_session_messages: None,
         };
         assert!(config_without_session.session_dir.is_none());
         assert!(config_without_session.context_window.is_none());
@@ -718,9 +818,129 @@ mod session_ffi_tests {
             log_dir: None,
             session_dir: Some("/tmp/sessions".into()),
             context_window: Some(100_000),
+            max_session_messages: None,
         };
         assert_eq!(config_with_session.session_dir.as_deref(), Some("/tmp/sessions"));
         assert_eq!(config_with_session.context_window, Some(100_000));
+    }
+
+}
+
+#[cfg(test)]
+mod helper_tests {
+    #[test]
+    fn agent_config_max_session_messages_field() {
+        use super::AgentConfig;
+        let config = AgentConfig {
+            api_key: None,
+            db_path: "/tmp/test.db".into(),
+            secrets_db_path: "/tmp/secrets.db".into(),
+            encryption_key: vec![0u8; 32],
+            sandbox_dir: "/tmp/sandbox".into(),
+            http_allowlist: vec![],
+            model: None,
+            skills_dir: None,
+            log_dir: None,
+            session_dir: None,
+            context_window: None,
+            max_session_messages: Some(50),
+        };
+        assert_eq!(config.max_session_messages, Some(50));
+    }
+
+    #[test]
+    fn turn_summary_dto_variant_exists() {
+        use super::AgentEventDto;
+        let evt = AgentEventDto::TurnSummary { summary: "User asked about X; assistant explained Y.".into() };
+        match evt {
+            AgentEventDto::TurnSummary { summary } => assert!(!summary.is_empty()),
+            _ => panic!("expected TurnSummary variant"),
+        }
+    }
+
+    use super::*;
+    use crate::agent::loop_impl::AgentEvent;
+
+    #[test]
+    fn build_interaction_text_basic() {
+        let events = vec![
+            AgentEvent::TextDelta { text: "Hello world".into() },
+            AgentEvent::Done,
+        ];
+        let text = build_interaction_text("hi", &events);
+        assert!(text.contains("User: hi"));
+        assert!(text.contains("Assistant: Hello world"));
+    }
+
+    #[test]
+    fn build_interaction_text_truncates_at_4000() {
+        let long_input = "x".repeat(5000);
+        let events = vec![AgentEvent::Done];
+        let text = build_interaction_text(&long_input, &events);
+        assert!(text.len() <= 4000);
+    }
+
+    #[test]
+    fn build_interaction_text_includes_tool_events() {
+        let events = vec![
+            AgentEvent::ToolCall { name: "file_read".into() },
+            AgentEvent::ToolResult { name: "file_read".into(), success: true },
+            AgentEvent::Done,
+        ];
+        let text = build_interaction_text("read the file", &events);
+        assert!(text.contains("[Tool: file_read]"));
+        assert!(text.contains("[file_read: ok]"));
+    }
+
+    #[test]
+    fn current_timestamp_hex_is_16_chars() {
+        let hex = current_timestamp_hex();
+        assert_eq!(hex.len(), 16, "timestamp hex must be 16 chars");
+        assert!(hex.chars().all(|c| c.is_ascii_hexdigit()), "must be hex");
+    }
+
+    #[tokio::test]
+    async fn build_history_prefix_returns_none_when_no_docs() {
+        let mem = crate::memory::sqlite::SqliteMemory::open(":memory:").await.unwrap();
+        let result = build_history_prefix(&mem, "nonexistent-session-id", 5).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn build_history_prefix_extracts_summary_lines() {
+        let mem = crate::memory::sqlite::SqliteMemory::open(":memory:").await.unwrap();
+        let session_id = "test-sess-abc";
+        mem.store(
+            &format!("history/{}/0000000000000001", session_id),
+            "User: hello\nSummary: User greeted the assistant.",
+            crate::memory::MemoryCategory::Conversation,
+        ).await.unwrap();
+        mem.store(
+            &format!("history/{}/0000000000000002", session_id),
+            "User: bye\nSummary: User said goodbye.",
+            crate::memory::MemoryCategory::Conversation,
+        ).await.unwrap();
+        let prefix = build_history_prefix(&mem, session_id, 5).await.unwrap();
+        assert!(prefix.contains("User greeted the assistant."), "must extract summary line");
+        assert!(prefix.contains("User said goodbye."));
+        assert!(prefix.starts_with("- "));
+    }
+
+    #[tokio::test]
+    async fn build_history_prefix_takes_at_most_n_docs() {
+        let mem = crate::memory::sqlite::SqliteMemory::open(":memory:").await.unwrap();
+        let session_id = "test-sess-xyz";
+        for i in 1u64..=5 {
+            mem.store(
+                &format!("history/{}/{:016x}", session_id, i),
+                &format!("User: msg {i}\nSummary: Summary for turn {i}."),
+                crate::memory::MemoryCategory::Conversation,
+            ).await.unwrap();
+        }
+        // Request only 3 docs
+        let prefix = build_history_prefix(&mem, session_id, 3).await.unwrap();
+        let bullet_count = prefix.lines().count();
+        assert_eq!(bullet_count, 3, "must return exactly 3 bullets when n=3");
     }
 }
 

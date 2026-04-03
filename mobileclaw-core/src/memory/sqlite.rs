@@ -177,6 +177,44 @@ impl Memory for SqliteMemory {
     }
 }
 
+impl SqliteMemory {
+    /// Return all documents whose path starts with `prefix`, ordered by
+    /// `created_at` ascending.
+    ///
+    /// Used to reconstruct a history prefix when count-based context pruning
+    /// fires: paths are `history/{session_id}/{timestamp_hex}`, so querying
+    /// `history/{session_id}/` returns all stored turn summaries for the
+    /// session in chronological order.
+    ///
+    /// LIKE metacharacters (`%`, `_`, `\`) in `prefix` are automatically
+    /// escaped before the trailing `%` wildcard is appended.
+    pub async fn list_by_path_prefix(&self, prefix: &str) -> ClawResult<Vec<MemoryDoc>> {
+        let conn = self.conn.lock().unwrap();
+        // Escape LIKE metacharacters so the prefix is treated as a literal string
+        let escaped = prefix
+            .replace('\\', r"\\")
+            .replace('%', r"\%")
+            .replace('_', r"\_");
+        let pattern = format!("{}%", escaped);
+        let mut stmt = conn.prepare_cached(
+            "SELECT id, path, category, content, created_at, updated_at
+             FROM documents WHERE path LIKE ?1 ESCAPE '\\' ORDER BY created_at ASC",
+        )?;
+        let rows = stmt.query_map(params![pattern], |row| {
+            let cat_str: String = row.get(2)?;
+            Ok(MemoryDoc {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                category: str_to_category(&cat_str),
+                content: row.get(3)?,
+                created_at: row.get::<_, i64>(4)? as u64,
+                updated_at: row.get::<_, i64>(5)? as u64,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(ClawError::from)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,6 +264,52 @@ mod tests {
             ).unwrap();
             assert!(n > 0, "phrase without short tokens should match");
         }
+
+    // ── list_by_path_prefix ────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn list_by_path_prefix_returns_in_created_at_order() {
+        let mem = SqliteMemory::open(":memory:").await.unwrap();
+        // Store three docs under the same prefix with small sleeps to ensure
+        // distinct created_at values (epoch seconds resolution).
+        mem.store("history/sess/0000000a", "c1", MemoryCategory::Conversation).await.unwrap();
+        mem.store("history/sess/0000000b", "c2", MemoryCategory::Conversation).await.unwrap();
+        mem.store("history/sess/0000000c", "c3", MemoryCategory::Conversation).await.unwrap();
+        let docs = mem.list_by_path_prefix("history/sess/").await.unwrap();
+        assert_eq!(docs.len(), 3);
+        assert_eq!(docs[0].path, "history/sess/0000000a");
+        assert_eq!(docs[2].path, "history/sess/0000000c");
+    }
+
+    #[tokio::test]
+    async fn list_by_path_prefix_excludes_other_prefixes() {
+        let mem = SqliteMemory::open(":memory:").await.unwrap();
+        mem.store("history/sess-a/001", "a", MemoryCategory::Conversation).await.unwrap();
+        mem.store("history/sess-b/001", "b", MemoryCategory::Conversation).await.unwrap();
+        let docs = mem.list_by_path_prefix("history/sess-a/").await.unwrap();
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].path, "history/sess-a/001");
+    }
+
+    #[tokio::test]
+    async fn list_by_path_prefix_empty_when_no_match() {
+        let mem = SqliteMemory::open(":memory:").await.unwrap();
+        mem.store("other/path", "x", MemoryCategory::Core).await.unwrap();
+        let docs = mem.list_by_path_prefix("history/missing/").await.unwrap();
+        assert!(docs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn list_by_path_prefix_escapes_like_metacharacters() {
+        let mem = SqliteMemory::open(":memory:").await.unwrap();
+        // Store a doc whose path contains a literal '%' — must not be treated
+        // as a LIKE wildcard when used as the search prefix.
+        mem.store("prefix_%_literal/doc", "v", MemoryCategory::Core).await.unwrap();
+        mem.store("prefix_other/doc", "v2", MemoryCategory::Core).await.unwrap();
+        // Searching for "prefix_%_literal/" must only return the first doc
+        let docs = mem.list_by_path_prefix("prefix_%_literal/").await.unwrap();
+        assert_eq!(docs.len(), 1, "metacharacters in prefix must be escaped");
+    }
 
     proptest! {
         #[test]
