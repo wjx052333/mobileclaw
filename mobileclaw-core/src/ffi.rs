@@ -695,7 +695,7 @@ impl AgentSession {
     }
 }
 
-/// Compose interaction text from user input + events. Capped at 4000 chars.
+/// Compose interaction text from user input + events. Capped at 4000 bytes (respects UTF-8 boundaries).
 fn build_interaction_text(user_input: &str, events: &[crate::agent::loop_impl::AgentEvent]) -> String {
     use crate::agent::loop_impl::AgentEvent;
     let mut parts: Vec<String> = vec![format!("User: {}", user_input)];
@@ -715,7 +715,12 @@ fn build_interaction_text(user_input: &str, events: &[crate::agent::loop_impl::A
     }
     let combined = parts.join("\n");
     if combined.len() > 4000 {
-        combined[..4000].to_string()
+        // Find the last valid UTF-8 char boundary at or before 4000 bytes.
+        let mut end = 4000;
+        while !combined.is_char_boundary(end) {
+            end -= 1;
+        }
+        combined[..end].to_string()
     } else {
         combined
     }
