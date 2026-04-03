@@ -12,6 +12,8 @@ pub fn register_core_builtins(registry: &mut ToolRegistry) {
     registry.register_builtin(Arc::new(file::FileReadTool));
     registry.register_builtin(Arc::new(file::FileWriteTool));
     registry.register_builtin(Arc::new(http::HttpTool));
+    registry.register_builtin(Arc::new(memory_tools::MemoryGetTool));
+    registry.register_builtin(Arc::new(memory_tools::MemoryDeleteTool));
     registry.register_builtin(Arc::new(memory_tools::MemorySearchTool));
     registry.register_builtin(Arc::new(memory_tools::MemoryWriteTool));
     registry.register_builtin(Arc::new(system::TimeTool));
