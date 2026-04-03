@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,34 @@ import 'package:path_provider/path_provider.dart';
 /// `true` when the native library is available.
 /// Phase 3 adds Android. iOS requires a Mac build — not yet supported.
 bool get _nativeAvailable => Platform.isLinux || Platform.isAndroid;
+
+/// Recreate the agent session, picking up the active provider from secrets.db.
+///
+/// Call after the user configures and activates a provider during onboarding.
+/// The old agent is disposed, a new FFI session is created, and the new agent
+/// is returned. [ChatPage] will automatically use it via [agentProvider].
+Future<MobileclawAgent> reinitializeAgent(WidgetRef ref) async {
+  final completer = Completer<MobileclawAgent>();
+  // Listen for the refreshed provider to complete — NOT fireImmediately,
+  // because that would fire with the stale pre-refresh value.
+  final subscription = ref.listenManual<AsyncValue<MobileclawAgent>>(
+    agentProvider,
+    (previous, next) {
+      if (next is AsyncData<MobileclawAgent>) {
+        completer.complete(next.value);
+      } else if (next is AsyncError) {
+        final err = next.error;
+        if (err != null) {
+          completer.completeError(err, next.stackTrace);
+        }
+      }
+    },
+  );
+  ref.refresh(agentProvider);
+  final agent = await completer.future;
+  subscription.close();
+  return agent;
+}
 
 /// Singleton [MobileclawAgent] for the app.
 ///
@@ -27,12 +56,13 @@ final agentProvider = FutureProvider<MobileclawAgent>((ref) async {
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // padding
     ];
     final agent = await MobileclawAgentImpl.create(
-      apiKey: const String.fromEnvironment('ANTHROPIC_API_KEY', defaultValue: ''),
+      apiKey: null,
       dbPath: '${dir.path}/claw.db',
       secretsDbPath: '${dir.path}/secrets.db',
       encryptionKey: devKey,
       sandboxDir: workspaceDir.path,
       httpAllowlist: ['https://api.anthropic.com/'],
+      logDir: dir.path,
     );
     ref.onDispose(agent.dispose);
     return agent;
@@ -40,7 +70,7 @@ final agentProvider = FutureProvider<MobileclawAgent>((ref) async {
 
   // Fallback for development / unsupported platforms.
   final agent = await MockMobileclawAgent.create(
-    apiKey: '',
+    apiKey: null,
     dbPath: '${dir.path}/claw.db',
     sandboxDir: '${dir.path}/workspace',
     httpAllowlist: [],

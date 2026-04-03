@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show PlatformInt64Util;
-
 import 'bridge/ffi.dart' as ffi;
 import 'bridge/frb_generated.dart';
 import 'engine.dart';
@@ -59,6 +60,15 @@ AgentEvent _eventFromDto(ffi.AgentEventDto dto) => dto.when(
       toolCall: (name) => ToolCallEvent(toolName: name),
       toolResult: (name, success) =>
           ToolResultEvent(toolName: name, success: success),
+      contextStats: (tokensBeforeTurn, tokensAfterPrune, messagesPruned, historyLen, pruningThreshold) =>
+          ContextStatsEvent(
+            tokensBeforeTurn: tokensBeforeTurn.toInt(),
+            tokensAfterPrune: tokensAfterPrune.toInt(),
+            messagesPruned: messagesPruned.toInt(),
+            historyLen: historyLen.toInt(),
+            pruningThreshold: pruningThreshold.toInt(),
+          ),
+      turnSummary: (summary) => TurnSummaryEvent(summary: summary),
       done: () => const DoneEvent(),
     );
 
@@ -215,17 +225,19 @@ class MobileclawAgentImpl implements MobileclawAgent {
   /// - [httpAllowlist]   URL prefixes the HTTP tool may fetch.
   /// - [model]           LLM model identifier.
   /// - [skillsDir]       Optional directory of skill bundles.
+  /// - [logDir]          Optional directory for Rust-side log files.
   ///
   /// throws ClawException if the Rust session cannot be created.
   static Future<MobileclawAgentImpl> create({
-    required String apiKey,
+    String? apiKey,
     required String dbPath,
     required String secretsDbPath,
     required List<int> encryptionKey,
     required String sandboxDir,
     required List<String> httpAllowlist,
-    String model = 'claude-opus-4-6',
+    String? model,
     String? skillsDir,
+    String? logDir,
   }) async {
     // Initialize the FFI bridge on first call only.
     // flutter_rust_bridge v2 throws StateError if init() is called twice,
@@ -246,6 +258,7 @@ class MobileclawAgentImpl implements MobileclawAgent {
       httpAllowlist: httpAllowlist,
       model: model,
       skillsDir: skillsDir,
+      logDir: logDir,
     );
     final session = await ffi.AgentSession.create(config: config);
     return MobileclawAgentImpl._(session);
@@ -264,14 +277,43 @@ class MobileclawAgentImpl implements MobileclawAgent {
   /// Completes when [DoneEvent] is emitted or an error is thrown as [ClawException].
   /// throws ClawException on LLM, tool, or I/O error from Rust.
   @override
-  Stream<AgentEvent> chat(String userInput, {String system = ''}) async* {
+  Stream<AgentEvent> chat(String userInput, {String system = ''}) {
     _checkAlive();
-    final dtos = await _session.chat(input: userInput, system: system);
-    // Refresh history cache after the turn completes.
-    _refreshHistoryFromDtos(await _session.history());
-    for (final dto in dtos) {
-      yield _eventFromDto(dto);
-    }
+    final controller = StreamController<AgentEvent>.broadcast(
+      onCancel: () { /* listener disconnected — harmless */ },
+    );
+
+    // Schedule the FFI call on the event queue (NOT microtask) so that
+    // the StreamBuilder subscription is established before we start
+    // emitting events.  Using Timer.run ensures each event emission
+    // happens on the event queue, giving Flutter rendering time between
+    // events.  Future.microtask does NOT work here because all microtasks
+    // complete before the next frame, so StreamBuilder only sees the
+    // final DoneEvent.
+    Timer.run(() async {
+      try {
+        final dtos = await _session.chat(input: userInput, system: system);
+        _refreshHistoryFromDtos(await _session.history());
+        // Emit remaining events on the event queue (not microtask).
+        // Each Timer.run fires after a frame, so Flutter can render.
+        int index = 0;
+        void emitNext() {
+          if (index >= dtos.length || controller.isClosed) {
+            controller.close();
+            return;
+          }
+          controller.add(_eventFromDto(dtos[index]));
+          index++;
+          Timer.run(emitNext);
+        }
+        emitNext();
+      } catch (e, st) {
+        controller.addError(e, st);
+        controller.close();
+      }
+    });
+
+    return controller.stream;
   }
 
   /// Convenience wrapper: collects all [TextDeltaEvent] fragments into a string.

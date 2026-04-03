@@ -55,13 +55,15 @@ extension AgentEventDtoPatterns on AgentEventDto {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( AgentEventDto_TextDelta value)?  textDelta,TResult Function( AgentEventDto_ToolCall value)?  toolCall,TResult Function( AgentEventDto_ToolResult value)?  toolResult,TResult Function( AgentEventDto_Done value)?  done,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( AgentEventDto_TextDelta value)?  textDelta,TResult Function( AgentEventDto_ToolCall value)?  toolCall,TResult Function( AgentEventDto_ToolResult value)?  toolResult,TResult Function( AgentEventDto_ContextStats value)?  contextStats,TResult Function( AgentEventDto_TurnSummary value)?  turnSummary,TResult Function( AgentEventDto_Done value)?  done,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta() when textDelta != null:
 return textDelta(_that);case AgentEventDto_ToolCall() when toolCall != null:
 return toolCall(_that);case AgentEventDto_ToolResult() when toolResult != null:
-return toolResult(_that);case AgentEventDto_Done() when done != null:
+return toolResult(_that);case AgentEventDto_ContextStats() when contextStats != null:
+return contextStats(_that);case AgentEventDto_TurnSummary() when turnSummary != null:
+return turnSummary(_that);case AgentEventDto_Done() when done != null:
 return done(_that);case _:
   return orElse();
 
@@ -80,13 +82,15 @@ return done(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( AgentEventDto_TextDelta value)  textDelta,required TResult Function( AgentEventDto_ToolCall value)  toolCall,required TResult Function( AgentEventDto_ToolResult value)  toolResult,required TResult Function( AgentEventDto_Done value)  done,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( AgentEventDto_TextDelta value)  textDelta,required TResult Function( AgentEventDto_ToolCall value)  toolCall,required TResult Function( AgentEventDto_ToolResult value)  toolResult,required TResult Function( AgentEventDto_ContextStats value)  contextStats,required TResult Function( AgentEventDto_TurnSummary value)  turnSummary,required TResult Function( AgentEventDto_Done value)  done,}){
 final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta():
 return textDelta(_that);case AgentEventDto_ToolCall():
 return toolCall(_that);case AgentEventDto_ToolResult():
-return toolResult(_that);case AgentEventDto_Done():
+return toolResult(_that);case AgentEventDto_ContextStats():
+return contextStats(_that);case AgentEventDto_TurnSummary():
+return turnSummary(_that);case AgentEventDto_Done():
 return done(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
@@ -101,13 +105,15 @@ return done(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( AgentEventDto_TextDelta value)?  textDelta,TResult? Function( AgentEventDto_ToolCall value)?  toolCall,TResult? Function( AgentEventDto_ToolResult value)?  toolResult,TResult? Function( AgentEventDto_Done value)?  done,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( AgentEventDto_TextDelta value)?  textDelta,TResult? Function( AgentEventDto_ToolCall value)?  toolCall,TResult? Function( AgentEventDto_ToolResult value)?  toolResult,TResult? Function( AgentEventDto_ContextStats value)?  contextStats,TResult? Function( AgentEventDto_TurnSummary value)?  turnSummary,TResult? Function( AgentEventDto_Done value)?  done,}){
 final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta() when textDelta != null:
 return textDelta(_that);case AgentEventDto_ToolCall() when toolCall != null:
 return toolCall(_that);case AgentEventDto_ToolResult() when toolResult != null:
-return toolResult(_that);case AgentEventDto_Done() when done != null:
+return toolResult(_that);case AgentEventDto_ContextStats() when contextStats != null:
+return contextStats(_that);case AgentEventDto_TurnSummary() when turnSummary != null:
+return turnSummary(_that);case AgentEventDto_Done() when done != null:
 return done(_that);case _:
   return null;
 
@@ -125,12 +131,14 @@ return done(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String text)?  textDelta,TResult Function( String name)?  toolCall,TResult Function( String name,  bool success)?  toolResult,TResult Function()?  done,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String text)?  textDelta,TResult Function( String name)?  toolCall,TResult Function( String name,  bool success)?  toolResult,TResult Function( int tokensBeforeTurn,  int tokensAfterPrune,  int messagesPruned,  int historyLen,  int pruningThreshold)?  contextStats,TResult Function( String summary)?  turnSummary,TResult Function()?  done,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta() when textDelta != null:
 return textDelta(_that.text);case AgentEventDto_ToolCall() when toolCall != null:
 return toolCall(_that.name);case AgentEventDto_ToolResult() when toolResult != null:
-return toolResult(_that.name,_that.success);case AgentEventDto_Done() when done != null:
+return toolResult(_that.name,_that.success);case AgentEventDto_ContextStats() when contextStats != null:
+return contextStats(_that.tokensBeforeTurn,_that.tokensAfterPrune,_that.messagesPruned,_that.historyLen,_that.pruningThreshold);case AgentEventDto_TurnSummary() when turnSummary != null:
+return turnSummary(_that.summary);case AgentEventDto_Done() when done != null:
 return done();case _:
   return orElse();
 
@@ -149,12 +157,14 @@ return done();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String text)  textDelta,required TResult Function( String name)  toolCall,required TResult Function( String name,  bool success)  toolResult,required TResult Function()  done,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String text)  textDelta,required TResult Function( String name)  toolCall,required TResult Function( String name,  bool success)  toolResult,required TResult Function( int tokensBeforeTurn,  int tokensAfterPrune,  int messagesPruned,  int historyLen,  int pruningThreshold)  contextStats,required TResult Function( String summary)  turnSummary,required TResult Function()  done,}) {final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta():
 return textDelta(_that.text);case AgentEventDto_ToolCall():
 return toolCall(_that.name);case AgentEventDto_ToolResult():
-return toolResult(_that.name,_that.success);case AgentEventDto_Done():
+return toolResult(_that.name,_that.success);case AgentEventDto_ContextStats():
+return contextStats(_that.tokensBeforeTurn,_that.tokensAfterPrune,_that.messagesPruned,_that.historyLen,_that.pruningThreshold);case AgentEventDto_TurnSummary():
+return turnSummary(_that.summary);case AgentEventDto_Done():
 return done();}
 }
 /// A variant of `when` that fallback to returning `null`
@@ -169,12 +179,14 @@ return done();}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String text)?  textDelta,TResult? Function( String name)?  toolCall,TResult? Function( String name,  bool success)?  toolResult,TResult? Function()?  done,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String text)?  textDelta,TResult? Function( String name)?  toolCall,TResult? Function( String name,  bool success)?  toolResult,TResult? Function( int tokensBeforeTurn,  int tokensAfterPrune,  int messagesPruned,  int historyLen,  int pruningThreshold)?  contextStats,TResult? Function( String summary)?  turnSummary,TResult? Function()?  done,}) {final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta() when textDelta != null:
 return textDelta(_that.text);case AgentEventDto_ToolCall() when toolCall != null:
 return toolCall(_that.name);case AgentEventDto_ToolResult() when toolResult != null:
-return toolResult(_that.name,_that.success);case AgentEventDto_Done() when done != null:
+return toolResult(_that.name,_that.success);case AgentEventDto_ContextStats() when contextStats != null:
+return contextStats(_that.tokensBeforeTurn,_that.tokensAfterPrune,_that.messagesPruned,_that.historyLen,_that.pruningThreshold);case AgentEventDto_TurnSummary() when turnSummary != null:
+return turnSummary(_that.summary);case AgentEventDto_Done() when done != null:
 return done();case _:
   return null;
 
@@ -377,6 +389,146 @@ class _$AgentEventDto_ToolResultCopyWithImpl<$Res>
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,success: null == success ? _self.success : success // ignore: cast_nullable_to_non_nullable
 as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class AgentEventDto_ContextStats extends AgentEventDto {
+  const AgentEventDto_ContextStats({required this.tokensBeforeTurn, required this.tokensAfterPrune, required this.messagesPruned, required this.historyLen, required this.pruningThreshold}): super._();
+  
+
+ final  int tokensBeforeTurn;
+ final  int tokensAfterPrune;
+ final  int messagesPruned;
+ final  int historyLen;
+ final  int pruningThreshold;
+
+/// Create a copy of AgentEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AgentEventDto_ContextStatsCopyWith<AgentEventDto_ContextStats> get copyWith => _$AgentEventDto_ContextStatsCopyWithImpl<AgentEventDto_ContextStats>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AgentEventDto_ContextStats&&(identical(other.tokensBeforeTurn, tokensBeforeTurn) || other.tokensBeforeTurn == tokensBeforeTurn)&&(identical(other.tokensAfterPrune, tokensAfterPrune) || other.tokensAfterPrune == tokensAfterPrune)&&(identical(other.messagesPruned, messagesPruned) || other.messagesPruned == messagesPruned)&&(identical(other.historyLen, historyLen) || other.historyLen == historyLen)&&(identical(other.pruningThreshold, pruningThreshold) || other.pruningThreshold == pruningThreshold));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,tokensBeforeTurn,tokensAfterPrune,messagesPruned,historyLen,pruningThreshold);
+
+@override
+String toString() {
+  return 'AgentEventDto.contextStats(tokensBeforeTurn: $tokensBeforeTurn, tokensAfterPrune: $tokensAfterPrune, messagesPruned: $messagesPruned, historyLen: $historyLen, pruningThreshold: $pruningThreshold)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AgentEventDto_ContextStatsCopyWith<$Res> implements $AgentEventDtoCopyWith<$Res> {
+  factory $AgentEventDto_ContextStatsCopyWith(AgentEventDto_ContextStats value, $Res Function(AgentEventDto_ContextStats) _then) = _$AgentEventDto_ContextStatsCopyWithImpl;
+@useResult
+$Res call({
+ int tokensBeforeTurn, int tokensAfterPrune, int messagesPruned, int historyLen, int pruningThreshold
+});
+
+
+
+
+}
+/// @nodoc
+class _$AgentEventDto_ContextStatsCopyWithImpl<$Res>
+    implements $AgentEventDto_ContextStatsCopyWith<$Res> {
+  _$AgentEventDto_ContextStatsCopyWithImpl(this._self, this._then);
+
+  final AgentEventDto_ContextStats _self;
+  final $Res Function(AgentEventDto_ContextStats) _then;
+
+/// Create a copy of AgentEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? tokensBeforeTurn = null,Object? tokensAfterPrune = null,Object? messagesPruned = null,Object? historyLen = null,Object? pruningThreshold = null,}) {
+  return _then(AgentEventDto_ContextStats(
+tokensBeforeTurn: null == tokensBeforeTurn ? _self.tokensBeforeTurn : tokensBeforeTurn // ignore: cast_nullable_to_non_nullable
+as int,tokensAfterPrune: null == tokensAfterPrune ? _self.tokensAfterPrune : tokensAfterPrune // ignore: cast_nullable_to_non_nullable
+as int,messagesPruned: null == messagesPruned ? _self.messagesPruned : messagesPruned // ignore: cast_nullable_to_non_nullable
+as int,historyLen: null == historyLen ? _self.historyLen : historyLen // ignore: cast_nullable_to_non_nullable
+as int,pruningThreshold: null == pruningThreshold ? _self.pruningThreshold : pruningThreshold // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class AgentEventDto_TurnSummary extends AgentEventDto {
+  const AgentEventDto_TurnSummary({required this.summary}): super._();
+  
+
+ final  String summary;
+
+/// Create a copy of AgentEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AgentEventDto_TurnSummaryCopyWith<AgentEventDto_TurnSummary> get copyWith => _$AgentEventDto_TurnSummaryCopyWithImpl<AgentEventDto_TurnSummary>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AgentEventDto_TurnSummary&&(identical(other.summary, summary) || other.summary == summary));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,summary);
+
+@override
+String toString() {
+  return 'AgentEventDto.turnSummary(summary: $summary)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AgentEventDto_TurnSummaryCopyWith<$Res> implements $AgentEventDtoCopyWith<$Res> {
+  factory $AgentEventDto_TurnSummaryCopyWith(AgentEventDto_TurnSummary value, $Res Function(AgentEventDto_TurnSummary) _then) = _$AgentEventDto_TurnSummaryCopyWithImpl;
+@useResult
+$Res call({
+ String summary
+});
+
+
+
+
+}
+/// @nodoc
+class _$AgentEventDto_TurnSummaryCopyWithImpl<$Res>
+    implements $AgentEventDto_TurnSummaryCopyWith<$Res> {
+  _$AgentEventDto_TurnSummaryCopyWithImpl(this._self, this._then);
+
+  final AgentEventDto_TurnSummary _self;
+  final $Res Function(AgentEventDto_TurnSummary) _then;
+
+/// Create a copy of AgentEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? summary = null,}) {
+  return _then(AgentEventDto_TurnSummary(
+summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

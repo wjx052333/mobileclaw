@@ -115,6 +115,10 @@ class AgentConfig {
   final List<String> httpAllowlist;
   final String? model;
   final String? skillsDir;
+  final String? logDir;
+  final String? sessionDir;
+  final int? contextWindow;
+  final int? maxSessionMessages;
 
   const AgentConfig({
     this.apiKey,
@@ -125,6 +129,10 @@ class AgentConfig {
     required this.httpAllowlist,
     this.model,
     this.skillsDir,
+    this.logDir,
+    this.sessionDir,
+    this.contextWindow,
+    this.maxSessionMessages,
   });
 
   @override
@@ -136,7 +144,11 @@ class AgentConfig {
       sandboxDir.hashCode ^
       httpAllowlist.hashCode ^
       model.hashCode ^
-      skillsDir.hashCode;
+      skillsDir.hashCode ^
+      logDir.hashCode ^
+      sessionDir.hashCode ^
+      contextWindow.hashCode ^
+      maxSessionMessages.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -150,7 +162,11 @@ class AgentConfig {
           sandboxDir == other.sandboxDir &&
           httpAllowlist == other.httpAllowlist &&
           model == other.model &&
-          skillsDir == other.skillsDir;
+          skillsDir == other.skillsDir &&
+          logDir == other.logDir &&
+          sessionDir == other.sessionDir &&
+          contextWindow == other.contextWindow &&
+          maxSessionMessages == other.maxSessionMessages;
 }
 
 @freezed
@@ -165,6 +181,15 @@ sealed class AgentEventDto with _$AgentEventDto {
     required String name,
     required bool success,
   }) = AgentEventDto_ToolResult;
+  const factory AgentEventDto.contextStats({
+    required PlatformInt64 tokensBeforeTurn,
+    required PlatformInt64 tokensAfterPrune,
+    required PlatformInt64 messagesPruned,
+    required PlatformInt64 historyLen,
+    required PlatformInt64 pruningThreshold,
+  }) = AgentEventDto_ContextStats;
+  const factory AgentEventDto.turnSummary({required String summary}) =
+      AgentEventDto_TurnSummary;
   const factory AgentEventDto.done() = AgentEventDto_Done;
 }
 

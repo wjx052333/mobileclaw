@@ -23,13 +23,15 @@ abstract class MobileclawAgent {
   /// - [httpAllowlist] URL prefixes the HTTP tool may fetch.
   /// - [model]         LLM model identifier.
   /// - [skillsDir]     Optional directory of skill bundles.
+  /// - [logDir]        Optional directory for Rust-side log files.
   static Future<MobileclawAgent> create({
-    required String apiKey,
+    String? apiKey,
     required String dbPath,
     required String sandboxDir,
     required List<String> httpAllowlist,
-    String model = 'claude-opus-4-6',
+    String? model,
     String? skillsDir,
+    String? logDir,
   }) {
     throw UnimplementedError(
       'Phase 2: replace with real FFI implementation. '

@@ -23,12 +23,13 @@ class MockMobileclawAgent implements MobileclawAgent {
   String? _activeProviderId;
 
   static Future<MobileclawAgent> create({
-    required String apiKey,
+    String? apiKey,
     required String dbPath,
     required String sandboxDir,
     required List<String> httpAllowlist,
-    String model = 'claude-opus-4-6',
+    String? model,
     String? skillsDir,
+    String? logDir,
   }) async =>
       MockMobileclawAgent();
 
