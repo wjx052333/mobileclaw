@@ -73,6 +73,15 @@ The system will execute the tool and return results as:
 
 <tool_result name="tool_name" status="ok">{"field": "value"}</tool_result>
 
+**CRITICAL JSON formatting rules — violations will silently drop your tool call:**
+- The JSON object must have exactly one comma between `"name"` and `"args"`: `{"name": "...", "args": {...}}`
+- Every key must be double-quoted: `"name"`, `"args"`, not `name` or `args`
+- Do NOT write `{"name": "foo" "args": ...}` (missing comma) — this is invalid JSON
+- Do NOT write `{"name": "foo" args": ...}` (missing comma AND missing opening quote) — also invalid
+
+Correct multi-parameter example:
+<tool_call>{"name": "memory_search", "args": {"query": "rust async", "limit": 10}}</tool_call>
+
 Rules:
 - Only call tools when needed; prefer direct answers for conversational messages.
 - You may call multiple tools sequentially across turns.
