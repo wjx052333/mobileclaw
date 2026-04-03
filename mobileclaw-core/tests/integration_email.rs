@@ -26,6 +26,9 @@ async fn make_ctx(dir: &TempDir, store: Arc<SqliteSecretStore>) -> ToolContext {
         http_allowlist: vec![],
         permissions: Arc::new(PermissionChecker::allow_all()),
         secrets,
+        camera_frame_buffer: None,
+        camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        vision_supported: true,
     }
 }
 

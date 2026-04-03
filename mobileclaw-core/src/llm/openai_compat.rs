@@ -113,6 +113,13 @@ impl ToolCallAcc {
 /// handling `ContentBlock::ToolUse` (assistant tool_calls) and
 /// `ContentBlock::ToolResult` (tool-role messages).
 fn serialize_messages(messages: &[Message]) -> Vec<serde_json::Value> {
+    serialize_messages_inner(messages, false)
+}
+
+/// Inner implementation: when `for_chat_text` is true, Image blocks are
+/// converted to base64 data URLs for the non-streaming chat_text API.
+/// When false, Image blocks are skipped (streaming path).
+fn serialize_messages_inner(messages: &[Message], for_chat_text: bool) -> Vec<serde_json::Value> {
     let mut out: Vec<serde_json::Value> = Vec::with_capacity(messages.len());
     for m in messages {
         let role_str = match m.role {
@@ -122,10 +129,10 @@ fn serialize_messages(messages: &[Message]) -> Vec<serde_json::Value> {
             Role::Tool => "tool",
         };
 
-        // Collect text blocks and tool_use blocks for the assistant message.
         let mut text_parts: Vec<&str> = Vec::new();
         let mut tool_calls: Vec<serde_json::Value> = Vec::new();
         let mut tool_results: Vec<serde_json::Value> = Vec::new();
+        let mut image_parts: Vec<serde_json::Value> = Vec::new();
 
         for block in &m.content {
             match block {
@@ -133,7 +140,6 @@ fn serialize_messages(messages: &[Message]) -> Vec<serde_json::Value> {
                     text_parts.push(text.as_str());
                 }
                 ContentBlock::ToolUse { id, name, input } => {
-                    // arguments must be a JSON-encoded string, not an object.
                     let arguments = serde_json::to_string(input)
                         .unwrap_or_else(|_| "{}".to_string());
                     tool_calls.push(serde_json::json!({
@@ -152,24 +158,63 @@ fn serialize_messages(messages: &[Message]) -> Vec<serde_json::Value> {
                         "content": content,
                     }));
                 }
+                ContentBlock::Image { mime_type, data } => {
+                    if for_chat_text {
+                        let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, data);
+                        image_parts.push(serde_json::json!({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": format!("data:{};base64,{}", mime_type, b64),
+                            }
+                        }));
+                    }
+                }
             }
         }
 
-        // Emit the primary message (user / assistant / system / tool).
         if !tool_results.is_empty() {
-            // Messages that only contain ToolResult blocks are expanded into
-            // separate tool-role messages; no primary message is emitted.
             out.extend(tool_results);
         } else {
+            let mut content_array: Vec<serde_json::Value> = Vec::new();
+            content_array.extend(image_parts);
+
             let text_content = text_parts.join("");
-            let mut msg = serde_json::json!({
-                "role": role_str,
-                "content": text_content,
-            });
-            if !tool_calls.is_empty() {
-                msg["tool_calls"] = serde_json::Value::Array(tool_calls);
+            if !text_content.is_empty() || content_array.is_empty() {
+                // Use simple string content when there are no images
+                if content_array.is_empty() {
+                    let mut msg = serde_json::json!({
+                        "role": role_str,
+                        "content": text_content,
+                    });
+                    if !tool_calls.is_empty() {
+                        msg["tool_calls"] = serde_json::Value::Array(tool_calls);
+                    }
+                    out.push(msg);
+                } else {
+                    // Mixed content: must use the array format
+                    content_array.push(serde_json::json!({
+                        "type": "text",
+                        "text": text_content,
+                    }));
+                    let mut msg = serde_json::json!({
+                        "role": role_str,
+                        "content": content_array,
+                    });
+                    if !tool_calls.is_empty() {
+                        msg["tool_calls"] = serde_json::Value::Array(tool_calls);
+                    }
+                    out.push(msg);
+                }
+            } else {
+                let mut msg = serde_json::json!({
+                    "role": role_str,
+                    "content": text_content,
+                });
+                if !tool_calls.is_empty() {
+                    msg["tool_calls"] = serde_json::Value::Array(tool_calls);
+                }
+                out.push(msg);
             }
-            out.push(msg);
         }
     }
     out
@@ -182,6 +227,11 @@ impl LlmClient for OpenAiCompatClient {
     /// OpenAI-compat providers support native function calling.
     fn native_tool_support(&self) -> bool {
         true
+    }
+
+    fn vision_supported(&self) -> bool {
+        // GPT-4o and GPT-4 Turbo family support vision
+        self.model.starts_with("gpt-4o") || self.model.starts_with("gpt-4-turbo")
     }
 
     async fn stream_messages(
@@ -323,6 +373,50 @@ impl LlmClient for OpenAiCompatClient {
         };
 
         Ok(Box::pin(s))
+    }
+
+    async fn chat_text(
+        &self,
+        system: &str,
+        messages: &[Message],
+        max_tokens: u32,
+    ) -> ClawResult<String> {
+        let mut msg_array = vec![serde_json::json!({"role":"system","content":system})];
+        msg_array.extend(serialize_messages_inner(messages, true));
+
+        let body = serde_json::json!({
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": msg_array,
+        });
+
+        let url = format!("{}/chat/completions", self.base_url);
+        let resp = self.http
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!(url = %url, error = %e, "OpenAiCompatClient.chat_text: HTTP send failed");
+                ClawError::Llm(format!("OpenAI-compat request: {e}"))
+            })?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            tracing::error!(url = %url, status = %status, body = %text, "OpenAiCompatClient.chat_text: API error");
+            return Err(ClawError::Llm(format!("OpenAI-compat {status}: {text}")));
+        }
+
+        let json: serde_json::Value = resp.json().await
+            .map_err(|e| ClawError::Parse(format!("chat_text JSON parse: {}", e)))?;
+
+        let text = json["choices"][0]["message"]["content"].as_str()
+            .ok_or_else(|| ClawError::Parse("chat_text: missing choices[0].message.content".into()))?;
+
+        Ok(text.to_string())
     }
 }
 

@@ -1,3 +1,4 @@
+pub mod camera;
 pub mod email;
 pub mod file;
 pub mod http;
@@ -19,6 +20,7 @@ pub fn register_core_builtins(registry: &mut ToolRegistry) {
     registry.register_builtin(Arc::new(system::TimeTool));
     registry.register_builtin(Arc::new(system::GrepTool));
     registry.register_builtin(Arc::new(system::GlobTool));
+    registry.register_builtin(Arc::new(camera::CameraCapture));
 }
 
 /// Register email tools. Only call when at least one email account is configured.

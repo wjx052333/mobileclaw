@@ -137,6 +137,9 @@ mod tests {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(crate::secrets::store::test_helpers::NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            vision_supported: true,
         }
     }
 

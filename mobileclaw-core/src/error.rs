@@ -41,6 +41,18 @@ pub enum ClawError {
     #[error("session error: {0}")]
     Session(String),
 
+    #[error("camera unauthorized: user denied access")]
+    CameraUnauthorized,
+
+    #[error("camera model not supported: {0}")]
+    CameraModelNotSupported(String),
+
+    #[error("camera frame timeout: no new frame for {0}s")]
+    CameraFrameTimeout(u64),
+
+    #[error("camera capture failed: {0}")]
+    CameraCaptureFailed(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 

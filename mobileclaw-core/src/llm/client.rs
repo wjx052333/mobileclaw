@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use futures::Stream;
 use std::pin::Pin;
-use crate::{ClawError, ClawResult, llm::types::{Message, StreamEvent, ToolSpec}};
+use crate::{ClawError, ClawResult, llm::types::{ContentBlock, Message, StreamEvent, ToolSpec}};
 
 pub type EventStream = Pin<Box<dyn Stream<Item = ClawResult<StreamEvent>> + Send>>;
 
@@ -20,6 +20,38 @@ pub trait LlmClient: Send + Sync {
     /// When false, the agent loop uses XML-based tool invocation.
     fn native_tool_support(&self) -> bool {
         false
+    }
+
+    /// Returns true if this model can process image content (multi-modal).
+    /// Used by camera_capture to reject unsupported models early.
+    fn vision_supported(&self) -> bool {
+        false
+    }
+
+    /// Single-turn, non-streaming chat. Returns the complete response text.
+    /// Used by the background monitor for guard prompts (max_tokens=1)
+    /// and analysis prompts (max_tokens=150).
+    /// Supports multi-modal messages (ContentBlock::Image).
+    ///
+    /// Default implementation collects TextDelta events from stream_messages()
+    /// — correct but suboptimal for 1-token guard prompts.
+    async fn chat_text(
+        &self,
+        system: &str,
+        messages: &[Message],
+        max_tokens: u32,
+    ) -> ClawResult<String> {
+        use futures::StreamExt;
+        let mut stream = self.stream_messages(system, messages, max_tokens, &[]).await?;
+        let mut text = String::new();
+        while let Some(event) = stream.next().await {
+            match event? {
+                StreamEvent::TextDelta { text: t } => text.push_str(&t),
+                StreamEvent::MessageStop => break,
+                _ => {}
+            }
+        }
+        Ok(text)
     }
 }
 
@@ -40,10 +72,63 @@ impl ClaudeClient {
     }
 }
 
+/// Build the `messages` array for the Claude non-streaming API.
+/// Converts `ContentBlock` variants into Claude's content block format,
+/// including base64 encoding for `ContentBlock::Image`.
+fn build_claude_messages(messages: &[Message]) -> Vec<serde_json::Value> {
+    messages.iter().map(|m| {
+        let role = match m.role {
+            crate::llm::types::Role::User => "user",
+            crate::llm::types::Role::Assistant => "assistant",
+            crate::llm::types::Role::System => "user", // Claude API: system role goes in top-level "system"
+            crate::llm::types::Role::Tool => "user",   // tool results are user-role in Claude API
+        };
+        let content: Vec<serde_json::Value> = m.content.iter().map(|b| {
+            match b {
+                ContentBlock::Text { text } => {
+                    serde_json::json!({"type": "text", "text": text})
+                }
+                ContentBlock::ToolUse { id, name, input } => {
+                    serde_json::json!({
+                        "type": "tool_use",
+                        "id": id,
+                        "name": name,
+                        "input": input,
+                    })
+                }
+                ContentBlock::ToolResult { tool_use_id, content: text, is_error } => {
+                    serde_json::json!({
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": text,
+                        "is_error": is_error,
+                    })
+                }
+                ContentBlock::Image { mime_type, data } => {
+                    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, data);
+                    serde_json::json!({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": mime_type,
+                            "data": b64,
+                        }
+                    })
+                }
+            }
+        }).collect();
+        serde_json::json!({"role": role, "content": content})
+    }).collect()
+}
+
 #[async_trait]
 impl LlmClient for ClaudeClient {
     fn native_tool_support(&self) -> bool {
         true
+    }
+
+    fn vision_supported(&self) -> bool {
+        self.model.starts_with("claude-")
     }
 
     async fn stream_messages(
@@ -57,11 +142,12 @@ impl LlmClient for ClaudeClient {
         use eventsource_stream::Eventsource;
         use async_stream::stream;
 
+        let claude_messages = build_claude_messages(messages);
         let mut body = serde_json::json!({
             "model": self.model,
             "max_tokens": max_tokens,
             "system": system,
-            "messages": messages,
+            "messages": claude_messages,
             "stream": true,
         });
 
@@ -188,6 +274,49 @@ impl LlmClient for ClaudeClient {
 
         Ok(Box::pin(s))
     }
+
+    async fn chat_text(
+        &self,
+        system: &str,
+        messages: &[Message],
+        max_tokens: u32,
+    ) -> ClawResult<String> {
+        let claude_messages = build_claude_messages(messages);
+        let body = serde_json::json!({
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": claude_messages,
+        });
+
+        let resp = self.http
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "ClaudeClient.chat_text: HTTP send failed");
+                ClawError::Llm(e.to_string())
+            })?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            tracing::error!(status = %status, body = %text, "ClaudeClient.chat_text: API error response");
+            return Err(ClawError::Llm(format!("Claude API error {}: {}", status, text)));
+        }
+
+        let json: serde_json::Value = resp.json().await
+            .map_err(|e| ClawError::Parse(format!("chat_text JSON parse: {}", e)))?;
+
+        let text = json["content"][0]["text"].as_str()
+            .ok_or_else(|| ClawError::Parse("chat_text: missing content[0].text".into()))?;
+
+        Ok(text.to_string())
+    }
 }
 
 #[async_trait]
@@ -204,6 +333,19 @@ impl LlmClient for std::sync::Arc<dyn LlmClient> {
 
     fn native_tool_support(&self) -> bool {
         self.as_ref().native_tool_support()
+    }
+
+    fn vision_supported(&self) -> bool {
+        self.as_ref().vision_supported()
+    }
+
+    async fn chat_text(
+        &self,
+        system: &str,
+        messages: &[crate::llm::types::Message],
+        max_tokens: u32,
+    ) -> crate::ClawResult<String> {
+        self.as_ref().chat_text(system, messages, max_tokens).await
     }
 }
 
@@ -222,16 +364,18 @@ pub mod test_helpers {
         /// When true, `native_tool_support()` returns true and ToolUse events are
         /// handled by the native path in AgentLoop.
         pub native: bool,
+        /// When true, `vision_supported()` returns true.
+        pub vision: bool,
     }
 
     impl MockLlmClient {
         pub fn new(response: impl Into<String>) -> Self {
-            Self { response: response.into(), tool_uses: vec![], native: false }
+            Self { response: response.into(), tool_uses: vec![], native: false, vision: false }
         }
 
         /// Create a client that reports native tool support and emits ToolUse events.
         pub fn new_native(response: impl Into<String>, tool_uses: Vec<(String, String, serde_json::Value)>) -> Self {
-            Self { response: response.into(), tool_uses, native: true }
+            Self { response: response.into(), tool_uses, native: true, vision: false }
         }
     }
 
@@ -239,6 +383,10 @@ pub mod test_helpers {
     impl LlmClient for MockLlmClient {
         fn native_tool_support(&self) -> bool {
             self.native
+        }
+
+        fn vision_supported(&self) -> bool {
+            self.vision
         }
 
         async fn stream_messages(
@@ -262,6 +410,15 @@ pub mod test_helpers {
             }
             events.push(Ok(StreamEvent::MessageStop));
             Ok(Box::pin(stream::iter(events)))
+        }
+
+        async fn chat_text(
+            &self,
+            _system: &str,
+            _messages: &[crate::llm::types::Message],
+            _max_tokens: u32,
+        ) -> crate::ClawResult<String> {
+            Ok(self.response.clone())
         }
     }
 }

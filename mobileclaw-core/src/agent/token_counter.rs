@@ -16,20 +16,30 @@ use crate::llm::types::{ContentBlock, Message};
 /// (4 bytes/token) — JSON files get 2 bytes/token but our messages are plain
 /// text, so 4:1 is the right ratio.
 pub fn estimate_message_tokens(msg: &Message) -> usize {
-    let text_bytes: usize = msg.content.iter().map(|b| match b {
-        ContentBlock::Text { text } => text.len(),
-        ContentBlock::ToolUse { .. } => 0,
-        ContentBlock::ToolResult { content, .. } => content.len(),
-    }).sum();
+    let mut text_bytes: usize = 0;
+    let mut image_tokens: usize = 0;
+
+    for block in &msg.content {
+        match block {
+            ContentBlock::Text { text } => {
+                text_bytes += text.len();
+            }
+            ContentBlock::ToolUse { .. } => {}
+            ContentBlock::ToolResult { content, .. } => {
+                text_bytes += content.len();
+            }
+            ContentBlock::Image { data, .. } => {
+                // Vision token estimation: (compressed_bytes * 3) / 750 + 85
+                image_tokens += (data.len() * 3) / 750 + 85;
+            }
+        }
+    }
 
     let overhead = 3 /* role tag */ + msg.content.len() /* per-block overhead */;
 
-    if text_bytes == 0 {
-        return overhead;
-    }
+    let text_token = if text_bytes == 0 { 0 } else { text_bytes.div_ceil(4) };
 
-    // ceil(text_bytes / 4) = (text_bytes + 3) / 4
-    overhead + text_bytes.div_ceil(4)
+    overhead + text_token + image_tokens
 }
 
 /// Sum of `estimate_message_tokens` over all messages.

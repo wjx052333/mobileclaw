@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
+use std::sync::atomic::AtomicBool;
 
 use crate::{memory::Memory, secrets::SecretStore, ClawResult};
 
+use super::builtin::camera::CameraFrameBuffer;
 use super::permission::{Permission, PermissionChecker};
 
 pub struct ToolContext {
@@ -12,6 +14,9 @@ pub struct ToolContext {
     pub http_allowlist: Vec<String>,
     pub permissions: Arc<PermissionChecker>,
     pub secrets: Arc<dyn SecretStore>,
+    pub camera_frame_buffer: Option<Arc<CameraFrameBuffer>>,
+    pub camera_authorized: Arc<AtomicBool>,
+    pub vision_supported: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +54,13 @@ pub trait Tool: Send + Sync {
 
     fn timeout_ms(&self) -> u64 {
         10_000
+    }
+
+    /// Returns true if this tool produces image data that should be
+    /// appended to the message history as `ContentBlock::Image` blocks.
+    /// The default implementation returns false.
+    fn produces_images(&self) -> bool {
+        false
     }
 }
 

@@ -22,6 +22,9 @@ async fn make_loop(llm_response: &str) -> (AgentLoop<MockLlmClient>, TempDir) {
         http_allowlist: vec![],
         permissions: Arc::new(PermissionChecker::allow_all()),
         secrets: Arc::new(NullSecretStore),
+        camera_frame_buffer: None,
+        camera_authorized: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        vision_supported: true,
     };
     let llm = MockLlmClient::new(llm_response);
     let agent = AgentLoop::new(llm, registry, ctx, SkillManager::new(vec![]));

@@ -23,6 +23,7 @@ pub enum ContentBlock {
     Text { text: String },
     ToolUse { id: String, name: String, input: serde_json::Value },
     ToolResult { tool_use_id: String, content: String, is_error: bool },
+    Image { mime_type: String, data: Vec<u8> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -47,6 +48,7 @@ impl Message {
             ContentBlock::Text { text } => text.as_str(),
             ContentBlock::ToolUse { .. } => "",
             ContentBlock::ToolResult { .. } => "",
+            ContentBlock::Image { .. } => "",
         }).collect::<Vec<_>>().join("")
     }
 }
@@ -143,5 +145,27 @@ mod tests {
     fn role_tool_serializes_as_tool() {
         let json = serde_json::to_value(Role::Tool).unwrap();
         assert_eq!(json, "tool");
+    }
+
+    #[test]
+    fn image_block_serializes_with_type_tag() {
+        let block = ContentBlock::Image {
+            mime_type: "image/jpeg".into(),
+            data: vec![0xFF, 0xD8, 0xFF],
+        };
+        let json = serde_json::to_value(&block).unwrap();
+        assert_eq!(json["type"], "image");
+        assert_eq!(json["mime_type"], "image/jpeg");
+        assert_eq!(json["data"], serde_json::json!([255, 216, 255]));
+    }
+
+    #[test]
+    fn text_content_skips_image_blocks() {
+        let mut msg = Message::user("hello");
+        msg.content.push(ContentBlock::Image {
+            mime_type: "image/jpeg".into(),
+            data: vec![1, 2, 3],
+        });
+        assert_eq!(msg.text_content(), "hello");
     }
 }
