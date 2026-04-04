@@ -72,6 +72,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             // Observability event, not shown to user.
           case TurnSummaryEvent():
             // Persisted to memory, not shown to user.
+          case CameraAuthRequiredEvent():
+            // UI should prompt user to grant camera permission.
+            debugPrint('Camera authorization required');
           case DoneEvent():
             setState(() {
               _displayText += '\n\n---\n\n';

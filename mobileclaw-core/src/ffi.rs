@@ -797,7 +797,7 @@ impl AgentSession {
     }
 
     /// Phase 2 scaffold: stop a running camera monitor.
-    pub fn camera_stop_monitor(&mut self, _monitor_id: &str) -> bool {
+    pub fn camera_stop_monitor(&mut self, _monitor_id: String) -> bool {
         false
     }
 
@@ -807,6 +807,31 @@ impl AgentSession {
     pub fn camera_alert_stream(&self) -> Vec<CameraAlert> {
         vec![]
     }
+
+    /// Push a camera frame into the ring buffer.
+    ///
+    /// Safe FRB-managed instance method. Auto-sets `camera_authorized = true` on success.
+    /// Use this from Dart; the free function `camera_push_frame` is `#[frb(skip)]`.
+    pub fn camera_push_frame_dart(
+        &self,
+        jpeg: Vec<u8>,
+        frame_id: u64,
+        timestamp_ms: u64,
+        width: u32,
+        height: u32,
+    ) -> bool {
+        use crate::tools::builtin::camera::FrameData;
+        use std::sync::atomic::Ordering;
+        self.camera_buffer.push(FrameData {
+            id: frame_id,
+            timestamp_ms,
+            jpeg,
+            width,
+            height,
+        });
+        self.camera_authorized.store(true, Ordering::Relaxed);
+        true
+    }
 }
 
 /// Push a camera frame from Flutter into the ring buffer.
@@ -814,6 +839,12 @@ impl AgentSession {
 /// Returns `false` if the session pointer is null (invalid handle).
 /// Side effect: auto-sets `camera_authorized = true` on the first successful push,
 /// because Dart starting the camera service implies user consent.
+///
+/// # Safety
+/// This function takes a raw pointer and is intentionally excluded from FRB bindings.
+/// Flutter camera service code calls this directly via the `flutter_rust_bridge` low-level API.
+/// Use `camera_push_frame_dart` instead for safe FRB-managed access.
+#[frb(ignore)]
 pub fn camera_push_frame(
     session_ptr: i64,
     jpeg: Vec<u8>,

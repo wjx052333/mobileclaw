@@ -41,6 +41,7 @@ void main() {
             ToolResultEvent() => 'result',
             ContextStatsEvent() => 'stats',
             TurnSummaryEvent() => 'summary',
+            CameraAuthRequiredEvent() => 'camera_auth',
             DoneEvent() => 'done',
           };
       expect(tag(const TextDeltaEvent(text: 'x')), 'text');
@@ -51,6 +52,7 @@ void main() {
         historyLen: 0, pruningThreshold: 0,
       )), 'stats');
       expect(tag(const TurnSummaryEvent(summary: 'x')), 'summary');
+      expect(tag(const CameraAuthRequiredEvent()), 'camera_auth');
       expect(tag(const DoneEvent()), 'done');
     });
   });

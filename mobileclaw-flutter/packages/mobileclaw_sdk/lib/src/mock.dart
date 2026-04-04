@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'bridge/ffi.dart' show CameraAlert;
 import 'engine.dart';
 import 'events.dart';
 import 'memory.dart';
@@ -146,6 +147,48 @@ class MockMobileclawAgent implements MobileclawAgent {
     if (_activeProviderId == null) return null;
     return _providers[_activeProviderId];
   }
+
+  // ---------------------------------------------------------------------------
+  // Camera API — stubs (no real camera hardware in mock)
+  // ---------------------------------------------------------------------------
+
+  bool _cameraAuthorized = false;
+
+  @override
+  void cameraSetAuthorized(bool authorized) {
+    _cameraAuthorized = authorized;
+  }
+
+  @override
+  Future<bool> cameraIsAuthorized() async => _cameraAuthorized;
+
+  @override
+  Future<bool> cameraPushFrame({
+    required List<int> jpeg,
+    required int frameId,
+    required int timestampMs,
+    required int width,
+    required int height,
+  }) async {
+    _cameraAuthorized = true;
+    return true;
+  }
+
+  @override
+  List<CameraAlert> cameraAlertStream() => const [];
+
+  @override
+  Future<String> cameraStartMonitor({
+    required String scenario,
+    required int framesPerCheck,
+    required int checkIntervalMs,
+  }) async => 'mock-monitor-id';
+
+  @override
+  Future<bool> cameraStopMonitor(String monitorId) async => false;
+
+  @override
+  Future<(int, int, int)> cameraGetMmapInfo() async => (0, 16, 0);
 
   static Future<ProbeResultDto> probe({
     required ProviderConfigDto config,

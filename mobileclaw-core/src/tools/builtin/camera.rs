@@ -144,6 +144,13 @@ impl Tool for CameraCapture {
     fn produces_images(&self) -> bool { true }
 
     async fn execute(&self, args: Value, ctx: &ToolContext) -> crate::ClawResult<ToolResult> {
+        // Authorization check must come first so CameraUnauthorized is always
+        // the error when the user has not granted permission, regardless of
+        // whether the model supports vision.
+        if !ctx.camera_authorized.load(Ordering::Relaxed) {
+            return Err(ClawError::CameraUnauthorized);
+        }
+
         if !ctx.vision_supported {
             return Err(ClawError::CameraModelNotSupported(
                 "The current model does not support image analysis. \
@@ -155,11 +162,6 @@ impl Tool for CameraCapture {
             .and_then(Value::as_u64)
             .unwrap_or(5) as usize;
         let n = n.min(16);
-
-        // Check authorization first
-        if !ctx.camera_authorized.load(Ordering::Relaxed) {
-            return Err(ClawError::CameraUnauthorized);
-        }
 
         let buffer = ctx.camera_frame_buffer.as_ref()
             .ok_or(ClawError::CameraUnauthorized)?;

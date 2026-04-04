@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1462094073;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 323388805;
 
 // Section: executor
 
@@ -47,6 +47,391 @@ flutter_rust_bridge::frb_generated_default_handler!();
 
 // Section: wire_funcs
 
+fn wire__crate__ffi__AgentSession_camera_alert_stream_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AgentSession_camera_alert_stream",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Result::<_, ()>::Ok(
+                    crate::ffi::AgentSession::camera_alert_stream(&*api_that_guard),
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__ffi__AgentSession_camera_get_mmap_info_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AgentSession_camera_get_mmap_info",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::ffi::AgentSession::camera_get_mmap_info(&*api_that_guard),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__ffi__AgentSession_camera_is_authorized_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AgentSession_camera_is_authorized",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::ffi::AgentSession::camera_is_authorized(&*api_that_guard),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__ffi__AgentSession_camera_push_frame_dart_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AgentSession_camera_push_frame_dart",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
+            >>::sse_decode(&mut deserializer);
+            let api_jpeg = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_frame_id = <u64>::sse_decode(&mut deserializer);
+            let api_timestamp_ms = <u64>::sse_decode(&mut deserializer);
+            let api_width = <u32>::sse_decode(&mut deserializer);
+            let api_height = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::ffi::AgentSession::camera_push_frame_dart(
+                            &*api_that_guard,
+                            api_jpeg,
+                            api_frame_id,
+                            api_timestamp_ms,
+                            api_width,
+                            api_height,
+                        ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__ffi__AgentSession_camera_set_authorized_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AgentSession_camera_set_authorized",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
+            >>::sse_decode(&mut deserializer);
+            let api_authorized = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, true,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let mut api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Result::<_, ()>::Ok({
+                        crate::ffi::AgentSession::camera_set_authorized(
+                            &mut *api_that_guard,
+                            api_authorized,
+                        );
+                    })?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__ffi__AgentSession_camera_start_monitor_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AgentSession_camera_start_monitor",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
+            >>::sse_decode(&mut deserializer);
+            let api__scenario = <String>::sse_decode(&mut deserializer);
+            let api__frames_per_check = <u32>::sse_decode(&mut deserializer);
+            let api__check_interval_ms = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, true,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let mut api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::ffi::AgentSession::camera_start_monitor(
+                            &mut *api_that_guard,
+                            api__scenario,
+                            api__frames_per_check,
+                            api__check_interval_ms,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__ffi__AgentSession_camera_stop_monitor_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AgentSession_camera_stop_monitor",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
+            >>::sse_decode(&mut deserializer);
+            let api__monitor_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, true,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let mut api_that_guard = api_that_guard.unwrap();
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::ffi::AgentSession::camera_stop_monitor(
+                            &mut *api_that_guard,
+                            api__monitor_id,
+                        ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__ffi__AgentSession_chat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1029,15 +1414,15 @@ fn wire__crate__ffi__AgentSession_provider_set_active_impl(
         },
     )
 }
-fn wire__crate__ffi__AgentSession_skills_impl(
+fn wire__crate__ffi__AgentSession_session_delete_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "AgentSession_skills",
+            debug_name: "AgentSession_session_delete",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1054,32 +1439,42 @@ fn wire__crate__ffi__AgentSession_skills_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
             >>::sse_decode(&mut deserializer);
+            let api_file_path = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let mut api_that_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
                         }
-                    }
-                    let api_that_guard = api_that_guard.unwrap();
-                    let output_ok =
-                        Result::<_, ()>::Ok(crate::ffi::AgentSession::skills(&*api_that_guard))?;
-                    Ok(output_ok)
-                })())
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::ffi::AgentSession::session_delete(
+                            &*api_that_guard,
+                            api_file_path,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
 }
-fn wire__crate__ffi__AgentSession_session_save_impl(
+fn wire__crate__ffi__AgentSession_session_list_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1087,7 +1482,7 @@ fn wire__crate__ffi__AgentSession_session_save_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "AgentSession_session_save",
+            debug_name: "AgentSession_session_list",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1126,7 +1521,7 @@ fn wire__crate__ffi__AgentSession_session_save_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::ffi::AgentSession::session_save(&*api_that_guard).await?;
+                            crate::ffi::AgentSession::session_list(&*api_that_guard).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1195,7 +1590,7 @@ fn wire__crate__ffi__AgentSession_session_load_impl(
         },
     )
 }
-fn wire__crate__ffi__AgentSession_session_list_impl(
+fn wire__crate__ffi__AgentSession_session_save_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1203,7 +1598,7 @@ fn wire__crate__ffi__AgentSession_session_list_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "AgentSession_session_list",
+            debug_name: "AgentSession_session_save",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1242,7 +1637,7 @@ fn wire__crate__ffi__AgentSession_session_list_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::ffi::AgentSession::session_list(&*api_that_guard).await?;
+                            crate::ffi::AgentSession::session_save(&*api_that_guard).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1251,15 +1646,15 @@ fn wire__crate__ffi__AgentSession_session_list_impl(
         },
     )
 }
-fn wire__crate__ffi__AgentSession_session_delete_impl(
+fn wire__crate__ffi__AgentSession_skills_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "AgentSession_session_delete",
+            debug_name: "AgentSession_skills",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1276,37 +1671,62 @@ fn wire__crate__ffi__AgentSession_session_delete_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>,
             >>::sse_decode(&mut deserializer);
-            let api_file_path = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || async move {
-                        let mut api_that_guard = None;
-                        let decode_indices_ =
-                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
-                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, false,
-                                )],
-                            );
-                        for i in decode_indices_ {
-                            match i {
-                                0 => {
-                                    api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref().await)
-                                }
-                                _ => unreachable!(),
-                            }
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
                         }
-                        let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::ffi::AgentSession::session_delete(
-                            &*api_that_guard,
-                            api_file_path,
-                        )
-                        .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::ffi::AgentSession::skills(&*api_that_guard))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__ffi__init_file_logging_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "init_file_logging",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
                 )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_dir = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok({
+                        crate::ffi::init_file_logging(&api_dir);
+                    })?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -1455,32 +1875,33 @@ impl SseDecode for crate::ffi::AgentEventDto {
                 };
             }
             3 => {
-                let mut var_tokens_before_turn = <usize>::sse_decode(deserializer);
-                let mut var_tokens_after_prune = <usize>::sse_decode(deserializer);
-                let mut var_messages_pruned = <usize>::sse_decode(deserializer);
-                let mut var_history_len = <usize>::sse_decode(deserializer);
-                let mut var_pruning_threshold = <usize>::sse_decode(deserializer);
+                let mut var_tokensBeforeTurn = <usize>::sse_decode(deserializer);
+                let mut var_tokensAfterPrune = <usize>::sse_decode(deserializer);
+                let mut var_messagesPruned = <usize>::sse_decode(deserializer);
+                let mut var_historyLen = <usize>::sse_decode(deserializer);
+                let mut var_pruningThreshold = <usize>::sse_decode(deserializer);
                 return crate::ffi::AgentEventDto::ContextStats {
-                    tokens_before_turn: var_tokens_before_turn,
-                    tokens_after_prune: var_tokens_after_prune,
-                    messages_pruned: var_messages_pruned,
-                    history_len: var_history_len,
-                    pruning_threshold: var_pruning_threshold,
+                    tokens_before_turn: var_tokensBeforeTurn,
+                    tokens_after_prune: var_tokensAfterPrune,
+                    messages_pruned: var_messagesPruned,
+                    history_len: var_historyLen,
+                    pruning_threshold: var_pruningThreshold,
                 };
             }
             4 => {
                 let mut var_summary = <String>::sse_decode(deserializer);
-                return crate::ffi::AgentEventDto::TurnSummary { summary: var_summary };
+                return crate::ffi::AgentEventDto::TurnSummary {
+                    summary: var_summary,
+                };
             }
             5 => {
-                return crate::ffi::AgentEventDto::Done;
-            }
-            6 => {
                 return crate::ffi::AgentEventDto::CameraAuthRequired;
             }
-            _ => {
-                // Future variants — fail gracefully rather than panic.
+            6 => {
                 return crate::ffi::AgentEventDto::Done;
+            }
+            _ => {
+                unimplemented!("");
             }
         }
     }
@@ -1490,6 +1911,20 @@ impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u8().unwrap() != 0
+    }
+}
+
+impl SseDecode for crate::ffi::CameraAlert {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_summary = <String>::sse_decode(deserializer);
+        let mut var_frameId = <u64>::sse_decode(deserializer);
+        let mut var_timestampMs = <u64>::sse_decode(deserializer);
+        return crate::ffi::CameraAlert {
+            summary: var_summary,
+            frame_id: var_frameId,
+            timestamp_ms: var_timestampMs,
+        };
     }
 }
 
@@ -1558,6 +1993,18 @@ impl SseDecode for Vec<crate::ffi::AgentEventDto> {
     }
 }
 
+impl SseDecode for Vec<crate::ffi::CameraAlert> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::ffi::CameraAlert>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::ffi::MessageDto> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1601,6 +2048,18 @@ impl SseDecode for Vec<crate::ffi::SearchResultDto> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::ffi::SearchResultDto>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::ffi::SessionEntryDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::ffi::SessionEntryDto>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -1694,22 +2153,22 @@ impl SseDecode for Option<crate::ffi::ProviderConfigDto> {
     }
 }
 
-impl SseDecode for Option<u64> {
+impl SseDecode for Option<u32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<u64>::sse_decode(deserializer));
+            return Some(<u32>::sse_decode(deserializer));
         } else {
             return None;
         }
     }
 }
 
-impl SseDecode for Option<u32> {
+impl SseDecode for Option<u64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<u32>::sse_decode(deserializer));
+            return Some(<u64>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -1752,6 +2211,16 @@ impl SseDecode for crate::ffi::ProviderConfigDto {
     }
 }
 
+impl SseDecode for (usize, usize, u64) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_field0 = <usize>::sse_decode(deserializer);
+        let mut var_field1 = <usize>::sse_decode(deserializer);
+        let mut var_field2 = <u64>::sse_decode(deserializer);
+        return (var_field0, var_field1, var_field2);
+    }
+}
+
 impl SseDecode for crate::ffi::SearchResultDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1780,44 +2249,6 @@ impl SseDecode for crate::ffi::SessionEntryDto {
     }
 }
 
-impl SseDecode for Vec<crate::ffi::SessionEntryDto> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::ffi::SessionEntryDto>::sse_decode(deserializer));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for crate::ffi::CameraAlert {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_summary = <String>::sse_decode(deserializer);
-        let mut var_frameId = <u64>::sse_decode(deserializer);
-        let mut var_timestampMs = <u64>::sse_decode(deserializer);
-        return crate::ffi::CameraAlert {
-            summary: var_summary,
-            frame_id: var_frameId,
-            timestamp_ms: var_timestampMs,
-        };
-    }
-}
-
-impl SseDecode for Vec<crate::ffi::CameraAlert> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::ffi::CameraAlert>::sse_decode(deserializer));
-        }
-        return ans_;
-    }
-}
-
 impl SseDecode for crate::ffi::SkillManifestDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1836,17 +2267,17 @@ impl SseDecode for crate::ffi::SkillManifestDto {
     }
 }
 
-impl SseDecode for u64 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        deserializer.cursor.read_u64::<NativeEndian>().unwrap()
-    }
-}
-
 impl SseDecode for u32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u32::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for u64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u64::<NativeEndian>().unwrap()
     }
 }
 
@@ -1878,63 +2309,98 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__ffi__AgentSession_chat_impl(port, ptr, rust_vec_len, data_len),
-        2 => wire__crate__ffi__AgentSession_create_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__ffi__AgentSession_email_account_delete_impl(
+        2 => wire__crate__ffi__AgentSession_camera_get_mmap_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        4 => wire__crate__ffi__AgentSession_email_account_load_impl(
+        3 => wire__crate__ffi__AgentSession_camera_is_authorized_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        5 => wire__crate__ffi__AgentSession_email_account_save_impl(
+        4 => wire__crate__ffi__AgentSession_camera_push_frame_dart_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        6 => wire__crate__ffi__AgentSession_history_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__ffi__AgentSession_load_skills_from_dir_impl(
+        5 => wire__crate__ffi__AgentSession_camera_set_authorized_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        8 => wire__crate__ffi__AgentSession_memory_count_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__ffi__AgentSession_memory_forget_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__ffi__AgentSession_memory_get_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__ffi__AgentSession_memory_recall_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__ffi__AgentSession_memory_store_impl(port, ptr, rust_vec_len, data_len),
-        13 => {
+        6 => wire__crate__ffi__AgentSession_camera_start_monitor_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        7 => wire__crate__ffi__AgentSession_camera_stop_monitor_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        8 => wire__crate__ffi__AgentSession_chat_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__ffi__AgentSession_create_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__ffi__AgentSession_email_account_delete_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        11 => wire__crate__ffi__AgentSession_email_account_load_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        12 => wire__crate__ffi__AgentSession_email_account_save_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        13 => wire__crate__ffi__AgentSession_history_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__ffi__AgentSession_load_skills_from_dir_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        15 => wire__crate__ffi__AgentSession_memory_count_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__ffi__AgentSession_memory_forget_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__ffi__AgentSession_memory_get_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__ffi__AgentSession_memory_recall_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__ffi__AgentSession_memory_store_impl(port, ptr, rust_vec_len, data_len),
+        20 => {
             wire__crate__ffi__AgentSession_provider_delete_impl(port, ptr, rust_vec_len, data_len)
         }
-        14 => wire__crate__ffi__AgentSession_provider_get_active_impl(
+        21 => wire__crate__ffi__AgentSession_provider_get_active_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__ffi__AgentSession_provider_list_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__ffi__AgentSession_provider_save_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__ffi__AgentSession_provider_set_active_impl(
+        22 => wire__crate__ffi__AgentSession_provider_list_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__ffi__AgentSession_provider_save_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__ffi__AgentSession_provider_set_active_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        18 => wire__crate__ffi__AgentSession_skills_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__ffi__provider_probe_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__ffi__AgentSession_session_save_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__ffi__AgentSession_session_load_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__ffi__AgentSession_session_list_impl(port, ptr, rust_vec_len, data_len),
-        23 => {
-            wire__crate__ffi__AgentSession_session_delete_impl(port, ptr, rust_vec_len, data_len)
-        }
+        25 => wire__crate__ffi__AgentSession_session_delete_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__ffi__AgentSession_session_list_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__ffi__AgentSession_session_load_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__ffi__AgentSession_session_save_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__ffi__AgentSession_skills_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__ffi__init_file_logging_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__ffi__provider_probe_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1947,6 +2413,7 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
+        1 => wire__crate__ffi__AgentSession_camera_alert_stream_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1983,6 +2450,14 @@ impl flutter_rust_bridge::IntoDart for crate::ffi::AgentConfig {
             self.log_dir.into_into_dart().into_dart(),
             self.session_dir.into_into_dart().into_dart(),
             self.context_window.into_into_dart().into_dart(),
+            self.max_session_messages.into_into_dart().into_dart(),
+            self.camera_frames_per_capture.into_into_dart().into_dart(),
+            self.camera_max_frames_per_capture
+                .into_into_dart()
+                .into_dart(),
+            self.camera_ring_buffer_capacity
+                .into_into_dart()
+                .into_dart(),
         ]
         .into_dart()
     }
@@ -2024,7 +2499,11 @@ impl flutter_rust_bridge::IntoDart for crate::ffi::AgentEventDto {
                 pruning_threshold.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::ffi::AgentEventDto::Done => [4.into_dart()].into_dart(),
+            crate::ffi::AgentEventDto::TurnSummary { summary } => {
+                [4.into_dart(), summary.into_into_dart().into_dart()].into_dart()
+            }
+            crate::ffi::AgentEventDto::CameraAuthRequired => [5.into_dart()].into_dart(),
+            crate::ffi::AgentEventDto::Done => [6.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -2034,6 +2513,23 @@ impl flutter_rust_bridge::IntoDart for crate::ffi::AgentEventDto {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::ffi::AgentEventDto {}
 impl flutter_rust_bridge::IntoIntoDart<crate::ffi::AgentEventDto> for crate::ffi::AgentEventDto {
     fn into_into_dart(self) -> crate::ffi::AgentEventDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::ffi::CameraAlert {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.summary.into_into_dart().into_dart(),
+            self.frame_id.into_into_dart().into_dart(),
+            self.timestamp_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::ffi::CameraAlert {}
+impl flutter_rust_bridge::IntoIntoDart<crate::ffi::CameraAlert> for crate::ffi::CameraAlert {
+    fn into_into_dart(self) -> crate::ffi::CameraAlert {
         self
     }
 }
@@ -2242,6 +2738,9 @@ impl SseEncode for crate::ffi::AgentConfig {
         <Option<String>>::sse_encode(self.session_dir, serializer);
         <Option<u32>>::sse_encode(self.context_window, serializer);
         <Option<u32>>::sse_encode(self.max_session_messages, serializer);
+        <Option<u32>>::sse_encode(self.camera_frames_per_capture, serializer);
+        <Option<u32>>::sse_encode(self.camera_max_frames_per_capture, serializer);
+        <Option<u32>>::sse_encode(self.camera_ring_buffer_capacity, serializer);
     }
 }
 
@@ -2280,11 +2779,14 @@ impl SseEncode for crate::ffi::AgentEventDto {
                 <i32>::sse_encode(4, serializer);
                 <String>::sse_encode(summary, serializer);
             }
-            crate::ffi::AgentEventDto::Done => {
+            crate::ffi::AgentEventDto::CameraAuthRequired => {
                 <i32>::sse_encode(5, serializer);
             }
-            crate::ffi::AgentEventDto::CameraAuthRequired => {
+            crate::ffi::AgentEventDto::Done => {
                 <i32>::sse_encode(6, serializer);
+            }
+            _ => {
+                unimplemented!("");
             }
         }
     }
@@ -2294,6 +2796,15 @@ impl SseEncode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u8(self as _).unwrap();
+    }
+}
+
+impl SseEncode for crate::ffi::CameraAlert {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.summary, serializer);
+        <u64>::sse_encode(self.frame_id, serializer);
+        <u64>::sse_encode(self.timestamp_ms, serializer);
     }
 }
 
@@ -2350,6 +2861,16 @@ impl SseEncode for Vec<crate::ffi::AgentEventDto> {
     }
 }
 
+impl SseEncode for Vec<crate::ffi::CameraAlert> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::ffi::CameraAlert>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::ffi::MessageDto> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2386,6 +2907,16 @@ impl SseEncode for Vec<crate::ffi::SearchResultDto> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::ffi::SearchResultDto>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::ffi::SessionEntryDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::ffi::SessionEntryDto>::sse_encode(item, serializer);
         }
     }
 }
@@ -2460,22 +2991,22 @@ impl SseEncode for Option<crate::ffi::ProviderConfigDto> {
     }
 }
 
-impl SseEncode for Option<u64> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <u64>::sse_encode(value, serializer);
-        }
-    }
-}
-
 impl SseEncode for Option<u32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <u32>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<u64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <u64>::sse_encode(value, serializer);
         }
     }
 }
@@ -2502,6 +3033,15 @@ impl SseEncode for crate::ffi::ProviderConfigDto {
     }
 }
 
+impl SseEncode for (usize, usize, u64) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <usize>::sse_encode(self.0, serializer);
+        <usize>::sse_encode(self.1, serializer);
+        <u64>::sse_encode(self.2, serializer);
+    }
+}
+
 impl SseEncode for crate::ffi::SearchResultDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2520,35 +3060,6 @@ impl SseEncode for crate::ffi::SessionEntryDto {
     }
 }
 
-impl SseEncode for Vec<crate::ffi::SessionEntryDto> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::ffi::SessionEntryDto>::sse_encode(item, serializer);
-        }
-    }
-}
-
-impl SseEncode for crate::ffi::CameraAlert {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.summary, serializer);
-        <u64>::sse_encode(self.frame_id, serializer);
-        <u64>::sse_encode(self.timestamp_ms, serializer);
-    }
-}
-
-impl SseEncode for Vec<crate::ffi::CameraAlert> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::ffi::CameraAlert>::sse_encode(item, serializer);
-        }
-    }
-}
-
 impl SseEncode for crate::ffi::SkillManifestDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2560,17 +3071,17 @@ impl SseEncode for crate::ffi::SkillManifestDto {
     }
 }
 
-impl SseEncode for u64 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        serializer.cursor.write_u64::<NativeEndian>(self).unwrap();
-    }
-}
-
 impl SseEncode for u32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for u64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u64::<NativeEndian>(self).unwrap();
     }
 }
 

@@ -569,8 +569,8 @@ async fn e5_camera_stop_monitor_returns_false_in_phase1() {
     let dir = TempDir::new().unwrap();
     let mut session = make_test_session(&dir).await;
     // Phase 1 stub unconditionally returns false regardless of input
-    assert!(!session.camera_stop_monitor("any-id"), "Phase 1 stop_monitor always returns false");
-    assert!(!session.camera_stop_monitor(""), "Phase 1 stop_monitor always returns false for empty id");
+    assert!(!session.camera_stop_monitor("any-id".to_string()), "Phase 1 stop_monitor always returns false");
+    assert!(!session.camera_stop_monitor(String::new()), "Phase 1 stop_monitor always returns false for empty id");
 }
 
 // ---------------------------------------------------------------------------

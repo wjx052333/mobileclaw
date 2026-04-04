@@ -18,6 +18,9 @@ fn test_config(dir: &TempDir) -> AgentConfig {
         session_dir: None,
         context_window: None,
         max_session_messages: None,
+        camera_frames_per_capture: None,
+        camera_max_frames_per_capture: None,
+        camera_ring_buffer_capacity: None,
     }
 }
 

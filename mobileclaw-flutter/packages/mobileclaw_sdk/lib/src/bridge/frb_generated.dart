@@ -70,7 +70,7 @@ class MobileclawCoreBridge
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1462094073;
+  int get rustContentHash => 323388805;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -82,6 +82,44 @@ class MobileclawCoreBridge
 }
 
 abstract class MobileclawCoreBridgeApi extends BaseApi {
+  List<CameraAlert> crateFfiAgentSessionCameraAlertStream({
+    required AgentSession that,
+  });
+
+  Future<(BigInt, BigInt, BigInt)> crateFfiAgentSessionCameraGetMmapInfo({
+    required AgentSession that,
+  });
+
+  Future<bool> crateFfiAgentSessionCameraIsAuthorized({
+    required AgentSession that,
+  });
+
+  Future<bool> crateFfiAgentSessionCameraPushFrameDart({
+    required AgentSession that,
+    required List<int> jpeg,
+    required BigInt frameId,
+    required BigInt timestampMs,
+    required int width,
+    required int height,
+  });
+
+  Future<void> crateFfiAgentSessionCameraSetAuthorized({
+    required AgentSession that,
+    required bool authorized,
+  });
+
+  Future<String> crateFfiAgentSessionCameraStartMonitor({
+    required AgentSession that,
+    required String scenario,
+    required int framesPerCheck,
+    required int checkIntervalMs,
+  });
+
+  Future<bool> crateFfiAgentSessionCameraStopMonitor({
+    required AgentSession that,
+    required String monitorId,
+  });
+
   Future<List<AgentEventDto>> crateFfiAgentSessionChat({
     required AgentSession that,
     required String input,
@@ -169,9 +207,27 @@ abstract class MobileclawCoreBridgeApi extends BaseApi {
     required String id,
   });
 
+  Future<bool> crateFfiAgentSessionSessionDelete({
+    required AgentSession that,
+    required String filePath,
+  });
+
+  Future<List<SessionEntryDto>> crateFfiAgentSessionSessionList({
+    required AgentSession that,
+  });
+
+  Future<BigInt> crateFfiAgentSessionSessionLoad({
+    required AgentSession that,
+    required String filePath,
+  });
+
+  Future<String> crateFfiAgentSessionSessionSave({required AgentSession that});
+
   Future<List<SkillManifestDto>> crateFfiAgentSessionSkills({
     required AgentSession that,
   });
+
+  Future<void> crateFfiInitFileLogging({required String dir});
 
   Future<ProbeResultDto> crateFfiProviderProbe({
     required ProviderConfigDto config,
@@ -197,6 +253,273 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   });
 
   @override
+  List<CameraAlert> crateFfiAgentSessionCameraAlertStream({
+    required AgentSession that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_camera_alert,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFfiAgentSessionCameraAlertStreamConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionCameraAlertStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_camera_alert_stream",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<(BigInt, BigInt, BigInt)> crateFfiAgentSessionCameraGetMmapInfo({
+    required AgentSession that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_record_usize_usize_u_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFfiAgentSessionCameraGetMmapInfoConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionCameraGetMmapInfoConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_camera_get_mmap_info",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateFfiAgentSessionCameraIsAuthorized({
+    required AgentSession that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFfiAgentSessionCameraIsAuthorizedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionCameraIsAuthorizedConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_camera_is_authorized",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateFfiAgentSessionCameraPushFrameDart({
+    required AgentSession that,
+    required List<int> jpeg,
+    required BigInt frameId,
+    required BigInt timestampMs,
+    required int width,
+    required int height,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_list_prim_u_8_loose(jpeg, serializer);
+          sse_encode_u_64(frameId, serializer);
+          sse_encode_u_64(timestampMs, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFfiAgentSessionCameraPushFrameDartConstMeta,
+        argValues: [that, jpeg, frameId, timestampMs, width, height],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionCameraPushFrameDartConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_camera_push_frame_dart",
+        argNames: ["that", "jpeg", "frameId", "timestampMs", "width", "height"],
+      );
+
+  @override
+  Future<void> crateFfiAgentSessionCameraSetAuthorized({
+    required AgentSession that,
+    required bool authorized,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_bool(authorized, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFfiAgentSessionCameraSetAuthorizedConstMeta,
+        argValues: [that, authorized],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionCameraSetAuthorizedConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_camera_set_authorized",
+        argNames: ["that", "authorized"],
+      );
+
+  @override
+  Future<String> crateFfiAgentSessionCameraStartMonitor({
+    required AgentSession that,
+    required String scenario,
+    required int framesPerCheck,
+    required int checkIntervalMs,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_String(scenario, serializer);
+          sse_encode_u_32(framesPerCheck, serializer);
+          sse_encode_u_32(checkIntervalMs, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionCameraStartMonitorConstMeta,
+        argValues: [that, scenario, framesPerCheck, checkIntervalMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionCameraStartMonitorConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_camera_start_monitor",
+        argNames: ["that", "scenario", "framesPerCheck", "checkIntervalMs"],
+      );
+
+  @override
+  Future<bool> crateFfiAgentSessionCameraStopMonitor({
+    required AgentSession that,
+    required String monitorId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_String(monitorId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFfiAgentSessionCameraStopMonitorConstMeta,
+        argValues: [that, monitorId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionCameraStopMonitorConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_camera_stop_monitor",
+        argNames: ["that", "monitorId"],
+      );
+
+  @override
   Future<List<AgentEventDto>> crateFfiAgentSessionChat({
     required AgentSession that,
     required String input,
@@ -215,7 +538,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 8,
             port: port_,
           );
         },
@@ -247,7 +570,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 9,
             port: port_,
           );
         },
@@ -285,7 +608,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 10,
             port: port_,
           );
         },
@@ -323,7 +646,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 11,
             port: port_,
           );
         },
@@ -363,7 +686,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 12,
             port: port_,
           );
         },
@@ -399,7 +722,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 13,
             port: port_,
           );
         },
@@ -437,7 +760,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 14,
             port: port_,
           );
         },
@@ -471,7 +794,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 15,
             port: port_,
           );
         },
@@ -509,7 +832,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 16,
             port: port_,
           );
         },
@@ -547,7 +870,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 17,
             port: port_,
           );
         },
@@ -593,7 +916,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 18,
             port: port_,
           );
         },
@@ -635,7 +958,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 19,
             port: port_,
           );
         },
@@ -673,7 +996,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 20,
             port: port_,
           );
         },
@@ -709,7 +1032,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 21,
             port: port_,
           );
         },
@@ -745,7 +1068,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 22,
             port: port_,
           );
         },
@@ -785,7 +1108,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 23,
             port: port_,
           );
         },
@@ -823,7 +1146,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 24,
             port: port_,
           );
         },
@@ -845,6 +1168,152 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       );
 
   @override
+  Future<bool> crateFfiAgentSessionSessionDelete({
+    required AgentSession that,
+    required String filePath,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_String(filePath, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionSessionDeleteConstMeta,
+        argValues: [that, filePath],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionSessionDeleteConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_session_delete",
+        argNames: ["that", "filePath"],
+      );
+
+  @override
+  Future<List<SessionEntryDto>> crateFfiAgentSessionSessionList({
+    required AgentSession that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 26,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_session_entry_dto,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionSessionListConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionSessionListConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_session_list",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<BigInt> crateFfiAgentSessionSessionLoad({
+    required AgentSession that,
+    required String filePath,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          sse_encode_String(filePath, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_usize,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionSessionLoadConstMeta,
+        argValues: [that, filePath],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionSessionLoadConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_session_load",
+        argNames: ["that", "filePath"],
+      );
+
+  @override
+  Future<String> crateFfiAgentSessionSessionSave({required AgentSession that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAgentSession(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFfiAgentSessionSessionSaveConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiAgentSessionSessionSaveConstMeta =>
+      const TaskConstMeta(
+        debugName: "AgentSession_session_save",
+        argNames: ["that"],
+      );
+
+  @override
   Future<List<SkillManifestDto>> crateFfiAgentSessionSkills({
     required AgentSession that,
   }) {
@@ -859,7 +1328,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 29,
             port: port_,
           );
         },
@@ -878,6 +1347,34 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       const TaskConstMeta(debugName: "AgentSession_skills", argNames: ["that"]);
 
   @override
+  Future<void> crateFfiInitFileLogging({required String dir}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dir, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 30,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFfiInitFileLoggingConstMeta,
+        argValues: [dir],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFfiInitFileLoggingConstMeta =>
+      const TaskConstMeta(debugName: "init_file_logging", argNames: ["dir"]);
+
+  @override
   Future<ProbeResultDto> crateFfiProviderProbe({
     required ProviderConfigDto config,
     String? apiKey,
@@ -891,7 +1388,7 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 31,
             port: port_,
           );
         },
@@ -971,8 +1468,8 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   AgentConfig dco_decode_agent_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return AgentConfig(
       apiKey: dco_decode_opt_String(arr[0]),
       dbPath: dco_decode_String(arr[1]),
@@ -984,8 +1481,11 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       skillsDir: dco_decode_opt_String(arr[7]),
       logDir: dco_decode_opt_String(arr[8]),
       sessionDir: dco_decode_opt_String(arr[9]),
-      contextWindow: arr[10] as int?,
-      maxSessionMessages: arr[11] as int?,
+      contextWindow: dco_decode_opt_box_autoadd_u_32(arr[10]),
+      maxSessionMessages: dco_decode_opt_box_autoadd_u_32(arr[11]),
+      cameraFramesPerCapture: dco_decode_opt_box_autoadd_u_32(arr[12]),
+      cameraMaxFramesPerCapture: dco_decode_opt_box_autoadd_u_32(arr[13]),
+      cameraRingBufferCapacity: dco_decode_opt_box_autoadd_u_32(arr[14]),
     );
   }
 
@@ -1004,18 +1504,20 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
         );
       case 3:
         return AgentEventDto_ContextStats(
-          tokensBeforeTurn: dco_decode_i_64(raw[1]),
-          tokensAfterPrune: dco_decode_i_64(raw[2]),
-          messagesPruned: dco_decode_i_64(raw[3]),
-          historyLen: dco_decode_i_64(raw[4]),
-          pruningThreshold: dco_decode_i_64(raw[5]),
+          tokensBeforeTurn: dco_decode_usize(raw[1]),
+          tokensAfterPrune: dco_decode_usize(raw[2]),
+          messagesPruned: dco_decode_usize(raw[3]),
+          historyLen: dco_decode_usize(raw[4]),
+          pruningThreshold: dco_decode_usize(raw[5]),
         );
       case 4:
         return AgentEventDto_TurnSummary(summary: dco_decode_String(raw[1]));
       case 5:
+        return AgentEventDto_CameraAuthRequired();
+      case 6:
         return AgentEventDto_Done();
       default:
-        throw Exception('Unknown AgentEventDto tag: ${raw[0]}');
+        throw Exception("unreachable");
     }
   }
 
@@ -1050,9 +1552,28 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_u_64(raw);
+  }
+
+  @protected
+  CameraAlert dco_decode_camera_alert(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return CameraAlert(
+      summary: dco_decode_String(arr[0]),
+      frameId: dco_decode_u_64(arr[1]),
+      timestampMs: dco_decode_u_64(arr[2]),
+    );
   }
 
   @protected
@@ -1102,9 +1623,21 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  List<CameraAlert> dco_decode_list_camera_alert(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_camera_alert).toList();
+  }
+
+  @protected
   List<MessageDto> dco_decode_list_message_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_message_dto).toList();
+  }
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as List<int>;
   }
 
   @protected
@@ -1123,6 +1656,12 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   List<SearchResultDto> dco_decode_list_search_result_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_search_result_dto).toList();
+  }
+
+  @protected
+  List<SessionEntryDto> dco_decode_list_session_entry_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_session_entry_dto).toList();
   }
 
   @protected
@@ -1186,6 +1725,12 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
+  }
+
+  @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
@@ -1222,6 +1767,20 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  (BigInt, BigInt, BigInt) dco_decode_record_usize_usize_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3) {
+      throw Exception('Expected 3 elements, got ${arr.length}');
+    }
+    return (
+      dco_decode_usize(arr[0]),
+      dco_decode_usize(arr[1]),
+      dco_decode_u_64(arr[2]),
+    );
+  }
+
+  @protected
   SearchResultDto dco_decode_search_result_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1230,6 +1789,20 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     return SearchResultDto(
       doc: dco_decode_memory_doc_dto(arr[0]),
       score: dco_decode_f_32(arr[1]),
+    );
+  }
+
+  @protected
+  SessionEntryDto dco_decode_session_entry_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return SessionEntryDto(
+      id: dco_decode_String(arr[0]),
+      modified: dco_decode_u_64(arr[1]),
+      messageCount: dco_decode_usize(arr[2]),
+      filePath: dco_decode_String(arr[3]),
     );
   }
 
@@ -1246,6 +1819,12 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       keywords: dco_decode_list_String(arr[3]),
       allowedTools: dco_decode_list_String(arr[4]),
     );
+  }
+
+  @protected
+  int dco_decode_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -1347,8 +1926,17 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     var var_skillsDir = sse_decode_opt_String(deserializer);
     var var_logDir = sse_decode_opt_String(deserializer);
     var var_sessionDir = sse_decode_opt_String(deserializer);
-    var var_contextWindow = sse_decode_opt_u_32(deserializer);
-    var var_maxSessionMessages = sse_decode_opt_u_32(deserializer);
+    var var_contextWindow = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_maxSessionMessages = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_cameraFramesPerCapture = sse_decode_opt_box_autoadd_u_32(
+      deserializer,
+    );
+    var var_cameraMaxFramesPerCapture = sse_decode_opt_box_autoadd_u_32(
+      deserializer,
+    );
+    var var_cameraRingBufferCapacity = sse_decode_opt_box_autoadd_u_32(
+      deserializer,
+    );
     return AgentConfig(
       apiKey: var_apiKey,
       dbPath: var_dbPath,
@@ -1362,6 +1950,9 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       sessionDir: var_sessionDir,
       contextWindow: var_contextWindow,
       maxSessionMessages: var_maxSessionMessages,
+      cameraFramesPerCapture: var_cameraFramesPerCapture,
+      cameraMaxFramesPerCapture: var_cameraMaxFramesPerCapture,
+      cameraRingBufferCapacity: var_cameraRingBufferCapacity,
     );
   }
 
@@ -1382,21 +1973,27 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
         var var_success = sse_decode_bool(deserializer);
         return AgentEventDto_ToolResult(name: var_name, success: var_success);
       case 3:
+        var var_tokensBeforeTurn = sse_decode_usize(deserializer);
+        var var_tokensAfterPrune = sse_decode_usize(deserializer);
+        var var_messagesPruned = sse_decode_usize(deserializer);
+        var var_historyLen = sse_decode_usize(deserializer);
+        var var_pruningThreshold = sse_decode_usize(deserializer);
         return AgentEventDto_ContextStats(
-          tokensBeforeTurn: sse_decode_i_64(deserializer),
-          tokensAfterPrune: sse_decode_i_64(deserializer),
-          messagesPruned: sse_decode_i_64(deserializer),
-          historyLen: sse_decode_i_64(deserializer),
-          pruningThreshold: sse_decode_i_64(deserializer),
+          tokensBeforeTurn: var_tokensBeforeTurn,
+          tokensAfterPrune: var_tokensAfterPrune,
+          messagesPruned: var_messagesPruned,
+          historyLen: var_historyLen,
+          pruningThreshold: var_pruningThreshold,
         );
       case 4:
-        return AgentEventDto_TurnSummary(
-          summary: sse_decode_String(deserializer),
-        );
+        var var_summary = sse_decode_String(deserializer);
+        return AgentEventDto_TurnSummary(summary: var_summary);
       case 5:
+        return AgentEventDto_CameraAuthRequired();
+      case 6:
         return AgentEventDto_Done();
       default:
-        throw UnimplementedError('Unknown AgentEventDto tag: $tag_');
+        throw UnimplementedError('');
     }
   }
 
@@ -1439,9 +2036,28 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_32(deserializer));
+  }
+
+  @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_u_64(deserializer));
+  }
+
+  @protected
+  CameraAlert sse_decode_camera_alert(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_summary = sse_decode_String(deserializer);
+    var var_frameId = sse_decode_u_64(deserializer);
+    var var_timestampMs = sse_decode_u_64(deserializer);
+    return CameraAlert(
+      summary: var_summary,
+      frameId: var_frameId,
+      timestampMs: var_timestampMs,
+    );
   }
 
   @protected
@@ -1508,6 +2124,18 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  List<CameraAlert> sse_decode_list_camera_alert(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <CameraAlert>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_camera_alert(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<MessageDto> sse_decode_list_message_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1517,6 +2145,13 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       ans_.add(sse_decode_message_dto(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getUint8List(len_);
   }
 
   @protected
@@ -1550,6 +2185,20 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     var ans_ = <SearchResultDto>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_search_result_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SessionEntryDto> sse_decode_list_session_entry_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SessionEntryDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_session_entry_dto(deserializer));
     }
     return ans_;
   }
@@ -1607,37 +2256,6 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
-  int? sse_decode_opt_u_32(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    if (sse_decode_bool(deserializer)) {
-      return sse_decode_u_32(deserializer);
-    } else {
-      return null;
-    }
-  }
-
-  @protected
-  void sse_encode_opt_u_32(int? self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_u_32(self, serializer);
-    }
-  }
-
-  @protected
-  int sse_decode_u_32(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getUint32();
-  }
-
-  @protected
-  void sse_encode_u_32(int self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putUint32(self);
-  }
-
-  @protected
   EmailAccountDto? sse_decode_opt_box_autoadd_email_account_dto(
     SseDeserializer deserializer,
   ) {
@@ -1671,6 +2289,17 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_provider_config_dto(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_32(deserializer));
     } else {
       return null;
     }
@@ -1724,11 +2353,37 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  (BigInt, BigInt, BigInt) sse_decode_record_usize_usize_u_64(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field0 = sse_decode_usize(deserializer);
+    var var_field1 = sse_decode_usize(deserializer);
+    var var_field2 = sse_decode_u_64(deserializer);
+    return (var_field0, var_field1, var_field2);
+  }
+
+  @protected
   SearchResultDto sse_decode_search_result_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_doc = sse_decode_memory_doc_dto(deserializer);
     var var_score = sse_decode_f_32(deserializer);
     return SearchResultDto(doc: var_doc, score: var_score);
+  }
+
+  @protected
+  SessionEntryDto sse_decode_session_entry_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_modified = sse_decode_u_64(deserializer);
+    var var_messageCount = sse_decode_usize(deserializer);
+    var var_filePath = sse_decode_String(deserializer);
+    return SessionEntryDto(
+      id: var_id,
+      modified: var_modified,
+      messageCount: var_messageCount,
+      filePath: var_filePath,
+    );
   }
 
   @protected
@@ -1746,6 +2401,12 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
       keywords: var_keywords,
       allowedTools: var_allowedTools,
     );
+  }
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint32();
   }
 
   @protected
@@ -1851,8 +2512,11 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     sse_encode_opt_String(self.skillsDir, serializer);
     sse_encode_opt_String(self.logDir, serializer);
     sse_encode_opt_String(self.sessionDir, serializer);
-    sse_encode_opt_u_32(self.contextWindow, serializer);
-    sse_encode_opt_u_32(self.maxSessionMessages, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.contextWindow, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.maxSessionMessages, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.cameraFramesPerCapture, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.cameraMaxFramesPerCapture, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.cameraRingBufferCapacity, serializer);
   }
 
   @protected
@@ -1873,23 +2537,25 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
         sse_encode_String(name, serializer);
         sse_encode_bool(success, serializer);
       case AgentEventDto_ContextStats(
-          tokensBeforeTurn: final tokensBeforeTurn,
-          tokensAfterPrune: final tokensAfterPrune,
-          messagesPruned: final messagesPruned,
-          historyLen: final historyLen,
-          pruningThreshold: final pruningThreshold,
-        ):
+        tokensBeforeTurn: final tokensBeforeTurn,
+        tokensAfterPrune: final tokensAfterPrune,
+        messagesPruned: final messagesPruned,
+        historyLen: final historyLen,
+        pruningThreshold: final pruningThreshold,
+      ):
         sse_encode_i_32(3, serializer);
-        sse_encode_i_64(tokensBeforeTurn, serializer);
-        sse_encode_i_64(tokensAfterPrune, serializer);
-        sse_encode_i_64(messagesPruned, serializer);
-        sse_encode_i_64(historyLen, serializer);
-        sse_encode_i_64(pruningThreshold, serializer);
+        sse_encode_usize(tokensBeforeTurn, serializer);
+        sse_encode_usize(tokensAfterPrune, serializer);
+        sse_encode_usize(messagesPruned, serializer);
+        sse_encode_usize(historyLen, serializer);
+        sse_encode_usize(pruningThreshold, serializer);
       case AgentEventDto_TurnSummary(summary: final summary):
         sse_encode_i_32(4, serializer);
         sse_encode_String(summary, serializer);
-      case AgentEventDto_Done():
+      case AgentEventDto_CameraAuthRequired():
         sse_encode_i_32(5, serializer);
+      case AgentEventDto_Done():
+        sse_encode_i_32(6, serializer);
     }
   }
 
@@ -1936,9 +2602,23 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_camera_alert(CameraAlert self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.summary, serializer);
+    sse_encode_u_64(self.frameId, serializer);
+    sse_encode_u_64(self.timestampMs, serializer);
   }
 
   @protected
@@ -1995,6 +2675,18 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_camera_alert(
+    List<CameraAlert> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_camera_alert(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_message_dto(
     List<MessageDto> self,
     SseSerializer serializer,
@@ -2004,6 +2696,18 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     for (final item in self) {
       sse_encode_message_dto(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(
+    List<int> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putUint8List(
+      self is Uint8List ? self : Uint8List.fromList(self),
+    );
   }
 
   @protected
@@ -2037,6 +2741,18 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_search_result_dto(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_session_entry_dto(
+    List<SessionEntryDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_session_entry_dto(item, serializer);
     }
   }
 
@@ -2120,6 +2836,16 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_32(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2156,6 +2882,17 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_record_usize_usize_u_64(
+    (BigInt, BigInt, BigInt) self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(self.$1, serializer);
+    sse_encode_usize(self.$2, serializer);
+    sse_encode_u_64(self.$3, serializer);
+  }
+
+  @protected
   void sse_encode_search_result_dto(
     SearchResultDto self,
     SseSerializer serializer,
@@ -2163,6 +2900,18 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_memory_doc_dto(self.doc, serializer);
     sse_encode_f_32(self.score, serializer);
+  }
+
+  @protected
+  void sse_encode_session_entry_dto(
+    SessionEntryDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_u_64(self.modified, serializer);
+    sse_encode_usize(self.messageCount, serializer);
+    sse_encode_String(self.filePath, serializer);
   }
 
   @protected
@@ -2176,6 +2925,12 @@ class MobileclawCoreBridgeApiImpl extends MobileclawCoreBridgeApiImplPlatform
     sse_encode_String(self.trust, serializer);
     sse_encode_list_String(self.keywords, serializer);
     sse_encode_list_String(self.allowedTools, serializer);
+  }
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint32(self);
   }
 
   @protected
@@ -2226,6 +2981,73 @@ class AgentSessionImpl extends RustOpaque implements AgentSession {
         .api
         .rust_arc_decrement_strong_count_AgentSessionPtr,
   );
+
+  /// Phase 1 scaffold: return pending camera alerts.
+  /// Phase 2: replaces this with a real FRB stream backed by an mpsc channel.
+  List<CameraAlert> cameraAlertStream() => MobileclawCoreBridge.instance.api
+      .crateFfiAgentSessionCameraAlertStream(that: this);
+
+  /// Return the ring buffer's current occupancy and latest frame ID.
+  /// Phase 1 (VecDeque-backed): returns (len, capacity, latest_frame_id_or_0).
+  /// Phase 2 (mmap-backed): returns (slot_count, capacity, offset_of_latest).
+  Future<(BigInt, BigInt, BigInt)> cameraGetMmapInfo() => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionCameraGetMmapInfo(that: this);
+
+  /// Query whether the camera has been authorized.
+  Future<bool> cameraIsAuthorized() => MobileclawCoreBridge.instance.api
+      .crateFfiAgentSessionCameraIsAuthorized(that: this);
+
+  /// Push a camera frame into the ring buffer.
+  ///
+  /// Safe FRB-managed instance method. Auto-sets `camera_authorized = true` on success.
+  /// Use this from Dart; the free function `camera_push_frame` is `#[frb(skip)]`.
+  Future<bool> cameraPushFrameDart({
+    required List<int> jpeg,
+    required BigInt frameId,
+    required BigInt timestampMs,
+    required int width,
+    required int height,
+  }) =>
+      MobileclawCoreBridge.instance.api.crateFfiAgentSessionCameraPushFrameDart(
+        that: this,
+        jpeg: jpeg,
+        frameId: frameId,
+        timestampMs: timestampMs,
+        width: width,
+        height: height,
+      );
+
+  /// Manually set camera authorization state.
+  /// Usually Dart does not need to call this — authorization auto-enables
+  /// on the first `camera_push_frame` call.
+  Future<void> cameraSetAuthorized({required bool authorized}) =>
+      MobileclawCoreBridge.instance.api.crateFfiAgentSessionCameraSetAuthorized(
+        that: this,
+        authorized: authorized,
+      );
+
+  /// Phase 2 scaffold: start a background camera monitor.
+  /// Returns a monitor ID that can be used to stop it later.
+  Future<String> cameraStartMonitor({
+    required String scenario,
+    required int framesPerCheck,
+    required int checkIntervalMs,
+  }) =>
+      MobileclawCoreBridge.instance.api.crateFfiAgentSessionCameraStartMonitor(
+        that: this,
+        scenario: scenario,
+        framesPerCheck: framesPerCheck,
+        checkIntervalMs: checkIntervalMs,
+      );
+
+  /// Phase 2 scaffold: stop a running camera monitor.
+  Future<bool> cameraStopMonitor({required String monitorId}) =>
+      MobileclawCoreBridge.instance.api.crateFfiAgentSessionCameraStopMonitor(
+        that: this,
+        monitorId: monitorId,
+      );
 
   /// Send a user message and return all events produced by one agent turn.
   Future<List<AgentEventDto>> chat({
@@ -2351,6 +3173,32 @@ class AgentSessionImpl extends RustOpaque implements AgentSession {
       .instance
       .api
       .crateFfiAgentSessionProviderSetActive(that: this, id: id);
+
+  /// Delete a saved session file. Path is validated against session_dir.
+  /// Returns true if the file existed and was deleted.
+  Future<bool> sessionDelete({required String filePath}) => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionSessionDelete(that: this, filePath: filePath);
+
+  /// List all saved sessions in the configured session_dir.
+  /// Returns an empty vec if session_dir is not configured.
+  Future<List<SessionEntryDto>> sessionList() => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionSessionList(that: this);
+
+  /// Load a session from a JSONL file. Replaces current history.
+  /// Returns the number of messages loaded.
+  Future<BigInt> sessionLoad({required String filePath}) => MobileclawCoreBridge
+      .instance
+      .api
+      .crateFfiAgentSessionSessionLoad(that: this, filePath: filePath);
+
+  /// Save the current conversation history to a session file.
+  /// Returns the absolute path of the saved file, or an error if session_dir is not configured.
+  Future<String> sessionSave() => MobileclawCoreBridge.instance.api
+      .crateFfiAgentSessionSessionSave(that: this);
 
   /// Return the loaded skills as DTOs.
   Future<List<SkillManifestDto>> skills() =>

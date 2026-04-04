@@ -8,7 +8,6 @@
 
 import 'dart:async';
 
-import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobileclaw_sdk/mobileclaw_sdk.dart';
 import 'package:mobileclaw_sdk/src/bridge/ffi.dart' as ffi;
@@ -26,6 +25,7 @@ void main() {
         toolResult: (_, __) => throw StateError('unexpected'),
         contextStats: (_, __, ___, ____, _____) => throw StateError('unexpected'),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), 'Hello world');
     });
@@ -38,6 +38,7 @@ void main() {
         toolResult: (_, __) => throw StateError('unexpected'),
         contextStats: (_, __, ___, ____, _____) => throw StateError('unexpected'),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), 'memory_search');
     });
@@ -50,6 +51,7 @@ void main() {
         toolResult: (n, s) => n,
         contextStats: (_, __, ___, ____, _____) => throw StateError('unexpected'),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), 'file_read');
       expect(dto.when(
@@ -58,6 +60,7 @@ void main() {
         toolResult: (n, s) => s,
         contextStats: (_, __, ___, ____, _____) => throw StateError('unexpected'),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), isTrue);
     });
@@ -70,19 +73,19 @@ void main() {
         toolResult: (n, s) => s,
         contextStats: (_, __, ___, ____, _____) => throw StateError('unexpected'),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), isFalse);
     });
 
-    test('ContextStats with PlatformInt64 fields (the 2026-04-03 bug)', () {
-      // This is the exact type that caused the serialization bug.
-      // usize fields were decoded as i32, causing byte misalignment.
+    test('ContextStats with BigInt fields', () {
+      // usize fields from Rust are decoded as BigInt in Dart.
       final dto = ffi.AgentEventDto.contextStats(
-        tokensBeforeTurn: PlatformInt64Util.from(12345),
-        tokensAfterPrune: PlatformInt64Util.from(10000),
-        messagesPruned: PlatformInt64Util.from(3),
-        historyLen: PlatformInt64Util.from(15),
-        pruningThreshold: PlatformInt64Util.from(16000),
+        tokensBeforeTurn: BigInt.from(12345),
+        tokensAfterPrune: BigInt.from(10000),
+        messagesPruned: BigInt.from(3),
+        historyLen: BigInt.from(15),
+        pruningThreshold: BigInt.from(16000),
       );
       expect(dto.when(
         textDelta: (_) => throw StateError('unexpected'),
@@ -90,6 +93,7 @@ void main() {
         toolResult: (_, __) => throw StateError('unexpected'),
         contextStats: (tbt, tap, mp, hl, pt) => tbt.toInt(),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), 12345);
       expect(dto.when(
@@ -98,6 +102,7 @@ void main() {
         toolResult: (_, __) => throw StateError('unexpected'),
         contextStats: (tbt, tap, mp, hl, pt) => tap.toInt(),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), 10000);
       expect(dto.when(
@@ -106,6 +111,7 @@ void main() {
         toolResult: (_, __) => throw StateError('unexpected'),
         contextStats: (tbt, tap, mp, hl, pt) => mp.toInt(),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), 3);
       expect(dto.when(
@@ -114,6 +120,7 @@ void main() {
         toolResult: (_, __) => throw StateError('unexpected'),
         contextStats: (tbt, tap, mp, hl, pt) => hl.toInt(),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), 15);
       expect(dto.when(
@@ -122,6 +129,7 @@ void main() {
         toolResult: (_, __) => throw StateError('unexpected'),
         contextStats: (tbt, tap, mp, hl, pt) => pt.toInt(),
         turnSummary: (_) => throw StateError('unexpected'),
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), 16000);
     });
@@ -136,8 +144,23 @@ void main() {
         toolResult: (_, __) => throw StateError('unexpected'),
         contextStats: (_, __, ___, ____, _____) => throw StateError('unexpected'),
         turnSummary: (s) => s,
+        cameraAuthRequired: () => throw StateError('unexpected'),
         done: () => throw StateError('unexpected'),
       ), contains('asked about X'));
+    });
+
+    test('CameraAuthRequired can be constructed and matched', () {
+      const dto = ffi.AgentEventDto.cameraAuthRequired();
+      final matched = dto.when(
+        textDelta: (_) => false,
+        toolCall: (_) => false,
+        toolResult: (_, __) => false,
+        contextStats: (_, __, ___, ____, _____) => false,
+        turnSummary: (_) => false,
+        cameraAuthRequired: () => true,
+        done: () => false,
+      );
+      expect(matched, isTrue);
     });
 
     test('Done is last event', () {
@@ -148,6 +171,7 @@ void main() {
         toolResult: (_, __) => false,
         contextStats: (_, __, ___, ____, _____) => false,
         turnSummary: (_) => false,
+        cameraAuthRequired: () => false,
         done: () => true,
       ), isTrue);
     });
@@ -163,40 +187,35 @@ void main() {
         const ffi.AgentEventDto.toolCall(name: 'tool'),
         const ffi.AgentEventDto.toolResult(name: 'tool', success: true),
         ffi.AgentEventDto.contextStats(
-          tokensBeforeTurn: PlatformInt64Util.from(1),
-          tokensAfterPrune: PlatformInt64Util.from(2),
-          messagesPruned: PlatformInt64Util.from(3),
-          historyLen: PlatformInt64Util.from(4),
-          pruningThreshold: PlatformInt64Util.from(5),
+          tokensBeforeTurn: BigInt.from(1),
+          tokensAfterPrune: BigInt.from(2),
+          messagesPruned: BigInt.from(3),
+          historyLen: BigInt.from(4),
+          pruningThreshold: BigInt.from(5),
         ),
         const ffi.AgentEventDto.turnSummary(summary: 'sum'),
+        const ffi.AgentEventDto.cameraAuthRequired(),
         const ffi.AgentEventDto.done(),
       ];
 
       for (final dto in dtos) {
-        final event = dto.when(
-          textDelta: (t) => TextDeltaEvent(text: t),
-          toolCall: (n) => ToolCallEvent(toolName: n),
-          toolResult: (n, s) => ToolResultEvent(toolName: n, success: s),
-          contextStats: (tbt, tap, mp, hl, pt) => ContextStatsEvent(
-            tokensBeforeTurn: tbt.toInt(),
-            tokensAfterPrune: tap.toInt(),
-            messagesPruned: mp.toInt(),
-            historyLen: hl.toInt(),
-            pruningThreshold: pt.toInt(),
-          ),
-          turnSummary: (s) => TurnSummaryEvent(summary: s),
-          done: () => const DoneEvent(),
-        );
+        final event = _eventFromDto(dto);
         expect(event, isA<AgentEvent>(), reason: 'dto ${dto.when(
           textDelta: (_) => 'TextDelta',
           toolCall: (_) => 'ToolCall',
           toolResult: (_, __) => 'ToolResult',
           contextStats: (_, __, ___, ____, _____) => 'ContextStats',
           turnSummary: (_) => 'TurnSummary',
+          cameraAuthRequired: () => 'CameraAuthRequired',
           done: () => 'Done',
         )} did not produce an AgentEvent');
       }
+    });
+
+    test('CameraAuthRequired DTO produces CameraAuthRequiredEvent', () {
+      const dto = ffi.AgentEventDto.cameraAuthRequired();
+      final event = _eventFromDto(dto);
+      expect(event, isA<CameraAuthRequiredEvent>());
     });
   });
 
@@ -218,11 +237,11 @@ void main() {
         dtos.add(ffi.AgentEventDto.textDelta(text: 'word$i '));
       }
       dtos.add(ffi.AgentEventDto.contextStats(
-        tokensBeforeTurn: PlatformInt64Util.from(8000),
-        tokensAfterPrune: PlatformInt64Util.from(7500),
-        messagesPruned: PlatformInt64Util.from(2),
-        historyLen: PlatformInt64Util.from(12),
-        pruningThreshold: PlatformInt64Util.from(16000),
+        tokensBeforeTurn: BigInt.from(8000),
+        tokensAfterPrune: BigInt.from(7500),
+        messagesPruned: BigInt.from(2),
+        historyLen: BigInt.from(12),
+        pruningThreshold: BigInt.from(16000),
       ));
       dtos.add(const ffi.AgentEventDto.turnSummary(
         summary: 'User asked about end-to-end testing.',
@@ -348,5 +367,6 @@ AgentEvent _eventFromDto(ffi.AgentEventDto dto) => dto.when(
             pruningThreshold: pruningThreshold.toInt(),
           ),
       turnSummary: (summary) => TurnSummaryEvent(summary: summary),
+      cameraAuthRequired: () => const CameraAuthRequiredEvent(),
       done: () => const DoneEvent(),
     );

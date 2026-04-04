@@ -35,6 +35,8 @@ dependencies:
   path_provider: ^2.1.4
   mobileclaw_sdk:
     path: ../../packages/mobileclaw_sdk
+  camera: ^0.12.0+1
+  image: ^4.8.0
 
 dev_dependencies:
   flutter_test:

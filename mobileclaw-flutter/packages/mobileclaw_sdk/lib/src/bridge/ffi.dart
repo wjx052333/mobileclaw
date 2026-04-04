@@ -8,8 +8,16 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'ffi.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `category_to_string`, `doc_to_dto`, `string_to_category`, `to_provider_config`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `build_history_prefix`, `build_interaction_text`, `current_timestamp_hex`, `doc_to_dto`, `string_to_category`, `to_provider_config`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `camera_push_frame`
+
+/// Initialize file-based tracing to `{dir}/mobileclaw.log`.
+///
+/// Safe to call multiple times — subsequent calls are silently ignored by
+/// `try_init()`.  Creates `dir` if it does not exist.
+Future<void> initFileLogging({required String dir}) =>
+    MobileclawCoreBridge.instance.api.crateFfiInitFileLogging(dir: dir);
 
 /// Probe an LLM provider for reachability without creating a full session.
 /// Returns a `ProbeResultDto` indicating whether the provider is reachable.
@@ -23,6 +31,46 @@ Future<ProbeResultDto> providerProbe({
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AgentSession>>
 abstract class AgentSession implements RustOpaqueInterface {
+  /// Phase 1 scaffold: return pending camera alerts.
+  /// Phase 2: replaces this with a real FRB stream backed by an mpsc channel.
+  List<CameraAlert> cameraAlertStream();
+
+  /// Return the ring buffer's current occupancy and latest frame ID.
+  /// Phase 1 (VecDeque-backed): returns (len, capacity, latest_frame_id_or_0).
+  /// Phase 2 (mmap-backed): returns (slot_count, capacity, offset_of_latest).
+  Future<(BigInt, BigInt, BigInt)> cameraGetMmapInfo();
+
+  /// Query whether the camera has been authorized.
+  Future<bool> cameraIsAuthorized();
+
+  /// Push a camera frame into the ring buffer.
+  ///
+  /// Safe FRB-managed instance method. Auto-sets `camera_authorized = true` on success.
+  /// Use this from Dart; the free function `camera_push_frame` is `#[frb(skip)]`.
+  Future<bool> cameraPushFrameDart({
+    required List<int> jpeg,
+    required BigInt frameId,
+    required BigInt timestampMs,
+    required int width,
+    required int height,
+  });
+
+  /// Manually set camera authorization state.
+  /// Usually Dart does not need to call this — authorization auto-enables
+  /// on the first `camera_push_frame` call.
+  Future<void> cameraSetAuthorized({required bool authorized});
+
+  /// Phase 2 scaffold: start a background camera monitor.
+  /// Returns a monitor ID that can be used to stop it later.
+  Future<String> cameraStartMonitor({
+    required String scenario,
+    required int framesPerCheck,
+    required int checkIntervalMs,
+  });
+
+  /// Phase 2 scaffold: stop a running camera monitor.
+  Future<bool> cameraStopMonitor({required String monitorId});
+
   /// Send a user message and return all events produced by one agent turn.
   Future<List<AgentEventDto>> chat({
     required String input,
@@ -101,6 +149,22 @@ abstract class AgentSession implements RustOpaqueInterface {
   /// Set the active provider by ID. Returns an error if the provider does not exist.
   Future<void> providerSetActive({required String id});
 
+  /// Delete a saved session file. Path is validated against session_dir.
+  /// Returns true if the file existed and was deleted.
+  Future<bool> sessionDelete({required String filePath});
+
+  /// List all saved sessions in the configured session_dir.
+  /// Returns an empty vec if session_dir is not configured.
+  Future<List<SessionEntryDto>> sessionList();
+
+  /// Load a session from a JSONL file. Replaces current history.
+  /// Returns the number of messages loaded.
+  Future<BigInt> sessionLoad({required String filePath});
+
+  /// Save the current conversation history to a session file.
+  /// Returns the absolute path of the saved file, or an error if session_dir is not configured.
+  Future<String> sessionSave();
+
   /// Return the loaded skills as DTOs.
   Future<List<SkillManifestDto>> skills();
 }
@@ -115,10 +179,38 @@ class AgentConfig {
   final List<String> httpAllowlist;
   final String? model;
   final String? skillsDir;
+
+  /// Directory for log files. When `Some`, `mobileclaw.log` is written there.
+  /// Platform guidance:
+  ///   Android — pass `context.getFilesDir().absolutePath` (or Flutter's
+  ///             `getApplicationSupportDirectory()`)
+  ///   iOS     — pass `FileManager.default.urls(.applicationSupportDirectory)[0].path`
+  ///             (or Flutter's `getApplicationSupportDirectory()`)
+  ///   CLI     — leave as `None`; the CLI calls its own `init_logging()` instead.
+  /// When `None`, tracing output goes wherever the caller already registered a
+  /// subscriber (no-op if none was registered).
   final String? logDir;
+
+  /// Directory for JSONL session transcripts.
+  /// When set, each `chat()` call persists the full conversation history.
+  /// Platform guidance: pass a writable directory inside the app's sandbox.
   final String? sessionDir;
+
+  /// Maximum context window tokens (default: 200_000 for Claude Sonnet 4.6).
+  /// Controls when context pruning triggers.
   final int? contextWindow;
+
+  /// Maximum messages in history before count-based prune fires. Default: 100.
   final int? maxSessionMessages;
+
+  /// Number of frames to read per camera_capture call. Default: 5.
+  final int? cameraFramesPerCapture;
+
+  /// Maximum frames allowed per single capture. Default: 16.
+  final int? cameraMaxFramesPerCapture;
+
+  /// Ring buffer capacity for camera frames. Default: 16.
+  final int? cameraRingBufferCapacity;
 
   const AgentConfig({
     this.apiKey,
@@ -133,6 +225,9 @@ class AgentConfig {
     this.sessionDir,
     this.contextWindow,
     this.maxSessionMessages,
+    this.cameraFramesPerCapture,
+    this.cameraMaxFramesPerCapture,
+    this.cameraRingBufferCapacity,
   });
 
   @override
@@ -148,7 +243,10 @@ class AgentConfig {
       logDir.hashCode ^
       sessionDir.hashCode ^
       contextWindow.hashCode ^
-      maxSessionMessages.hashCode;
+      maxSessionMessages.hashCode ^
+      cameraFramesPerCapture.hashCode ^
+      cameraMaxFramesPerCapture.hashCode ^
+      cameraRingBufferCapacity.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -166,7 +264,10 @@ class AgentConfig {
           logDir == other.logDir &&
           sessionDir == other.sessionDir &&
           contextWindow == other.contextWindow &&
-          maxSessionMessages == other.maxSessionMessages;
+          maxSessionMessages == other.maxSessionMessages &&
+          cameraFramesPerCapture == other.cameraFramesPerCapture &&
+          cameraMaxFramesPerCapture == other.cameraMaxFramesPerCapture &&
+          cameraRingBufferCapacity == other.cameraRingBufferCapacity;
 }
 
 @freezed
@@ -181,16 +282,50 @@ sealed class AgentEventDto with _$AgentEventDto {
     required String name,
     required bool success,
   }) = AgentEventDto_ToolResult;
+
+  /// Context-window observability snapshot emitted once per chat() turn.
   const factory AgentEventDto.contextStats({
-    required PlatformInt64 tokensBeforeTurn,
-    required PlatformInt64 tokensAfterPrune,
-    required PlatformInt64 messagesPruned,
-    required PlatformInt64 historyLen,
-    required PlatformInt64 pruningThreshold,
+    required BigInt tokensBeforeTurn,
+    required BigInt tokensAfterPrune,
+    required BigInt messagesPruned,
+    required BigInt historyLen,
+    required BigInt pruningThreshold,
   }) = AgentEventDto_ContextStats;
+
+  /// One-sentence summary of the completed interaction, stored permanently.
   const factory AgentEventDto.turnSummary({required String summary}) =
       AgentEventDto_TurnSummary;
+
+  /// Camera access has not been authorized. Dart should show a permission dialog.
+  const factory AgentEventDto.cameraAuthRequired() =
+      AgentEventDto_CameraAuthRequired;
   const factory AgentEventDto.done() = AgentEventDto_Done;
+}
+
+/// An alert emitted by the background camera monitor when something noteworthy is detected.
+class CameraAlert {
+  final String summary;
+  final BigInt frameId;
+  final BigInt timestampMs;
+
+  const CameraAlert({
+    required this.summary,
+    required this.frameId,
+    required this.timestampMs,
+  });
+
+  @override
+  int get hashCode =>
+      summary.hashCode ^ frameId.hashCode ^ timestampMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CameraAlert &&
+          runtimeType == other.runtimeType &&
+          summary == other.summary &&
+          frameId == other.frameId &&
+          timestampMs == other.timestampMs;
 }
 
 /// Email account configuration DTO (no password — password is stored encrypted in SecretStore).
@@ -378,6 +513,38 @@ class SearchResultDto {
           runtimeType == other.runtimeType &&
           doc == other.doc &&
           score == other.score;
+}
+
+/// Summary of a saved session file — returned by `AgentSession::session_list()`.
+class SessionEntryDto {
+  final String id;
+  final BigInt modified;
+  final BigInt messageCount;
+  final String filePath;
+
+  const SessionEntryDto({
+    required this.id,
+    required this.modified,
+    required this.messageCount,
+    required this.filePath,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      modified.hashCode ^
+      messageCount.hashCode ^
+      filePath.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionEntryDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          modified == other.modified &&
+          messageCount == other.messageCount &&
+          filePath == other.filePath;
 }
 
 /// Skill manifest as a plain DTO.

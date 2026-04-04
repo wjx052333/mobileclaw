@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'bridge/ffi.dart' show CameraAlert;
 import 'events.dart';
 import 'memory.dart';
 import 'models.dart';
@@ -128,6 +129,52 @@ abstract class MobileclawAgent {
   ///
   /// Throws [ClawException] on storage error.
   Future<ProviderConfigDto?> providerGetActive();
+
+  // ---------------------------------------------------------------------------
+  // Camera API
+  // ---------------------------------------------------------------------------
+
+  /// Set camera authorization state.
+  ///
+  /// Call with `true` after the user grants camera permission in response to a
+  /// [CameraAuthRequiredEvent]. Call with `false` when the app navigates away
+  /// from a camera-using screen (e.g. ChatPage dispose).
+  void cameraSetAuthorized(bool authorized);
+
+  /// Query whether the camera is currently authorized.
+  Future<bool> cameraIsAuthorized();
+
+  /// Push a camera frame (JPEG bytes) into the Rust ring buffer.
+  ///
+  /// Auto-sets `camera_authorized = true` on first successful push.
+  /// [frameId] and [timestampMs] must be monotonically increasing.
+  Future<bool> cameraPushFrame({
+    required List<int> jpeg,
+    required int frameId,
+    required int timestampMs,
+    required int width,
+    required int height,
+  });
+
+  /// Return pending camera alerts (Phase 1: always empty).
+  List<CameraAlert> cameraAlertStream();
+
+  /// Start a background camera monitor. Returns a monitor ID.
+  ///
+  /// Phase 1 stub: returns a placeholder ID immediately.
+  Future<String> cameraStartMonitor({
+    required String scenario,
+    required int framesPerCheck,
+    required int checkIntervalMs,
+  });
+
+  /// Stop a running camera monitor. Returns false in Phase 1.
+  Future<bool> cameraStopMonitor(String monitorId);
+
+  /// Get ring-buffer stats: (occupancy, capacity, latestTimestampMs).
+  ///
+  /// Phase 1: occupancy is always 0.
+  Future<(int, int, int)> cameraGetMmapInfo();
 
   /// Test whether a provider is reachable. Static so it can be called without
   /// a session (e.g., during onboarding before any provider is saved).

@@ -69,6 +69,7 @@ AgentEvent _eventFromDto(ffi.AgentEventDto dto) => dto.when(
             pruningThreshold: pruningThreshold.toInt(),
           ),
       turnSummary: (summary) => TurnSummaryEvent(summary: summary),
+      cameraAuthRequired: () => const CameraAuthRequiredEvent(),
       done: () => const DoneEvent(),
     );
 
@@ -431,6 +432,73 @@ class MobileclawAgentImpl implements MobileclawAgent {
     final f = await _session.providerGetActive();
     if (f == null) return null;
     return _providerFromFfi(f);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Camera API
+  // ---------------------------------------------------------------------------
+
+  @override
+  void cameraSetAuthorized(bool authorized) {
+    _checkAlive();
+    _session.cameraSetAuthorized(authorized: authorized);
+  }
+
+  @override
+  Future<bool> cameraIsAuthorized() {
+    _checkAlive();
+    return _session.cameraIsAuthorized();
+  }
+
+  @override
+  Future<bool> cameraPushFrame({
+    required List<int> jpeg,
+    required int frameId,
+    required int timestampMs,
+    required int width,
+    required int height,
+  }) {
+    _checkAlive();
+    return _session.cameraPushFrameDart(
+      jpeg: jpeg,
+      frameId: BigInt.from(frameId),
+      timestampMs: BigInt.from(timestampMs),
+      width: width,
+      height: height,
+    );
+  }
+
+  @override
+  List<ffi.CameraAlert> cameraAlertStream() {
+    _checkAlive();
+    return _session.cameraAlertStream();
+  }
+
+  @override
+  Future<String> cameraStartMonitor({
+    required String scenario,
+    required int framesPerCheck,
+    required int checkIntervalMs,
+  }) {
+    _checkAlive();
+    return _session.cameraStartMonitor(
+      scenario: scenario,
+      framesPerCheck: framesPerCheck,
+      checkIntervalMs: checkIntervalMs,
+    );
+  }
+
+  @override
+  Future<bool> cameraStopMonitor(String monitorId) {
+    _checkAlive();
+    return _session.cameraStopMonitor(monitorId: monitorId);
+  }
+
+  @override
+  Future<(int, int, int)> cameraGetMmapInfo() async {
+    _checkAlive();
+    final result = await _session.cameraGetMmapInfo();
+    return (result.$1.toInt(), result.$2.toInt(), result.$3.toInt());
   }
 
   static Future<ProbeResultDto> probe({

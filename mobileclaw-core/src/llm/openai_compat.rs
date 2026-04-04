@@ -230,8 +230,10 @@ impl LlmClient for OpenAiCompatClient {
     }
 
     fn vision_supported(&self) -> bool {
-        // GPT-4o and GPT-4 Turbo family support vision
-        self.model.starts_with("gpt-4o") || self.model.starts_with("gpt-4-turbo")
+        // Most modern OpenAI-compatible models support multi-modal input.
+        // Default to true and let the remote API return an error if the specific
+        // model doesn't support images, rather than blocking it pre-emptively.
+        true
     }
 
     async fn stream_messages(

@@ -77,7 +77,13 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   ProviderConfigDto dco_decode_box_autoadd_provider_config_dto(dynamic raw);
 
   @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  CameraAlert dco_decode_camera_alert(dynamic raw);
 
   @protected
   EmailAccountDto dco_decode_email_account_dto(dynamic raw);
@@ -98,7 +104,13 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   List<AgentEventDto> dco_decode_list_agent_event_dto(dynamic raw);
 
   @protected
+  List<CameraAlert> dco_decode_list_camera_alert(dynamic raw);
+
+  @protected
   List<MessageDto> dco_decode_list_message_dto(dynamic raw);
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -108,6 +120,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   List<SearchResultDto> dco_decode_list_search_result_dto(dynamic raw);
+
+  @protected
+  List<SessionEntryDto> dco_decode_list_session_entry_dto(dynamic raw);
 
   @protected
   List<SkillManifestDto> dco_decode_list_skill_manifest_dto(dynamic raw);
@@ -133,6 +148,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
 
   @protected
@@ -142,10 +160,19 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   ProviderConfigDto dco_decode_provider_config_dto(dynamic raw);
 
   @protected
+  (BigInt, BigInt, BigInt) dco_decode_record_usize_usize_u_64(dynamic raw);
+
+  @protected
   SearchResultDto dco_decode_search_result_dto(dynamic raw);
 
   @protected
+  SessionEntryDto dco_decode_session_entry_dto(dynamic raw);
+
+  @protected
   SkillManifestDto dco_decode_skill_manifest_dto(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
   @protected
   BigInt dco_decode_u_64(dynamic raw);
@@ -217,7 +244,13 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  CameraAlert sse_decode_camera_alert(SseDeserializer deserializer);
 
   @protected
   EmailAccountDto sse_decode_email_account_dto(SseDeserializer deserializer);
@@ -240,7 +273,13 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  List<CameraAlert> sse_decode_list_camera_alert(SseDeserializer deserializer);
+
+  @protected
   List<MessageDto> sse_decode_list_message_dto(SseDeserializer deserializer);
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -252,6 +291,11 @@ abstract class MobileclawCoreBridgeApiImplPlatform
 
   @protected
   List<SearchResultDto> sse_decode_list_search_result_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SessionEntryDto> sse_decode_list_session_entry_dto(
     SseDeserializer deserializer,
   );
 
@@ -285,6 +329,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
@@ -296,10 +343,21 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  (BigInt, BigInt, BigInt) sse_decode_record_usize_usize_u_64(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SearchResultDto sse_decode_search_result_dto(SseDeserializer deserializer);
 
   @protected
+  SessionEntryDto sse_decode_session_entry_dto(SseDeserializer deserializer);
+
+  @protected
   SkillManifestDto sse_decode_skill_manifest_dto(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_u_64(SseDeserializer deserializer);
@@ -384,7 +442,13 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_camera_alert(CameraAlert self, SseSerializer serializer);
 
   @protected
   void sse_encode_email_account_dto(
@@ -411,10 +475,19 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_camera_alert(
+    List<CameraAlert> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_message_dto(
     List<MessageDto> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -431,6 +504,12 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   @protected
   void sse_encode_list_search_result_dto(
     List<SearchResultDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_session_entry_dto(
+    List<SessionEntryDto> self,
     SseSerializer serializer,
   );
 
@@ -468,6 +547,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
 
   @protected
@@ -483,8 +565,20 @@ abstract class MobileclawCoreBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_record_usize_usize_u_64(
+    (BigInt, BigInt, BigInt) self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_search_result_dto(
     SearchResultDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_session_entry_dto(
+    SessionEntryDto self,
     SseSerializer serializer,
   );
 
@@ -493,6 +587,9 @@ abstract class MobileclawCoreBridgeApiImplPlatform
     SkillManifestDto self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_64(BigInt self, SseSerializer serializer);

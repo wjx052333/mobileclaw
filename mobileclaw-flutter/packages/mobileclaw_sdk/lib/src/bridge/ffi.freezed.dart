@@ -55,7 +55,7 @@ extension AgentEventDtoPatterns on AgentEventDto {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( AgentEventDto_TextDelta value)?  textDelta,TResult Function( AgentEventDto_ToolCall value)?  toolCall,TResult Function( AgentEventDto_ToolResult value)?  toolResult,TResult Function( AgentEventDto_ContextStats value)?  contextStats,TResult Function( AgentEventDto_TurnSummary value)?  turnSummary,TResult Function( AgentEventDto_Done value)?  done,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( AgentEventDto_TextDelta value)?  textDelta,TResult Function( AgentEventDto_ToolCall value)?  toolCall,TResult Function( AgentEventDto_ToolResult value)?  toolResult,TResult Function( AgentEventDto_ContextStats value)?  contextStats,TResult Function( AgentEventDto_TurnSummary value)?  turnSummary,TResult Function( AgentEventDto_CameraAuthRequired value)?  cameraAuthRequired,TResult Function( AgentEventDto_Done value)?  done,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta() when textDelta != null:
@@ -63,7 +63,8 @@ return textDelta(_that);case AgentEventDto_ToolCall() when toolCall != null:
 return toolCall(_that);case AgentEventDto_ToolResult() when toolResult != null:
 return toolResult(_that);case AgentEventDto_ContextStats() when contextStats != null:
 return contextStats(_that);case AgentEventDto_TurnSummary() when turnSummary != null:
-return turnSummary(_that);case AgentEventDto_Done() when done != null:
+return turnSummary(_that);case AgentEventDto_CameraAuthRequired() when cameraAuthRequired != null:
+return cameraAuthRequired(_that);case AgentEventDto_Done() when done != null:
 return done(_that);case _:
   return orElse();
 
@@ -82,7 +83,7 @@ return done(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( AgentEventDto_TextDelta value)  textDelta,required TResult Function( AgentEventDto_ToolCall value)  toolCall,required TResult Function( AgentEventDto_ToolResult value)  toolResult,required TResult Function( AgentEventDto_ContextStats value)  contextStats,required TResult Function( AgentEventDto_TurnSummary value)  turnSummary,required TResult Function( AgentEventDto_Done value)  done,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( AgentEventDto_TextDelta value)  textDelta,required TResult Function( AgentEventDto_ToolCall value)  toolCall,required TResult Function( AgentEventDto_ToolResult value)  toolResult,required TResult Function( AgentEventDto_ContextStats value)  contextStats,required TResult Function( AgentEventDto_TurnSummary value)  turnSummary,required TResult Function( AgentEventDto_CameraAuthRequired value)  cameraAuthRequired,required TResult Function( AgentEventDto_Done value)  done,}){
 final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta():
@@ -90,7 +91,8 @@ return textDelta(_that);case AgentEventDto_ToolCall():
 return toolCall(_that);case AgentEventDto_ToolResult():
 return toolResult(_that);case AgentEventDto_ContextStats():
 return contextStats(_that);case AgentEventDto_TurnSummary():
-return turnSummary(_that);case AgentEventDto_Done():
+return turnSummary(_that);case AgentEventDto_CameraAuthRequired():
+return cameraAuthRequired(_that);case AgentEventDto_Done():
 return done(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
@@ -105,7 +107,7 @@ return done(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( AgentEventDto_TextDelta value)?  textDelta,TResult? Function( AgentEventDto_ToolCall value)?  toolCall,TResult? Function( AgentEventDto_ToolResult value)?  toolResult,TResult? Function( AgentEventDto_ContextStats value)?  contextStats,TResult? Function( AgentEventDto_TurnSummary value)?  turnSummary,TResult? Function( AgentEventDto_Done value)?  done,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( AgentEventDto_TextDelta value)?  textDelta,TResult? Function( AgentEventDto_ToolCall value)?  toolCall,TResult? Function( AgentEventDto_ToolResult value)?  toolResult,TResult? Function( AgentEventDto_ContextStats value)?  contextStats,TResult? Function( AgentEventDto_TurnSummary value)?  turnSummary,TResult? Function( AgentEventDto_CameraAuthRequired value)?  cameraAuthRequired,TResult? Function( AgentEventDto_Done value)?  done,}){
 final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta() when textDelta != null:
@@ -113,7 +115,8 @@ return textDelta(_that);case AgentEventDto_ToolCall() when toolCall != null:
 return toolCall(_that);case AgentEventDto_ToolResult() when toolResult != null:
 return toolResult(_that);case AgentEventDto_ContextStats() when contextStats != null:
 return contextStats(_that);case AgentEventDto_TurnSummary() when turnSummary != null:
-return turnSummary(_that);case AgentEventDto_Done() when done != null:
+return turnSummary(_that);case AgentEventDto_CameraAuthRequired() when cameraAuthRequired != null:
+return cameraAuthRequired(_that);case AgentEventDto_Done() when done != null:
 return done(_that);case _:
   return null;
 
@@ -131,14 +134,15 @@ return done(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String text)?  textDelta,TResult Function( String name)?  toolCall,TResult Function( String name,  bool success)?  toolResult,TResult Function( int tokensBeforeTurn,  int tokensAfterPrune,  int messagesPruned,  int historyLen,  int pruningThreshold)?  contextStats,TResult Function( String summary)?  turnSummary,TResult Function()?  done,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String text)?  textDelta,TResult Function( String name)?  toolCall,TResult Function( String name,  bool success)?  toolResult,TResult Function( BigInt tokensBeforeTurn,  BigInt tokensAfterPrune,  BigInt messagesPruned,  BigInt historyLen,  BigInt pruningThreshold)?  contextStats,TResult Function( String summary)?  turnSummary,TResult Function()?  cameraAuthRequired,TResult Function()?  done,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta() when textDelta != null:
 return textDelta(_that.text);case AgentEventDto_ToolCall() when toolCall != null:
 return toolCall(_that.name);case AgentEventDto_ToolResult() when toolResult != null:
 return toolResult(_that.name,_that.success);case AgentEventDto_ContextStats() when contextStats != null:
 return contextStats(_that.tokensBeforeTurn,_that.tokensAfterPrune,_that.messagesPruned,_that.historyLen,_that.pruningThreshold);case AgentEventDto_TurnSummary() when turnSummary != null:
-return turnSummary(_that.summary);case AgentEventDto_Done() when done != null:
+return turnSummary(_that.summary);case AgentEventDto_CameraAuthRequired() when cameraAuthRequired != null:
+return cameraAuthRequired();case AgentEventDto_Done() when done != null:
 return done();case _:
   return orElse();
 
@@ -157,14 +161,15 @@ return done();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String text)  textDelta,required TResult Function( String name)  toolCall,required TResult Function( String name,  bool success)  toolResult,required TResult Function( int tokensBeforeTurn,  int tokensAfterPrune,  int messagesPruned,  int historyLen,  int pruningThreshold)  contextStats,required TResult Function( String summary)  turnSummary,required TResult Function()  done,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String text)  textDelta,required TResult Function( String name)  toolCall,required TResult Function( String name,  bool success)  toolResult,required TResult Function( BigInt tokensBeforeTurn,  BigInt tokensAfterPrune,  BigInt messagesPruned,  BigInt historyLen,  BigInt pruningThreshold)  contextStats,required TResult Function( String summary)  turnSummary,required TResult Function()  cameraAuthRequired,required TResult Function()  done,}) {final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta():
 return textDelta(_that.text);case AgentEventDto_ToolCall():
 return toolCall(_that.name);case AgentEventDto_ToolResult():
 return toolResult(_that.name,_that.success);case AgentEventDto_ContextStats():
 return contextStats(_that.tokensBeforeTurn,_that.tokensAfterPrune,_that.messagesPruned,_that.historyLen,_that.pruningThreshold);case AgentEventDto_TurnSummary():
-return turnSummary(_that.summary);case AgentEventDto_Done():
+return turnSummary(_that.summary);case AgentEventDto_CameraAuthRequired():
+return cameraAuthRequired();case AgentEventDto_Done():
 return done();}
 }
 /// A variant of `when` that fallback to returning `null`
@@ -179,14 +184,15 @@ return done();}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String text)?  textDelta,TResult? Function( String name)?  toolCall,TResult? Function( String name,  bool success)?  toolResult,TResult? Function( int tokensBeforeTurn,  int tokensAfterPrune,  int messagesPruned,  int historyLen,  int pruningThreshold)?  contextStats,TResult? Function( String summary)?  turnSummary,TResult? Function()?  done,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String text)?  textDelta,TResult? Function( String name)?  toolCall,TResult? Function( String name,  bool success)?  toolResult,TResult? Function( BigInt tokensBeforeTurn,  BigInt tokensAfterPrune,  BigInt messagesPruned,  BigInt historyLen,  BigInt pruningThreshold)?  contextStats,TResult? Function( String summary)?  turnSummary,TResult? Function()?  cameraAuthRequired,TResult? Function()?  done,}) {final _that = this;
 switch (_that) {
 case AgentEventDto_TextDelta() when textDelta != null:
 return textDelta(_that.text);case AgentEventDto_ToolCall() when toolCall != null:
 return toolCall(_that.name);case AgentEventDto_ToolResult() when toolResult != null:
 return toolResult(_that.name,_that.success);case AgentEventDto_ContextStats() when contextStats != null:
 return contextStats(_that.tokensBeforeTurn,_that.tokensAfterPrune,_that.messagesPruned,_that.historyLen,_that.pruningThreshold);case AgentEventDto_TurnSummary() when turnSummary != null:
-return turnSummary(_that.summary);case AgentEventDto_Done() when done != null:
+return turnSummary(_that.summary);case AgentEventDto_CameraAuthRequired() when cameraAuthRequired != null:
+return cameraAuthRequired();case AgentEventDto_Done() when done != null:
 return done();case _:
   return null;
 
@@ -402,11 +408,11 @@ class AgentEventDto_ContextStats extends AgentEventDto {
   const AgentEventDto_ContextStats({required this.tokensBeforeTurn, required this.tokensAfterPrune, required this.messagesPruned, required this.historyLen, required this.pruningThreshold}): super._();
   
 
- final  int tokensBeforeTurn;
- final  int tokensAfterPrune;
- final  int messagesPruned;
- final  int historyLen;
- final  int pruningThreshold;
+ final  BigInt tokensBeforeTurn;
+ final  BigInt tokensAfterPrune;
+ final  BigInt messagesPruned;
+ final  BigInt historyLen;
+ final  BigInt pruningThreshold;
 
 /// Create a copy of AgentEventDto
 /// with the given fields replaced by the non-null parameter values.
@@ -438,7 +444,7 @@ abstract mixin class $AgentEventDto_ContextStatsCopyWith<$Res> implements $Agent
   factory $AgentEventDto_ContextStatsCopyWith(AgentEventDto_ContextStats value, $Res Function(AgentEventDto_ContextStats) _then) = _$AgentEventDto_ContextStatsCopyWithImpl;
 @useResult
 $Res call({
- int tokensBeforeTurn, int tokensAfterPrune, int messagesPruned, int historyLen, int pruningThreshold
+ BigInt tokensBeforeTurn, BigInt tokensAfterPrune, BigInt messagesPruned, BigInt historyLen, BigInt pruningThreshold
 });
 
 
@@ -458,11 +464,11 @@ class _$AgentEventDto_ContextStatsCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') $Res call({Object? tokensBeforeTurn = null,Object? tokensAfterPrune = null,Object? messagesPruned = null,Object? historyLen = null,Object? pruningThreshold = null,}) {
   return _then(AgentEventDto_ContextStats(
 tokensBeforeTurn: null == tokensBeforeTurn ? _self.tokensBeforeTurn : tokensBeforeTurn // ignore: cast_nullable_to_non_nullable
-as int,tokensAfterPrune: null == tokensAfterPrune ? _self.tokensAfterPrune : tokensAfterPrune // ignore: cast_nullable_to_non_nullable
-as int,messagesPruned: null == messagesPruned ? _self.messagesPruned : messagesPruned // ignore: cast_nullable_to_non_nullable
-as int,historyLen: null == historyLen ? _self.historyLen : historyLen // ignore: cast_nullable_to_non_nullable
-as int,pruningThreshold: null == pruningThreshold ? _self.pruningThreshold : pruningThreshold // ignore: cast_nullable_to_non_nullable
-as int,
+as BigInt,tokensAfterPrune: null == tokensAfterPrune ? _self.tokensAfterPrune : tokensAfterPrune // ignore: cast_nullable_to_non_nullable
+as BigInt,messagesPruned: null == messagesPruned ? _self.messagesPruned : messagesPruned // ignore: cast_nullable_to_non_nullable
+as BigInt,historyLen: null == historyLen ? _self.historyLen : historyLen // ignore: cast_nullable_to_non_nullable
+as BigInt,pruningThreshold: null == pruningThreshold ? _self.pruningThreshold : pruningThreshold // ignore: cast_nullable_to_non_nullable
+as BigInt,
   ));
 }
 
@@ -534,6 +540,38 @@ as String,
 
 
 }
+
+/// @nodoc
+
+
+class AgentEventDto_CameraAuthRequired extends AgentEventDto {
+  const AgentEventDto_CameraAuthRequired(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AgentEventDto_CameraAuthRequired);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'AgentEventDto.cameraAuthRequired()';
+}
+
+
+}
+
+
+
 
 /// @nodoc
 

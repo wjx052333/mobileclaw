@@ -77,3 +77,17 @@ final class DoneEvent extends AgentEvent {
   @override
   int get hashCode => 0;
 }
+
+/// Camera access was attempted but not yet authorized by the user.
+///
+/// The app should show a camera permission dialog and, when the user grants
+/// access, call [MobileclawAgent.cameraSetAuthorized(true)].
+final class CameraAuthRequiredEvent extends AgentEvent {
+  const CameraAuthRequiredEvent();
+
+  @override
+  bool operator ==(Object other) => other is CameraAuthRequiredEvent;
+
+  @override
+  int get hashCode => 1;
+}
