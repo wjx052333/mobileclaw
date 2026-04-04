@@ -7,17 +7,20 @@
 /// Run: cargo test -p mobileclaw-integration
 
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_trait::async_trait;
 use futures::stream;
 use mobileclaw_core::agent::loop_impl::{AgentEvent, AgentLoop};
+use mobileclaw_core::ffi::AgentEventDto;
 use mobileclaw_core::llm::client::{EventStream, LlmClient};
 use mobileclaw_core::llm::types::{Message, StreamEvent, ToolSpec};
 use mobileclaw_core::memory::sqlite::SqliteMemory;
 use mobileclaw_core::secrets::store::test_helpers::NullSecretStore;
 use mobileclaw_core::skill::SkillManager;
 use mobileclaw_core::tools::{
-    builtin::register_all_builtins, PermissionChecker, ToolContext, ToolRegistry,
+    builtin::{register_all_builtins, camera::{CameraFrameBuffer, FrameData}},
+    PermissionChecker, ToolContext, ToolRegistry,
 };
 use tempfile::TempDir;
 
@@ -123,10 +126,79 @@ async fn make_agent(
         http_allowlist: vec![],
         permissions: Arc::new(PermissionChecker::allow_all()),
         secrets: Arc::new(NullSecretStore),
+        camera_frame_buffer: None,
+        camera_authorized: Arc::new(AtomicBool::new(false)),
+        vision_supported: false,
     };
     let llm = FaultInjectingLlmClient::new(behaviors, native);
     let agent = AgentLoop::new(llm, registry, ctx, SkillManager::new(vec![]));
     (agent, dir)
+}
+
+/// Build an `AgentLoop` with camera state pre-configured.
+///
+/// Returns `(agent, buf, auth, dir)`. Hold `dir` for the test duration.
+/// If `num_frames > 0`, dummy JPEG frames are pushed into the buffer;
+/// `authorized` sets the initial auth flag independently of the push
+/// (so callers can create an empty-but-authorized or framed-but-unauthorized
+/// context for edge-case tests).
+async fn make_camera_agent(
+    behaviors: Vec<CallBehavior>,
+    native: bool,
+    authorized: bool,
+    num_frames: usize,
+) -> (AgentLoop<FaultInjectingLlmClient>, Arc<CameraFrameBuffer>, Arc<AtomicBool>, TempDir) {
+    let dir = TempDir::new().unwrap();
+    let mem = Arc::new(SqliteMemory::open(dir.path().join("mem.db")).await.unwrap());
+    let mut registry = ToolRegistry::new();
+    register_all_builtins(&mut registry);
+    let buf = Arc::new(CameraFrameBuffer::new(16));
+    let auth = Arc::new(AtomicBool::new(authorized));
+    for i in 0..num_frames {
+        buf.push(FrameData {
+            id: i as u64 + 1,
+            jpeg: vec![0xFF, 0xD8, 0xFF, 0xE0],
+            width: 640,
+            height: 360,
+            timestamp_ms: (i as u64 + 1) * 1000,
+        });
+    }
+    // Pushing frames auto-sets authorized=true inside the real FFI path, but
+    // here we control the AtomicBool directly to allow framed+unauthorized setups.
+    auth.store(authorized, Ordering::Relaxed);
+    let ctx = ToolContext {
+        memory: mem,
+        sandbox_dir: dir.path().to_path_buf(),
+        http_allowlist: vec![],
+        permissions: Arc::new(PermissionChecker::allow_all()),
+        secrets: Arc::new(NullSecretStore),
+        camera_frame_buffer: Some(buf.clone()),
+        camera_authorized: auth.clone(),
+        vision_supported: true,
+    };
+    let llm = FaultInjectingLlmClient::new(behaviors, native);
+    let agent = AgentLoop::new(llm, registry, ctx, SkillManager::new(vec![]));
+    (agent, buf, auth, dir)
+}
+
+/// Simulates the `AgentEvent → AgentEventDto` conversion that happens at the
+/// FFI boundary inside `AgentSession::chat()`. Shared by `dto_conversion`
+/// and `camera_pipeline` modules.
+fn event_to_dto(event: AgentEvent) -> AgentEventDto {
+    match event {
+        AgentEvent::TextDelta { text } => AgentEventDto::TextDelta { text },
+        AgentEvent::ToolCall { name } => AgentEventDto::ToolCall { name },
+        AgentEvent::ToolResult { name, success } => AgentEventDto::ToolResult { name, success },
+        AgentEvent::ContextStats(stats) => AgentEventDto::ContextStats {
+            tokens_before_turn: stats.tokens_before_turn,
+            tokens_after_prune: stats.tokens_after_prune,
+            messages_pruned: stats.messages_pruned,
+            history_len: stats.history_len,
+            pruning_threshold: stats.pruning_threshold,
+        },
+        AgentEvent::Done => AgentEventDto::Done,
+        AgentEvent::CameraAuthRequired => AgentEventDto::CameraAuthRequired,
+    }
 }
 
 /// Extract text fragments from an event list.
@@ -534,6 +606,9 @@ mod event_ordering {
             http_allowlist: vec![],
             permissions: Arc::new(PermissionChecker::allow_all()),
             secrets: Arc::new(NullSecretStore),
+            camera_frame_buffer: None,
+            camera_authorized: Arc::new(AtomicBool::new(false)),
+            vision_supported: false,
         };
         let llm = FaultInjectingLlmClient::text_only("hello");
         let mut agent = AgentLoop::new(llm, ToolRegistry::new(), ctx, SkillManager::new(vec![]))
@@ -567,24 +642,6 @@ mod event_ordering {
 
 mod dto_conversion {
     use super::*;
-    use mobileclaw_core::ffi::AgentEventDto;
-
-    /// Simulates the conversion that happens in ffi.rs AgentSession::chat().
-    fn event_to_dto(event: AgentEvent) -> AgentEventDto {
-        match event {
-            AgentEvent::TextDelta { text } => AgentEventDto::TextDelta { text },
-            AgentEvent::ToolCall { name } => AgentEventDto::ToolCall { name },
-            AgentEvent::ToolResult { name, success } => AgentEventDto::ToolResult { name, success },
-            AgentEvent::ContextStats(stats) => AgentEventDto::ContextStats {
-                tokens_before_turn: stats.tokens_before_turn,
-                tokens_after_prune: stats.tokens_after_prune,
-                messages_pruned: stats.messages_pruned,
-                history_len: stats.history_len,
-                pruning_threshold: stats.pruning_threshold,
-            },
-            AgentEvent::Done => AgentEventDto::Done,
-        }
-    }
 
     #[tokio::test]
     async fn chat_events_convert_to_dto() {
@@ -623,13 +680,14 @@ mod dto_conversion {
 
     #[tokio::test]
     async fn event_list_round_trip_all_variants() {
-        // Create a representative event list with all variants
+        // Create a representative event list with ALL variants, including CameraAuthRequired.
         let events = vec![
             AgentEvent::TextDelta { text: "Hello".into() },
             AgentEvent::ToolCall { name: "test_tool".into() },
             AgentEvent::ToolResult { name: "test_tool".into(), success: true },
             AgentEvent::ToolCall { name: "other_tool".into() },
             AgentEvent::ToolResult { name: "other_tool".into(), success: false },
+            AgentEvent::CameraAuthRequired,
             AgentEvent::ContextStats(mobileclaw_core::agent::loop_impl::ContextStats {
                 tokens_before_turn: 8000,
                 tokens_after_prune: 7500,
@@ -643,7 +701,7 @@ mod dto_conversion {
         // Convert to DTOs
         let dtos: Vec<AgentEventDto> = events.into_iter().map(event_to_dto).collect();
 
-        assert_eq!(dtos.len(), 7);
+        assert_eq!(dtos.len(), 8);
 
         // Verify each variant
         assert!(matches!(&dtos[0], AgentEventDto::TextDelta { text } if text == "Hello"));
@@ -651,8 +709,9 @@ mod dto_conversion {
         assert!(matches!(&dtos[2], AgentEventDto::ToolResult { name, success } if name == "test_tool" && *success));
         assert!(matches!(&dtos[3], AgentEventDto::ToolCall { name } if name == "other_tool"));
         assert!(matches!(&dtos[4], AgentEventDto::ToolResult { name, success } if name == "other_tool" && !success));
-        assert!(matches!(&dtos[5], AgentEventDto::ContextStats { .. }));
-        assert!(matches!(&dtos[6], AgentEventDto::Done));
+        assert!(matches!(&dtos[5], AgentEventDto::CameraAuthRequired));
+        assert!(matches!(&dtos[6], AgentEventDto::ContextStats { .. }));
+        assert!(matches!(&dtos[7], AgentEventDto::Done));
 
         // Verify ContextStats fields survived
         if let AgentEventDto::ContextStats {
@@ -661,14 +720,14 @@ mod dto_conversion {
             messages_pruned,
             history_len,
             pruning_threshold,
-        } = &dtos[5] {
+        } = &dtos[6] {
             assert_eq!(*tokens_before_turn, 8000);
             assert_eq!(*tokens_after_prune, 7500);
             assert_eq!(*messages_pruned, 2);
             assert_eq!(*history_len, 12);
             assert_eq!(*pruning_threshold, 16000);
         } else {
-            panic!("dtos[5] should be ContextStats");
+            panic!("dtos[6] should be ContextStats");
         }
     }
 
@@ -782,5 +841,267 @@ mod stream_resilience {
         // Mock response has no tool calls, so it should be simple: TextDelta + Done
         assert!(events.len() >= 2, "must have at least 2 events");
         assert!(matches!(events.last(), Some(AgentEvent::Done)));
+    }
+}
+
+// ===========================================================================
+// Camera pipeline tests
+//
+// Black-box cross-layer tests for camera-specific behavior as seen by a Flutter
+// consumer: event pipeline, DTO boundary, and fault-injection scenarios that
+// only FaultInjectingLlmClient can model (per-round configurable errors).
+//
+// Complement to mobileclaw-core/tests/integration_camera.rs, which uses
+// MockLlmClient and focuses on feature correctness.  These tests focus on:
+//   - CameraAuthRequired flowing to the DTO boundary intact
+//   - Event ordering guarantees (CameraAuthRequired before Done)
+//   - LLM faults interleaved with camera failures
+//   - Round exhaustion with persistent auth failure
+// ===========================================================================
+
+mod camera_pipeline {
+    use super::*;
+
+    /// Round 0: camera_capture (unauthorized) → CameraAuthRequired + ToolResult(fail)
+    /// Round 1: text-only reply → Done
+    ///
+    /// Verifies the full path from Rust event to AgentEventDto at the FFI boundary.
+    #[tokio::test]
+    async fn unauthorized_capture_emits_camera_auth_required_dto() {
+        let (mut agent, _buf, _auth, _dir) = make_camera_agent(
+            vec![
+                CallBehavior::Events(vec![
+                    StreamEvent::MessageStart,
+                    StreamEvent::ToolUse {
+                        id: "tu_cam".into(),
+                        name: "camera_capture".into(),
+                        input: serde_json::json!({"frames": 1}),
+                    },
+                    StreamEvent::MessageStop,
+                ]),
+                CallBehavior::Events(vec![
+                    StreamEvent::MessageStart,
+                    StreamEvent::TextDelta { text: "I need camera access.".into() },
+                    StreamEvent::MessageStop,
+                ]),
+            ],
+            true,  // native path
+            false, // unauthorized
+            0,     // no pre-pushed frames
+        )
+        .await;
+
+        let events = agent.chat("check camera", "").await.unwrap();
+
+        // Convert to DTOs exactly as AgentSession::chat() does at the FFI boundary
+        let dtos: Vec<AgentEventDto> = events.into_iter().map(event_to_dto).collect();
+
+        assert!(
+            dtos.iter().any(|d| matches!(d, AgentEventDto::CameraAuthRequired)),
+            "CameraAuthRequired DTO must reach the consumer"
+        );
+        assert!(
+            dtos.iter().any(|d| matches!(d, AgentEventDto::ToolResult { name, success }
+                if name == "camera_capture" && !success)),
+            "ToolResult(camera_capture, success=false) DTO must be present"
+        );
+        assert!(
+            matches!(dtos.last(), Some(AgentEventDto::Done)),
+            "Done must be last DTO"
+        );
+    }
+
+    /// CameraAuthRequired must appear before Done in the DTO stream.
+    #[tokio::test]
+    async fn camera_auth_required_before_done_in_dto_stream() {
+        let (mut agent, _buf, _auth, _dir) = make_camera_agent(
+            vec![
+                CallBehavior::Events(vec![
+                    StreamEvent::MessageStart,
+                    StreamEvent::ToolUse {
+                        id: "tu_cam".into(),
+                        name: "camera_capture".into(),
+                        input: serde_json::json!({"frames": 1}),
+                    },
+                    StreamEvent::MessageStop,
+                ]),
+                CallBehavior::Events(vec![
+                    StreamEvent::MessageStart,
+                    StreamEvent::TextDelta { text: "need auth".into() },
+                    StreamEvent::MessageStop,
+                ]),
+            ],
+            true,
+            false,
+            0,
+        )
+        .await;
+
+        let events = agent.chat("show camera", "").await.unwrap();
+        let dtos: Vec<AgentEventDto> = events.into_iter().map(event_to_dto).collect();
+
+        let auth_idx = dtos
+            .iter()
+            .position(|d| matches!(d, AgentEventDto::CameraAuthRequired))
+            .expect("CameraAuthRequired must be present");
+        let done_idx = dtos
+            .iter()
+            .position(|d| matches!(d, AgentEventDto::Done))
+            .expect("Done must be present");
+
+        assert!(
+            auth_idx < done_idx,
+            "CameraAuthRequired (index {auth_idx}) must come before Done (index {done_idx})"
+        );
+    }
+
+    /// Authorized camera capture must NOT emit CameraAuthRequired to the DTO stream.
+    #[tokio::test]
+    async fn authorized_capture_has_no_camera_auth_required_dto() {
+        let (mut agent, _buf, _auth, _dir) = make_camera_agent(
+            vec![
+                CallBehavior::Events(vec![
+                    StreamEvent::MessageStart,
+                    StreamEvent::ToolUse {
+                        id: "tu_cam".into(),
+                        name: "camera_capture".into(),
+                        input: serde_json::json!({"frames": 1}),
+                    },
+                    StreamEvent::MessageStop,
+                ]),
+                CallBehavior::Events(vec![
+                    StreamEvent::MessageStart,
+                    StreamEvent::TextDelta { text: "Captured.".into() },
+                    StreamEvent::MessageStop,
+                ]),
+            ],
+            true,
+            true, // authorized
+            1,    // one pre-pushed frame
+        )
+        .await;
+
+        let events = agent.chat("capture frame", "").await.unwrap();
+        let dtos: Vec<AgentEventDto> = events.into_iter().map(event_to_dto).collect();
+
+        assert!(
+            !dtos.iter().any(|d| matches!(d, AgentEventDto::CameraAuthRequired)),
+            "CameraAuthRequired must NOT appear when capture succeeds"
+        );
+        assert!(
+            dtos.iter().any(|d| matches!(d, AgentEventDto::ToolResult { name, success }
+                if name == "camera_capture" && *success)),
+            "ToolResult(camera_capture, success=true) must be present"
+        );
+    }
+
+    /// Round 0: camera_capture (unauthorized) → CameraAuthRequired emitted, error result
+    /// Round 1: LLM returns an error → agent.chat() propagates Err
+    ///
+    /// Verifies that a LLM fault arriving after a camera auth failure propagates
+    /// correctly (no silent swallowing or panic).
+    #[tokio::test]
+    async fn llm_error_after_camera_auth_failure_propagates() {
+        let (mut agent, _buf, _auth, _dir) = make_camera_agent(
+            vec![
+                CallBehavior::Events(vec![
+                    StreamEvent::MessageStart,
+                    StreamEvent::ToolUse {
+                        id: "tu_cam".into(),
+                        name: "camera_capture".into(),
+                        input: serde_json::json!({"frames": 1}),
+                    },
+                    StreamEvent::MessageStop,
+                ]),
+                CallBehavior::Error("network timeout after camera failure".into()),
+            ],
+            true,
+            false, // unauthorized → round 0 fails
+            0,
+        )
+        .await;
+
+        let result = agent.chat("capture", "").await;
+        assert!(
+            result.is_err(),
+            "LLM error on round 1 must propagate to the caller"
+        );
+        assert!(
+            result.unwrap_err().to_string().contains("network timeout"),
+            "error message must contain original LLM error"
+        );
+    }
+
+    /// Every LLM round returns camera_capture; camera is never authorized.
+    /// The loop exhausts MAX_TOOL_ROUNDS (10) and then emits Done.
+    ///
+    /// Verifies that persistent camera auth failure does not hang or panic,
+    /// and that Done always fires as the final consumer-visible event.
+    #[tokio::test]
+    async fn camera_auth_failure_round_exhaustion_still_emits_done() {
+        let (mut agent, _buf, _auth, _dir) = make_camera_agent(
+            vec![CallBehavior::Events(vec![
+                StreamEvent::MessageStart,
+                StreamEvent::ToolUse {
+                    id: "tu_cam".into(),
+                    name: "camera_capture".into(),
+                    input: serde_json::json!({"frames": 1}),
+                },
+                StreamEvent::MessageStop,
+            ])],
+            true,
+            false, // always unauthorized
+            0,
+        )
+        .await;
+
+        let events = agent.chat("capture", "").await.unwrap();
+
+        assert!(
+            matches!(events.last(), Some(AgentEvent::Done)),
+            "Done must be last even after round exhaustion, got: {:?}",
+            events.last()
+        );
+
+        let auth_required_count = events
+            .iter()
+            .filter(|e| matches!(e, AgentEvent::CameraAuthRequired))
+            .count();
+        assert!(
+            auth_required_count >= 1,
+            "CameraAuthRequired must appear at least once across all rounds, got 0"
+        );
+
+        // All camera_capture results must be failures
+        let all_camera_results_failed = events.iter().all(|e| {
+            if let AgentEvent::ToolResult { name, success } = e {
+                name != "camera_capture" || !success
+            } else {
+                true
+            }
+        });
+        assert!(all_camera_results_failed, "every camera_capture result must be success=false");
+    }
+
+    /// Static DTO conversion: CameraAuthRequired survives a mixed event list with
+    /// the same count and position as inserted.
+    #[test]
+    fn camera_auth_required_survives_mixed_event_list_conversion() {
+        let events = vec![
+            AgentEvent::ToolCall { name: "camera_capture".into() },
+            AgentEvent::CameraAuthRequired,
+            AgentEvent::ToolResult { name: "camera_capture".into(), success: false },
+            AgentEvent::TextDelta { text: "Please grant access.".into() },
+            AgentEvent::Done,
+        ];
+
+        let dtos: Vec<AgentEventDto> = events.into_iter().map(event_to_dto).collect();
+
+        assert_eq!(dtos.len(), 5);
+        assert!(matches!(&dtos[0], AgentEventDto::ToolCall { name } if name == "camera_capture"));
+        assert!(matches!(&dtos[1], AgentEventDto::CameraAuthRequired));
+        assert!(matches!(&dtos[2], AgentEventDto::ToolResult { name, success } if name == "camera_capture" && !success));
+        assert!(matches!(&dtos[3], AgentEventDto::TextDelta { text } if text == "Please grant access."));
+        assert!(matches!(&dtos[4], AgentEventDto::Done));
     }
 }
