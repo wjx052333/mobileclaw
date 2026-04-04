@@ -76,6 +76,18 @@ impl<T> RingBuffer<T> {
         let buf = self.buffer.lock().expect("ring buffer poisoned");
         buf.is_empty()
     }
+
+    /// Return the current number of frames in the buffer.
+    /// Phase 2: this is the "slot occupancy" count reported via `camera_get_mmap_info`.
+    pub fn occupancy(&self) -> usize {
+        let buf = self.buffer.lock().expect("ring buffer poisoned");
+        buf.len()
+    }
+
+    /// Return the fixed capacity of the ring buffer.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
 }
 
 /// Trait for items that can report their timestamp.

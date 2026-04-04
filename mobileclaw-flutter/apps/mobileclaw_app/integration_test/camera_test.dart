@@ -359,4 +359,148 @@ void main() {
       },
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // Group H: mmap zero-copy frame path
+  //
+  // Verifies the zero-copy contract across the full Dart → FFI → Rust path:
+  //   cameraPushFrame() (Dart) → cameraGetMmapInfo() must return
+  //   (occupancy, capacity, latestTimestampMs) where occupancy == frames pushed.
+  //
+  // Phase 2 contract: occupancy reflects the actual ring-buffer slot count.
+  // Phase 1 status: cameraGetMmapInfo() returned hardcoded (0, 16, 0); now fixed.
+  //
+  // All tests inject frames via cameraPushFrame() — the same entry-point
+  // Flutter's CameraService will use in production.
+  // ---------------------------------------------------------------------------
+
+  group('mmap zero-copy frame path', () {
+    testWidgets(
+      'h1: single frame push via Dart FFI reflects in cameraGetMmapInfo occupancy',
+      (tester) async {
+        // Before any push: occupancy must be 0
+        final (occBefore, cap, tsBefore) = await agent.cameraGetMmapInfo();
+        expect(occBefore, 0, reason: 'occupancy must be 0 before any push');
+        expect(cap, 16, reason: 'capacity must match camera_ring_buffer_capacity=16');
+        expect(tsBefore, 0, reason: 'latestTs must be 0 before any push');
+
+        // Push one synthetic JPEG frame from Dart
+        const jpegHeader = <int>[0xFF, 0xD8, 0xFF, 0xE0];
+        final pushed = await agent.cameraPushFrame(
+          jpeg: jpegHeader,
+          frameId: 1,
+          timestampMs: 42000,
+          width: 640,
+          height: 360,
+        );
+        expect(pushed, isTrue, reason: 'cameraPushFrame must return true');
+
+        final (occAfter, _, tsAfter) = await agent.cameraGetMmapInfo();
+        expect(
+          occAfter, 1,
+          reason: 'occupancy must be 1 after one Dart-injected frame push '
+              '(zero-copy slot count); fails if Rust still returns hardcoded 0',
+        );
+        expect(tsAfter, 42000,
+            reason: 'latestTs must reflect the pushed frame timestamp');
+        expect(await agent.cameraIsAuthorized(), isTrue,
+            reason: 'cameraPushFrame must auto-authorize');
+      },
+    );
+
+    testWidgets(
+      'h2: Dart-injected frame count tracks cameraGetMmapInfo occupancy per push',
+      (tester) async {
+        for (var i = 1; i <= 8; i++) {
+          await agent.cameraPushFrame(
+            jpeg: [i],
+            frameId: i,
+            timestampMs: i * 1000,
+            width: 320,
+            height: 240,
+          );
+          final (occ, capLoop, ts) = await agent.cameraGetMmapInfo();
+          expect(
+            occ, i,
+            reason: 'After $i Dart pushes, occupancy must equal $i; '
+                'fails if Rust still returns hardcoded 0',
+          );
+          expect(capLoop, 16, reason: 'capacity must remain 16');
+          expect(ts, i * 1000, reason: 'latestTs must track most-recent Dart push');
+        }
+      },
+    );
+
+    testWidgets(
+      'h3: occupancy capped at capacity when Dart injects more frames than capacity',
+      (tester) async {
+        // Push 20 frames into capacity-16 buffer from Dart
+        for (var i = 1; i <= 20; i++) {
+          await agent.cameraPushFrame(
+            jpeg: [i],
+            frameId: i,
+            timestampMs: i * 500,
+            width: 640,
+            height: 480,
+          );
+        }
+
+        final (occ, cap, ts) = await agent.cameraGetMmapInfo();
+        expect(cap, 16, reason: 'capacity must be 16');
+        expect(
+          occ, 16,
+          reason: 'occupancy must be capped at capacity (16) after Dart overflow; '
+              'frames 1-4 should have been evicted',
+        );
+        expect(ts, 20 * 500,
+            reason: 'latestTs must reflect the last Dart-pushed frame (ts=10000)');
+      },
+    );
+
+    testWidgets(
+      'h4: frame timestamp injected from Dart survives zero-copy into cameraGetMmapInfo',
+      (tester) async {
+        // Inject a frame with a distinctive timestamp from Dart
+        await agent.cameraPushFrame(
+          jpeg: const [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE],
+          frameId: 99,
+          timestampMs: 77777,
+          width: 1920,
+          height: 1080,
+        );
+
+        final (_, cap2, ts) = await agent.cameraGetMmapInfo();
+        expect(ts, 77777,
+            reason: 'timestamp must survive the Dart → FFI → Rust zero-copy path unchanged');
+        expect(await agent.cameraIsAuthorized(), isTrue,
+            reason: 'cameraPushFrame must auto-authorize');
+      },
+    );
+
+    testWidgets(
+      'h5: sequential Dart pushes produce correct occupancy and latest timestamp',
+      (tester) async {
+        const frameCount = 5;
+        for (var i = 1; i <= frameCount; i++) {
+          await agent.cameraPushFrame(
+            jpeg: [i],
+            frameId: i,
+            timestampMs: i * 100,
+            width: 640,
+            height: 360,
+          );
+        }
+
+        final (occ, cap, ts) = await agent.cameraGetMmapInfo();
+        expect(cap, 16, reason: 'capacity must be 16');
+        expect(ts, frameCount * 100,
+            reason: 'latestTs must reflect the last Dart-injected frame timestamp');
+        expect(
+          occ, frameCount,
+          reason: 'occupancy must be $frameCount after $frameCount Dart pushes '
+              '(zero-copy slot count)',
+        );
+      },
+    );
+  });
 }

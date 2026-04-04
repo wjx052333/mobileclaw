@@ -149,10 +149,15 @@ class MockMobileclawAgent implements MobileclawAgent {
   }
 
   // ---------------------------------------------------------------------------
-  // Camera API — stubs (no real camera hardware in mock)
+  // Camera API — in-memory ring buffer (mirrors Rust RingBuffer behaviour)
   // ---------------------------------------------------------------------------
 
+  static const _kCameraCapacity = 16;
+
   bool _cameraAuthorized = false;
+  // Ring buffer: stores (frameId, timestampMs) tuples in insertion order.
+  // Oldest entries are evicted when capacity is exceeded, matching Rust RingBuffer.
+  final _cameraRing = <(int, int)>[];  // (frameId, timestampMs)
 
   @override
   void cameraSetAuthorized(bool authorized) {
@@ -170,6 +175,10 @@ class MockMobileclawAgent implements MobileclawAgent {
     required int width,
     required int height,
   }) async {
+    if (_cameraRing.length >= _kCameraCapacity) {
+      _cameraRing.removeAt(0);
+    }
+    _cameraRing.add((frameId, timestampMs));
     _cameraAuthorized = true;
     return true;
   }
@@ -188,7 +197,11 @@ class MockMobileclawAgent implements MobileclawAgent {
   Future<bool> cameraStopMonitor(String monitorId) async => false;
 
   @override
-  Future<(int, int, int)> cameraGetMmapInfo() async => (0, 16, 0);
+  Future<(int, int, int)> cameraGetMmapInfo() async {
+    final occupancy = _cameraRing.length;
+    final latestTs = _cameraRing.isEmpty ? 0 : _cameraRing.last.$2;
+    return (occupancy, _kCameraCapacity, latestTs);
+  }
 
   static Future<ProbeResultDto> probe({
     required ProviderConfigDto config,

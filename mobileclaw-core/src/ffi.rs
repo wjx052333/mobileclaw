@@ -779,10 +779,10 @@ impl AgentSession {
     /// Phase 1 (VecDeque-backed): returns (len, capacity, latest_frame_id_or_0).
     /// Phase 2 (mmap-backed): returns (slot_count, capacity, offset_of_latest).
     pub fn camera_get_mmap_info(&self) -> (usize, usize, u64) {
-        // Phase 1 (VecDeque-backed): returns (0, capacity, latest_timestamp_ms).
-        // Phase 2 (mmap-backed): returns (slot_count, capacity, offset_of_latest).
+        let occupancy = self.camera_buffer.occupancy();
+        let capacity = self.camera_buffer.capacity();
         let latest = self.camera_buffer.latest_timestamp_ms().unwrap_or(0);
-        (0, 16, latest)
+        (occupancy, capacity, latest)
     }
 
     /// Phase 2 scaffold: start a background camera monitor.
